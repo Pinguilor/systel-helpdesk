@@ -201,8 +201,8 @@ export default function TopNav({ userFullName, userRole }: TopNavProps) {
                                 <Image
                                     src="/looplogo.png"
                                     alt="Logo Loop"
-                                    width={1140}
-                                    height={46}
+                                    width={150}
+                                    height={50}
                                     className="w-auto max-w-[140px] sm:max-w-[180px] h-10 sm:h-12 object-contain drop-shadow-sm"
                                     priority
                                 />
