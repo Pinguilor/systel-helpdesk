@@ -152,7 +152,8 @@ export default function TicketList({ limit }: { limit?: number }) {
                 </div>
             </div>
 
-            <div className="overflow-x-auto">
+            {/* VISTA DE ESCRITORIO (Tabla clásica) */}
+            <div className="hidden md:block overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50/50">
                         <tr>
@@ -230,6 +231,63 @@ export default function TicketList({ limit }: { limit?: number }) {
                         )}
                     </tbody>
                 </table>
+            </div>
+
+            {/* VISTA MÓVIL (Tarjetas apilables sin scroll horizontal) */}
+            <div className="md:hidden flex flex-col divide-y divide-gray-100 border-t border-gray-100">
+                {paginatedTickets.length === 0 ? (
+                    <div className="px-6 py-12 text-center text-gray-500">
+                        <div className="flex flex-col items-center justify-center">
+                            <MessageSquare className="w-12 h-12 text-gray-300 mb-3" />
+                            <p className="text-gray-500">No hay tickets en esta vista.</p>
+                        </div>
+                    </div>
+                ) : (
+                    paginatedTickets.map((ticket) => (
+                        <div
+                            key={ticket.id}
+                            onClick={() => router.push(`/dashboard/ticket/${ticket.id}`)}
+                            className="p-4 hover:bg-slate-50 active:bg-slate-100 transition-colors cursor-pointer flex flex-col gap-3"
+                        >
+                            {/* Fila 1: ID, Fecha y Prioridad */}
+                            <div className="flex justify-between items-center">
+                                <div className="flex items-center gap-2">
+                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-slate-700 text-white text-xs font-bold tracking-wide">
+                                        NC-{ticket.numero_ticket}
+                                    </span>
+                                    <span className="text-xs text-slate-500 font-medium">
+                                        {new Date(ticket.fecha_creacion).toLocaleDateString()}
+                                    </span>
+                                </div>
+                                {getPriorityBadge(ticket.prioridad)}
+                            </div>
+
+                            {/* Fila 2: Título */}
+                            <div className="font-bold text-slate-900 leading-tight">
+                                {ticket.titulo}
+                            </div>
+
+                            {/* Fila 3: Ubicación y Estado */}
+                            <div className="flex justify-between items-end gap-2">
+                                <div className="flex flex-col gap-1 text-xs text-slate-500 overflow-hidden pr-2">
+                                    {ticket.restaurantes?.nombre_restaurante && (
+                                        <span className="font-medium text-slate-600 flex items-center gap-1 truncate">
+                                            📍 {ticket.restaurantes.nombre_restaurante}
+                                        </span>
+                                    )}
+                                    {ticket.catalogo_servicios && (
+                                        <span className="truncate text-slate-700">
+                                            {ticket.catalogo_servicios.categoria} &rsaquo; <span className="font-semibold">{ticket.catalogo_servicios.elemento}</span>
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="flex-shrink-0">
+                                    {getStatusBadge(ticket.estado)}
+                                </div>
+                            </div>
+                        </div>
+                    ))
+                )}
             </div>
 
             {/* Pagination Controls / View All Switch */}

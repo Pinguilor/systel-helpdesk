@@ -278,7 +278,10 @@ export default function TopNav({ userFullName, userRole }: TopNavProps) {
 
                             <Link
                                 href="/dashboard/analiticas"
-                                className={`hidden sm:flex p-2 rounded-full transition-colors items-center justify-center cursor-pointer ml-1 ...`}
+                                className={`hidden sm:flex p-2 rounded-full transition-colors flex items-center justify-center cursor-pointer ml-1 ${pathname === '/dashboard/analiticas'
+                                    ? 'bg-white/20 text-white shadow-inner'
+                                    : 'text-white/90 hover:text-white hover:bg-white/10'
+                                    }`}
                                 title="Analíticas"
                             >
                                 <PieChart className="w-5 h-5" />
@@ -286,7 +289,10 @@ export default function TopNav({ userFullName, userRole }: TopNavProps) {
 
                             <Link
                                 href={dashboardLink}
-                                className={`hidden sm:flex p-2 rounded-full transition-colors items-center justify-center cursor-pointer ml-1 ...`}
+                                className={`hidden sm:flex p-2 rounded-full transition-colors flex items-center justify-center cursor-pointer ml-1 ${pathname === dashboardLink || pathname?.startsWith('/dashboard/ticket/')
+                                    ? 'bg-white/20 text-white shadow-inner'
+                                    : 'text-white/90 hover:text-white hover:bg-white/10'
+                                    }`}
                                 title="Panel de Control"
                             >
                                 <LayoutDashboard className="w-5 h-5" />
