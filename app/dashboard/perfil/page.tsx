@@ -46,7 +46,7 @@ export default async function PerfilDashboard() {
                         <div className="mt-2 flex items-center gap-2">
                             <span className="px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 text-xs font-bold uppercase tracking-wider border border-indigo-100 flex items-center gap-1">
                                 <Shield className="w-3 h-3" />
-                                {profile.role}
+                                {profile.rol}
                             </span>
                         </div>
                     </div>

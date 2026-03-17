@@ -9,7 +9,7 @@ import Link from 'next/link';
 import { searchTicketByNumberAction, markNotificationReadAction } from '../actions';
 import { Notification } from '@/types/database.types';
 import debounce from 'lodash.debounce';
-import { TicketForm } from '../solicitante/components/TicketForm';
+import { TicketForm } from '../usuario/components/TicketForm';
 
 interface TopNavProps {
     userFullName: string | null;
@@ -170,7 +170,7 @@ export default function TopNav({ userFullName, userRole }: TopNavProps) {
         };
     }, []);
 
-    const dashboardLink = userRole === 'AGENTE' ? '/dashboard/agente' : '/dashboard/solicitante';
+    const dashboardLink = userRole === 'tecnico' ? '/dashboard/tecnico' : userRole === 'ADMIN' ? '/dashboard/admin' : '/dashboard/usuario';
     const displayInitial = userFullName ? userFullName.charAt(0).toUpperCase() : <User className="w-4 h-4" />;
 
     return (
@@ -179,8 +179,8 @@ export default function TopNav({ userFullName, userRole }: TopNavProps) {
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
                 <div className="flex justify-between items-center h-16">
 
-                    {/* IZQUIERDA: Logo (Oculto en móvil si es agente) */}
-                    <div className={`flex items-center flex-shrink-0 ${userRole === 'AGENTE' ? 'hidden md:flex' : 'flex'}`}>
+                    {/* IZQUIERDA: Logo (Oculto en móvil si es tecnico) */}
+                    <div className={`flex items-center flex-shrink-0 ${userRole === 'tecnico' ? 'hidden md:flex' : 'flex'}`}>
                         <Link href={dashboardLink} className="flex items-center group">
                             <div className="group-hover:scale-105 transition-all duration-300">
                                 <Image
@@ -195,8 +195,8 @@ export default function TopNav({ userFullName, userRole }: TopNavProps) {
                         </Link>
                     </div>
 
-                    {/* LOGO CENTRADO ABSOLUTO: La magia para el Agente en Móvil */}
-                    {userRole === 'AGENTE' && (
+                    {/* LOGO CENTRADO ABSOLUTO: La magia para el tecnico en Móvil */}
+                    {userRole === 'tecnico' && (
                         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 md:hidden pointer-events-auto">
                             <Link href={dashboardLink} className="flex items-center">
                                 <Image
@@ -211,7 +211,7 @@ export default function TopNav({ userFullName, userRole }: TopNavProps) {
                         </div>
                     )}
 
-                    {/* CENTRO: Búsqueda (PC) o Botón Crear (Móvil Solicitante) */}
+                    {/* CENTRO: Búsqueda (PC) o Botón Crear (Móvil usuario) */}
                     <div className="flex-1 flex justify-center items-center px-4">
 
                         {/* BARRA DE BÚSQUEDA: Visible solo en PC (md:block) */}
@@ -258,8 +258,8 @@ export default function TopNav({ userFullName, userRole }: TopNavProps) {
                             )}
                         </div>
 
-                        {/* BOTÓN CREAR MÓVIL: Visible solo en móviles (md:hidden) y si es Solicitante */}
-                        {userRole === 'SOLICITANTE' && (
+                        {/* BOTÓN CREAR MÓVIL: Visible solo en móviles (md:hidden) y si es usuario */}
+                        {userRole === 'usuario' && (
                             <button
                                 onClick={() => setIsTicketModalOpen(true)}
                                 className="md:hidden w-full max-w-[200px] bg-white text-brand-primary hover:bg-slate-50 font-black py-2 px-3 rounded-xl shadow-md transition-all flex items-center justify-center gap-1 active:scale-95 mx-2"
@@ -273,8 +273,8 @@ export default function TopNav({ userFullName, userRole }: TopNavProps) {
                     {/* DERECHA: Acciones y Perfil */}
                     <div className="flex items-center gap-1 sm:gap-4 flex-shrink-0">
 
-                        {/* BOTÓN CREAR PC: Visible solo en PC y si es Solicitante */}
-                        {userRole === 'SOLICITANTE' && (
+                        {/* BOTÓN CREAR PC: Visible solo en PC y si es usuario */}
+                        {userRole === 'usuario' && (
                             <button
                                 onClick={() => setIsTicketModalOpen(true)}
                                 className="hidden md:flex bg-white text-brand-primary hover:bg-slate-50 font-bold py-2 px-4 rounded-lg shadow-sm transition-all items-center gap-2 mr-2"
@@ -361,7 +361,7 @@ export default function TopNav({ userFullName, userRole }: TopNavProps) {
                                 className="flex items-center gap-2 focus:outline-none rounded-full hover:bg-white/10 p-1 transition-all"
                             >
                                 <span className="hidden sm:block text-sm font-bold text-white max-w-[120px] truncate">
-                                    {userFullName || 'Usuario'}
+                                    {userFullName || 'usuario'}
                                 </span>
                                 <div className="h-8 w-8 rounded-full bg-white/20 text-white flex items-center justify-center font-bold text-sm ring-1 ring-white/30">
                                     {displayInitial}

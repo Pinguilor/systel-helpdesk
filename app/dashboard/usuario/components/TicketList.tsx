@@ -317,7 +317,7 @@ export default function TicketList({ limit }: { limit?: number }) {
 
             {limit && tickets.length > limit && !searchTerm && (
                 <div className="p-4 border-t border-gray-100 bg-gray-50/50 text-center">
-                    <button onClick={() => router.push('/dashboard/solicitante/tickets')} className="text-sm font-semibold text-indigo-600 hover:text-indigo-700 transition-colors">
+                    <button onClick={() => router.push('/dashboard/usuario/tickets')} className="text-sm font-semibold text-indigo-600 hover:text-indigo-700 transition-colors">
                         Ver todos los tickets &rarr;
                     </button>
                 </div>

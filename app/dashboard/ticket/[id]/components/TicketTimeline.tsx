@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { addTicketMessageAction, approveResolutionAction, rejectResolutionAction, scheduleVisitAction } from '../actions';
 import { User as UserIcon, Paperclip, FileText, Image as ImageIcon, FileSpreadsheet, File, CheckCircle2, XCircle, Star, ChevronDown, MessageSquare, ChevronsRight, Calendar } from 'lucide-react';
 import dynamic from 'next/dynamic';
+import { SmartCloseModal } from './SmartCloseModal';
 import 'react-quill-new/dist/quill.snow.css';
 
 const ReactQuill = dynamic(() => import('react-quill-new'), {
@@ -28,9 +29,10 @@ interface Props {
     messages: any[];
     currentUserId: string;
     isAgent?: boolean;
+    packingList?: any[];
 }
 
-export default function TicketTimeline({ ticket, messages, currentUserId, isAgent }: Props) {
+export default function TicketTimeline({ ticket, messages, currentUserId, isAgent, packingList = [] }: Props) {
     const router = useRouter();
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const [newMessage, setNewMessage] = useState('');
@@ -40,6 +42,10 @@ export default function TicketTimeline({ ticket, messages, currentUserId, isAgen
     const [showVisitPopover, setShowVisitPopover] = useState(false);
     const [visitDate, setVisitDate] = useState('');
     const [copied, setCopied] = useState(false);
+    
+    // Smart Close logic
+    const [showSmartClose, setShowSmartClose] = useState(false);
+
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const [showRejectModal, setShowRejectModal] = useState(false);
@@ -285,8 +291,16 @@ export default function TicketTimeline({ ticket, messages, currentUserId, isAgen
                                                     <>
                                                         <div className="fixed inset-0 z-30" onClick={() => setIsSplitOpen(false)}></div>
                                                         <div className="absolute right-0 bottom-full mb-2 w-64 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden py-1 z-40">
-                                                            <button type="button" onClick={(e) => handleSendMessage(e, true)} className="w-full text-left px-4 py-3 text-sm font-bold text-emerald-700 hover:bg-emerald-50 flex items-center gap-2 transition-colors border-b border-gray-100">
-                                                                <CheckCircle2 className="w-5 h-5" /> Responder y solucionar
+                                                            <button 
+                                                                type="button" 
+                                                                onClick={(e) => {
+                                                                    e.preventDefault();
+                                                                    setIsSplitOpen(false);
+                                                                    setShowSmartClose(true);
+                                                                }} 
+                                                                className="w-full text-left px-4 py-3 text-sm font-bold text-emerald-700 hover:bg-emerald-50 flex items-center gap-2 transition-colors border-b border-gray-100"
+                                                            >
+                                                                <CheckCircle2 className="w-5 h-5" /> Cierre Inteligente
                                                             </button>
                                                             <button type="button" onClick={() => { setIsSplitOpen(false); setShowVisitPopover(true); }} className="w-full text-left px-4 py-3 text-sm font-bold text-sky-700 hover:bg-sky-50 flex items-center gap-2 transition-colors">
                                                                 <Calendar className="w-5 h-5" /> Responder y Programar Visita
@@ -329,7 +343,7 @@ export default function TicketTimeline({ ticket, messages, currentUserId, isAgen
                             let commentCounter = 0;
                             return messages.map((msg) => {
                                 const isMe = msg.sender_id === currentUserId;
-                                const isAgentMsg = msg.profiles?.role === 'AGENTE';
+                                const isAgentMsg = msg.profiles?.rol === 'TECNICO';
 
                                 if (msg.tipo_evento === 'visita_programada') {
                                     let cleanMessage = msg.mensaje || '';
@@ -475,6 +489,14 @@ export default function TicketTimeline({ ticket, messages, currentUserId, isAgen
                         </div>
                     </div>
                 </div>
+            )}
+
+            {showSmartClose && (
+                <SmartCloseModal 
+                    ticketId={ticket.id} 
+                    onClose={() => setShowSmartClose(false)} 
+                    packingList={packingList} 
+                />
             )}
         </div>
     );

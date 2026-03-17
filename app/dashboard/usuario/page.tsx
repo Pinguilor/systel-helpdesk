@@ -7,7 +7,7 @@ import Link from 'next/link';
 // We need an intermediate client component to handle the Modal state for the New Ticket Form
 import TicketDashboardLayout from './components/TicketDashboardLayout';
 
-export default async function SolicitanteDashboard() {
+export default async function usuarioDashboard() {
     const supabase = await createClient();
 
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -17,10 +17,10 @@ export default async function SolicitanteDashboard() {
     }
 
     // Role verification against the database to prevent cross-dashboard access
-    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
+    const { data: profile } = await supabase.from('profiles').select('rol').eq('id', user.id).maybeSingle();
 
-    if (profile?.role === 'AGENTE') {
-        redirect('/dashboard/agente');
+    if (profile?.rol?.toUpperCase() === 'tecnico') {
+        redirect('/dashboard/tecnico');
     }
 
     // Fetch all tickets for the analtyics

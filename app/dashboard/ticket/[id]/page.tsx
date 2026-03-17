@@ -19,8 +19,9 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
     const ticketId = unwrappedParams.id;
 
     // Get User Role to handle permissions
-    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
-    const isAgent = profile?.role === 'AGENTE';
+    const { data: profile } = await supabase.from('profiles').select('rol').eq('id', user.id).maybeSingle();
+    const isAgent = profile?.rol?.toUpperCase() === 'TECNICO';
+    const isAdmin = profile?.rol?.toUpperCase() === 'ADMIN' || profile?.rol?.toUpperCase() === 'COORDINADOR';
 
     // Fetch the Ticket
     // We get the ticket itself, the requester's profile, and all messages with their respective sender profiles
@@ -39,7 +40,7 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
                 sender_id,
                 adjuntos,
                 es_sistema,
-                profiles:sender_id (full_name, role)
+                profiles:sender_id (full_name, rol)
             )
         `)
         .eq('id', ticketId)
@@ -68,15 +69,52 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
     }
 
     // Strict Security Check for Solicitante
-    if (!isAgent && ticket.creado_por !== user.id) {
+    if (!isAgent && !isAdmin && ticket.creado_por !== user.id) {
         // A requester is trying to view a ticket they didn't create
-        redirect('/dashboard/solicitante');
+        redirect('/dashboard/usuario');
+    }
+
+    let agents: any[] = [];
+    let inventarioCentral: any[] = [];
+
+    if (isAdmin) {
+        const { data: agentsData } = await supabase.from('profiles').select('id, full_name').eq('rol', 'tecnico');
+        if (agentsData) agents = agentsData;
+
+        const { data: invData, error: invError } = await supabase
+            .from('inventario')
+            .select('*, catalogo_equipos(*), bodegas(*)');
+            
+        if (invError) {
+            console.error('--------------------------------');
+            console.error('ERROR AL OBTENER INVENTARIO CENTRAL:', invError);
+            console.error('--------------------------------');
+        }
+            
+        if (invData) {
+            inventarioCentral = invData.filter(item => item.bodegas?.tipo?.toLowerCase() === 'central');
+        }
     }
 
     // Sort messages chronologically (Supabase returns them usually unordered or by id if not specified)
     const sortedMessages = (ticket.ticket_messages || []).sort((a: any, b: any) =>
         new Date(a.creado_en).getTime() - new Date(b.creado_en).getTime()
     );
+
+    // Fetch packing list (movimientos de inventario para este ticket)
+    const { data: packingListRaw } = await supabase
+        .from('movimientos_inventario')
+        .select(`
+            *,
+            inventario (
+                *,
+                catalogo_equipos(*)
+            )
+        `)
+        .eq('ticket_id', ticketId)
+        .order('fecha_movimiento', { ascending: false });
+    
+    const packingList = packingListRaw || [];
 
     return (
         <div className="py-6 w-full">
@@ -92,6 +130,7 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
                             messages={sortedMessages}
                             currentUserId={user.id}
                             isAgent={isAgent}
+                            packingList={packingList}
                         />
                     </div>
 
@@ -100,6 +139,10 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
                         <TicketSidebar
                             ticket={ticket}
                             isAgent={isAgent}
+                            isAdmin={isAdmin}
+                            agents={agents}
+                            inventarioCentral={inventarioCentral}
+                            packingList={packingList}
                         />
                     </div>
 

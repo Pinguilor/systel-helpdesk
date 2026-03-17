@@ -21,43 +21,70 @@ export async function middleware(request: NextRequest) {
     }
 
     if (user) {
-        // Query the database directly for the real role
+        // Query the database directly for the real rol
         const { data: profile, error: dbError } = await supabase
             .from('profiles')
-            .select('role')
+            .select('rol')
             .eq('id', user.id)
             .maybeSingle()
 
         // Fallback to metadata if profile is not found for some reason, 
         // but prefer database source of truth.
-        const role = profile?.role || user.user_metadata?.role
+        const rawRol = profile?.rol || user.user_metadata?.rol;
+        const rol = typeof rawRol === 'string' ? rawRol.toLowerCase() : '';
 
         console.log('-----------------------------------');
         console.log('MID-WARE ERROR DB:', dbError?.message);
-        console.log('MID-WARE ROL EN BD:', profile?.role);
-        console.log('MID-WARE ROL EN METADATA:', user.user_metadata?.role);
-        console.log('MID-WARE ROL DECIDIDO:', role);
+        console.log('MID-WARE ROL EN BD:', profile?.rol);
+        console.log('MID-WARE ROL EN METADATA:', user.user_metadata?.rol);
+        console.log('MID-WARE ROL DECIDIDO:', rol);
         console.log('MID-WARE URL INTENTO:', url.pathname);
         console.log('-----------------------------------');
 
-        if (url.pathname === '/login' || url.pathname === '/') {
-            url.pathname = role === 'AGENTE' ? '/dashboard/agente' : '/dashboard/solicitante'
+        if (url.pathname === '/login' || url.pathname === '/' || url.pathname === '/dashboard') {
+            if (rol === 'tecnico') url.pathname = '/dashboard/tecnico'
+            else if (rol === 'admin' || rol === 'coordinador') url.pathname = '/dashboard/admin'
+            else if (rol === 'admin_bodega') url.pathname = '/dashboard/admin/bodegas'
+            else url.pathname = '/dashboard/usuario'
             return redirect(url)
         }
 
-        // Shared route bypass: Both Roles can access generic /dashboard/ticket/[id]
+        // Shared route bypass: All Roles can access generic /dashboard/ticket/[id]
         if (url.pathname.startsWith('/dashboard/ticket/')) {
             return supabaseResponse;
         }
 
-        if (url.pathname.startsWith('/dashboard/agente') && role !== 'AGENTE') {
-            url.pathname = '/dashboard/solicitante'
-            return redirect(url)
-        }
-
-        if (url.pathname.startsWith('/dashboard/solicitante') && role === 'AGENTE') {
-            url.pathname = '/dashboard/agente'
-            return redirect(url)
+        // Role Boundaries
+        if (rol === 'coordinador') {
+            if (url.pathname.startsWith('/dashboard/admin/bodegas')) {
+                url.pathname = '/dashboard/admin'
+                return redirect(url)
+            }
+            if (!url.pathname.startsWith('/dashboard/admin')) {
+                url.pathname = '/dashboard/admin'
+                return redirect(url)
+            }
+        } else if (rol === 'admin') {
+            if (!url.pathname.startsWith('/dashboard/admin')) {
+                url.pathname = '/dashboard/admin'
+                return redirect(url)
+            }
+        } else if (rol === 'admin_bodega') {
+            if (!url.pathname.startsWith('/dashboard/admin/bodegas')) {
+                url.pathname = '/dashboard/admin/bodegas'
+                return redirect(url)
+            }
+        } else if (rol === 'tecnico') {
+            if (!url.pathname.startsWith('/dashboard/tecnico')) {
+                url.pathname = '/dashboard/tecnico'
+                return redirect(url)
+            }
+        } else {
+            // Usuario rol por defecto
+            if (!url.pathname.startsWith('/dashboard/usuario')) {
+                url.pathname = '/dashboard/usuario'
+                return redirect(url)
+            }
         }
     }
 

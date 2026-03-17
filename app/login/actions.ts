@@ -20,13 +20,13 @@ export async function login(formData: FormData) {
         redirect(`/login?error=${encodeURIComponent(error.message)}`)
     }
 
-    const role = authData.user?.user_metadata?.role
+    const rol = authData.user?.user_metadata?.rol
 
     revalidatePath('/', 'layout')
-    if (role === 'AGENTE') {
-        redirect('/dashboard/agente')
+    if (rol === 'TECNICO') {
+        redirect('/dashboard/tecnico')
     } else {
-        redirect('/dashboard/solicitante')
+        redirect('/dashboard/usuario')
     }
 }
 
@@ -43,7 +43,7 @@ export async function signup(formData: FormData) {
         password: data.password,
         options: {
             data: {
-                role: 'SOLICITANTE', // default role
+                rol: 'usuario', // default rol
             },
         },
     })
@@ -54,5 +54,5 @@ export async function signup(formData: FormData) {
 
     // Assuming email confirmations are turned off for smooth local development
     revalidatePath('/', 'layout')
-    redirect('/dashboard/solicitante')
+    redirect('/dashboard/usuario')
 }

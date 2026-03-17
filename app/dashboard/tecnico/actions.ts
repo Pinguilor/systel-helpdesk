@@ -11,7 +11,7 @@ export async function updateTicketStatusAction(
 ) {
     const supabase = await createClient();
 
-    // Ensure user is authenticated and has AGENTE role before allowing update
+    // Ensure user is authenticated and has tecnico rol before allowing update
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
     if (authError || !user) {
@@ -19,7 +19,7 @@ export async function updateTicketStatusAction(
     }
 
     // Double check authorization
-    if (user.user_metadata?.role !== 'AGENTE') {
+    if (user.user_metadata?.rol !== 'tecnico') {
         return { error: 'No tienes permisos para realizar esta acción.' };
     }
 
@@ -43,6 +43,6 @@ export async function updateTicketStatusAction(
     }
 
     // Refresh the UI
-    revalidatePath('/dashboard/agente');
+    revalidatePath('/dashboard/tecnico');
     return { success: true };
 }

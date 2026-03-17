@@ -11,10 +11,10 @@ export default async function AnaliticasPage() {
         redirect('/login');
     }
 
-    // Get user profile to determine their role and data access scope
+    // Get user profile to determine their rol and data access scope
     const { data: profile } = await supabase
         .from('profiles')
-        .select('role')
+        .select('rol')
         .eq('id', user.id)
         .maybeSingle();
 
@@ -22,11 +22,11 @@ export default async function AnaliticasPage() {
         redirect('/login');
     }
 
-    // Fetch tickets based on role
+    // Fetch tickets based on rol
     let ticketQuery = supabase.from('tickets').select('*');
 
     // For requester, only show their own tickets. For agents, show all.
-    if (profile.role !== 'AGENTE') {
+    if (profile?.rol?.toUpperCase() !== 'tecnico') {
         ticketQuery = ticketQuery.eq('creado_por', user.id);
     }
 
@@ -49,7 +49,7 @@ export default async function AnaliticasPage() {
                             Análisis y Reportes <Sparkles className="w-5 h-5 text-amber-500" />
                         </h1>
                         <p className="mt-1 text-sm text-slate-500 font-medium">
-                            {profile.role === 'AGENTE'
+                            {profile.rol === 'tecnico'
                                 ? 'Visión global de todas las solicitudes en la plataforma.'
                                 : 'Métricas y estadísticas sobre tus solicitudes.'}
                         </p>

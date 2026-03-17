@@ -124,7 +124,7 @@ export async function createTicketAction(formData: FormData) {
     // --- NOTIFY ALL AGENTS ---
     const { data: newTicket } = await supabase.from('tickets').select('numero_ticket').eq('id', ticketId).single();
     if (newTicket) {
-        const { data: agents } = await supabase.from('profiles').select('id').eq('role', 'AGENTE');
+        const { data: agents } = await supabase.from('profiles').select('id').eq('rol', 'tecnico');
         if (agents && agents.length > 0) {
             const notifications = agents.map(agent => ({
                 user_id: agent.id,
@@ -139,7 +139,7 @@ export async function createTicketAction(formData: FormData) {
 
     // Revalidate dashboard so the new ticket appears in the list
     revalidatePath(`/dashboard/ticket/${ticketId}`);
-    revalidatePath('/dashboard/solicitante');
+    revalidatePath('/dashboard/usuario');
     return { success: true, id: ticketId };
 }
 export async function scheduleVisitAction(ticketId: string, visitDate: string, noteContent: string) {
@@ -171,7 +171,7 @@ export async function scheduleVisitAction(ticketId: string, visitDate: string, n
         .insert({
             ticket_id: ticketId,
             sender_id: user.id,
-            mensaje: noteContent || 'El agente ha programado una visita técnica.',
+            mensaje: noteContent || 'El tecnico ha programado una visita técnica.',
             es_sistema: false, // Lo dejamos en false para que tu diseño azul lo tome
             tipo_evento: 'visita_programada' // <--- ESTA ES LA MAGIA
         });

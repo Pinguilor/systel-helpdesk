@@ -35,7 +35,7 @@ export default function AnalyticsCharts({ tickets }: Props) {
 
     const statusColors: Record<string, string> = {
         'abierto': '#facc15', // Vibrant Yellow/Gold
-        'esperando agente': '#facc15', // Vibrant Yellow/Gold
+        'esperando tecnico': '#facc15', // Vibrant Yellow/Gold
         'en progreso': '#8a2be2', // Deep Violet
         'resuelto': '#00e676', // Spring Green
         'cerrado': '#0f172a', // Dark Graphite

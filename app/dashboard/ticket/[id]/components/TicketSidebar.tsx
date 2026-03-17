@@ -5,14 +5,20 @@ import { updateTicketPropertiesAction, assignTicketToMeAction } from '../actions
 import { AlertCircle, Clock, CheckCircle2, XCircle, ChevronDown, Activity, Flag, UserPlus, Calendar } from 'lucide-react';
 import { TicketStatus } from '@/types/database.types';
 import SlaTimer from '@/components/SlaTimer';
+import { AssignMaterialModal } from './AssignMaterialModal';
 
 interface Props {
     ticket: any;
     isAgent: boolean;
+    isAdmin?: boolean;
+    agents?: any[];
+    inventarioCentral?: any[];
+    packingList?: any[];
 }
 
-export default function TicketSidebar({ ticket, isAgent }: Props) {
+export default function TicketSidebar({ ticket, isAgent, isAdmin, agents = [], inventarioCentral = [], packingList = [] }: Props) {
     const [isUpdating, setIsUpdating] = useState(false);
+    const [showMaterialModal, setShowMaterialModal] = useState(false);
 
     // Hardcode possible states to make rendering easier
     const statuses: { id: TicketStatus, label: string, color: string, icon: any }[] = [
@@ -37,6 +43,7 @@ export default function TicketSidebar({ ticket, isAgent }: Props) {
 
     const [statusOpen, setStatusOpen] = useState(false);
     const [priorityOpen, setPriorityOpen] = useState(false);
+    const [agentOpen, setAgentOpen] = useState(false);
 
     const handleUpdate = async (field: 'estado' | 'prioridad', value: string) => {
         setIsUpdating(true);
@@ -55,6 +62,24 @@ export default function TicketSidebar({ ticket, isAgent }: Props) {
         }
     };
 
+    const handleAssignAgent = async (agent: any) => {
+        if (!confirm(`¿Estás seguro de que deseas asignar este ticket al agente: ${agent.full_name}?`)) {
+            setAgentOpen(false);
+            return;
+        }
+        setIsUpdating(true);
+        setAgentOpen(false);
+        try {
+            const updates = { agente_asignado_id: agent.id, estado: 'abierto' } as any;
+            const result = await updateTicketPropertiesAction(ticket.id, updates);
+            if (result.error) alert(result.error);
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setIsUpdating(false);
+        }
+    };
+
     return (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 sticky top-8 flex flex-col max-h-[calc(100vh-6rem)]">
             <div className="bg-gray-50/50 p-4 border-b border-gray-200 rounded-t-2xl shrink-0">
@@ -66,46 +91,62 @@ export default function TicketSidebar({ ticket, isAgent }: Props) {
 
             <div className="overflow-y-auto flex-1 custom-scrollbar">
                 {/* ASSIGNMENT SECTION */}
-                {isAgent && ticket.estado !== 'cerrado' ? (
-                    <div className="p-5 border-b border-gray-50">
-                        <span className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Asignación</span>
-                        {!ticket.agente_asignado_id ? (
-                            <button
-                                onClick={async () => {
-                                    setIsUpdating(true);
-                                    await assignTicketToMeAction(ticket.id);
-                                    setIsUpdating(false);
-                                }}
-                                disabled={isUpdating}
-                                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-brand-primary text-white font-bold rounded-xl shadow-sm hover:shadow-md hover:bg-brand-secondary transition-all disabled:opacity-50"
-                            >
-                                <UserPlus className="w-4 h-4" />
-                                Asignarme este ticket
-                            </button>
-                        ) : (
-                            <div className="flex items-center gap-3 p-3 bg-indigo-50/30 rounded-xl border border-indigo-100/50">
-                                <div className="h-9 w-9 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-sm shadow-sm ring-2 ring-white">
-                                    {ticket.agente?.full_name?.charAt(0).toUpperCase() || 'A'}
-                                </div>
-                                <div className="flex flex-col">
-                                    <span className="text-[10px] text-indigo-400 font-bold uppercase tracking-tight">Agente asignado</span>
-                                    <span className="font-bold text-sm text-gray-900 leading-tight">{ticket.agente?.full_name || 'Agente'}</span>
-                                </div>
+                {(ticket.agente_asignado_id || isAdmin) && (
+                    <div className="p-5 border-b border-gray-50 flex flex-col gap-3">
+                        <span className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Agente a cargo</span>
+                        
+                        {isAdmin ? (
+                            <div className="relative">
+                                <button
+                                    onClick={() => { setAgentOpen(!agentOpen); setStatusOpen(false); setPriorityOpen(false); }}
+                                    disabled={isUpdating}
+                                    className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl border border-indigo-200 bg-indigo-50/50 font-bold text-sm transition-all shadow-sm hover:bg-indigo-50/80 text-indigo-900"
+                                >
+                                    <span className="flex items-center gap-2 truncate">
+                                        <UserPlus className="w-4 h-4 text-indigo-500" />
+                                        {ticket.agente?.full_name || 'Sin Asignar'}
+                                    </span>
+                                    <ChevronDown className="w-4 h-4 text-indigo-400" />
+                                </button>
+                                {agentOpen && (
+                                    <>
+                                        <div className="fixed inset-0 z-30" onClick={() => setAgentOpen(false)}></div>
+                                        <div className="absolute z-40 mt-2 w-full bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden py-1.5 ring-1 ring-black/5 animate-in fade-in zoom-in-95 duration-100 max-h-60 overflow-y-auto">
+                                            {agents.map(a => (
+                                                <button
+                                                    key={a.id}
+                                                    onClick={() => handleAssignAgent(a)}
+                                                    className="w-full text-left px-4 py-2 text-sm font-medium hover:bg-gray-50 transition-colors truncate"
+                                                >
+                                                    <span className={ticket.agente_asignado_id === a.id ? 'text-indigo-900 font-bold' : 'text-gray-700'}>
+                                                        {a.full_name}
+                                                    </span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </>
+                                )}
                             </div>
+                        ) : (
+                            ticket.agente_asignado_id && (
+                                <div className="flex items-center gap-3 p-3 bg-indigo-50/30 rounded-xl border border-indigo-100/50">
+                                    <div className="h-9 w-9 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-sm shadow-sm ring-2 ring-white">
+                                        {ticket.agente?.full_name?.charAt(0).toUpperCase() || 'A'}
+                                    </div>
+                                    <span className="font-bold text-sm text-gray-900 truncate">{ticket.agente?.full_name}</span>
+                                </div>
+                            )
+                        )}
+
+                        {isAdmin && (
+                            <button 
+                                onClick={() => setShowMaterialModal(true)}
+                                className="w-full mt-2 flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-white border border-slate-300 text-slate-700 text-xs font-black tracking-widest hover:bg-slate-50 transition-colors shadow-sm"
+                            >
+                                + ASIGNAR MATERIAL
+                            </button>
                         )}
                     </div>
-                ) : (
-                    !isAgent && ticket.agente_asignado_id && (
-                        <div className="p-5 border-b border-gray-50">
-                            <span className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Agente a cargo</span>
-                            <div className="flex items-center gap-3 p-3 bg-indigo-50/30 rounded-xl border border-indigo-100/50">
-                                <div className="h-9 w-9 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-sm shadow-sm ring-2 ring-white">
-                                    {ticket.agente?.full_name?.charAt(0).toUpperCase() || 'A'}
-                                </div>
-                                <span className="font-bold text-sm text-gray-900">{ticket.agente?.full_name}</span>
-                            </div>
-                        </div>
-                    )
                 )}
 
                 {/* STATUS SECTION */}
@@ -225,6 +266,36 @@ export default function TicketSidebar({ ticket, isAgent }: Props) {
                     </div>
                 )}
 
+                {/* PACKING LIST SECTION */}
+                {packingList.length > 0 && (
+                    <div className="p-5 border-b border-gray-50">
+                        <span className="block text-xs font-semibold text-indigo-500 uppercase tracking-wider mb-3">Lista de Empaque</span>
+                        <div className="space-y-2">
+                            {packingList.map((mov) => {
+                                const inv = mov.inventario;
+                                if (!inv) return null;
+                                return (
+                                    <div key={mov.id} className="flex justify-between items-start p-3 bg-indigo-50/30 border border-indigo-100/50 rounded-xl shadow-sm hover:bg-white hover:border-indigo-200 transition-colors group">
+                                        <div className="flex flex-col gap-0.5">
+                                            <span className="text-sm font-bold text-slate-800">{inv.catalogo_equipos?.modelo}</span>
+                                            <span className="text-[10px] font-bold text-slate-400 capitalize">{inv.catalogo_equipos?.familia}</span>
+                                            {inv.catalogo_equipos?.es_serializado && (
+                                                <span className="text-[10px] font-black text-indigo-600 bg-indigo-100/50 py-0.5 px-1.5 rounded uppercase mt-1 inline-block w-max">
+                                                    SN: {inv.numero_serie}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className="bg-indigo-600 text-white rounded-lg px-2 py-1 flex flex-col items-center justify-center shadow-sm">
+                                            <span className="text-[10px] uppercase font-bold opacity-80 leading-tight">CANT</span>
+                                            <span className="text-sm font-black leading-tight">{mov.cantidad}</span>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+
                 {/* RESTAURANT INFO SECTION (LIMPIA Y RESTAURADA) */}
                 {ticket.restaurantes && (
                     <div className="p-5 bg-gray-50/30 rounded-b-2xl">
@@ -253,6 +324,13 @@ export default function TicketSidebar({ ticket, isAgent }: Props) {
                 )}
             </div>
 
+            {showMaterialModal && isAdmin && (
+                <AssignMaterialModal 
+                    ticketId={ticket.id} 
+                    onClose={() => setShowMaterialModal(false)} 
+                    inventarioCentral={inventarioCentral} 
+                />
+            )}
         </div>
     );
 }

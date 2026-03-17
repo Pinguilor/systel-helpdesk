@@ -16,13 +16,13 @@ export default async function DashboardLayout({
     }
 
     // Get User Profile for the Navbar
-    const { data: profile } = await supabase.from('profiles').select('full_name, role').eq('id', user.id).maybeSingle();
+    const { data: profile } = await supabase.from('profiles').select('full_name, rol').eq('id', user.id).maybeSingle();
 
     return (
         <div className="min-h-screen bg-brand-bg-base text-slate-900 font-sans">
             <TopNav
                 userFullName={profile?.full_name || null}
-                userRole={profile?.role || null}
+                userRole={profile?.rol || null}
             />
             {/* The main container limits width globally to match the navbar */}
             <main>
