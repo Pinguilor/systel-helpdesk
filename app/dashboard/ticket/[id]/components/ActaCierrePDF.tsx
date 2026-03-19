@@ -202,6 +202,11 @@ export const ActaCierrePDF = ({ ticket, materiales = [], notas, firmaClienteUrl,
         {/* Disclaimer */}
         <View style={{ marginTop: 20, fontSize: 8, color: '#666', textAlign: 'justify' }}>
             <Text>Al firmar la presente Orden de Servicio, el trabajo se entiende recepcionado a plena conformidad, por lo que el cliente en ningún caso podrá retener, compensar, aplazar, suspender o de cualquier otro modo alterar el pago de cargos u otras obligaciones correspondientes al trabajo realizado.</Text>
+            {ticket?.latitud_cierre && ticket?.longitud_cierre && (
+                <Text style={{ marginTop: 5, color: '#888' }}>
+                    Auditoría de Cierre: Documento firmado y geolocalizado en coordenadas {ticket.latitud_cierre}, {ticket.longitud_cierre}
+                </Text>
+            )}
         </View>
       </Page>
     </Document>

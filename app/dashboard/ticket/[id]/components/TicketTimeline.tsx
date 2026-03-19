@@ -47,7 +47,7 @@ export default function TicketTimeline({ ticket, messages, currentUserId, isAgen
     const [showVisitPopover, setShowVisitPopover] = useState(false);
     const [visitDate, setVisitDate] = useState('');
     const [copied, setCopied] = useState(false);
-    
+
     // Smart Close logic
     const [showSmartClose, setShowSmartClose] = useState(false);
 
@@ -243,7 +243,19 @@ export default function TicketTimeline({ ticket, messages, currentUserId, isAgen
                                 <div className="p-4 border border-indigo-100 bg-indigo-50/50 rounded-xl flex sm:flex-row flex-col items-center justify-between gap-3">
                                     <div className="text-center sm:text-left">
                                         <h4 className="text-sm font-bold text-slate-800">Orden de Servicio Finalizada</h4>
-                                        <p className="text-xs text-slate-500">El trabajo y firmas fueron registrados.</p>
+                                        <p className="text-xs text-slate-500 flex flex-col sm:flex-row sm:items-center gap-2 mt-1">
+                                            <span>El trabajo y firmas fueron registrados.</span>
+                                            {ticket.latitud_cierre && ticket.longitud_cierre && (
+                                                <a
+                                                    href={`https://www.google.com/url?sa=E&source=gmail&q=https://www.google.com/maps?q=${ticket.latitud_cierre},${ticket.longitud_cierre}`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-100/80 hover:bg-emerald-200 text-emerald-700 border border-emerald-200/60 rounded text-[10px] font-bold uppercase tracking-widest transition-colors w-max mx-auto sm:mx-0"
+                                                >
+                                                    📍 Ubicación Verificada
+                                                </a>
+                                            )}
+                                        </p>
                                     </div>
                                     <PDFDownloadLink
                                         key={ticket.estado + (ticket.receptor_nombre || '') + (inventarioTicket?.length || 0)}
@@ -327,13 +339,13 @@ export default function TicketTimeline({ ticket, messages, currentUserId, isAgen
                                                     <>
                                                         <div className="fixed inset-0 z-30" onClick={() => setIsSplitOpen(false)}></div>
                                                         <div className="absolute right-0 bottom-full mb-2 w-64 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden py-1 z-40">
-                                                            <button 
-                                                                type="button" 
+                                                            <button
+                                                                type="button"
                                                                 onClick={(e) => {
                                                                     e.preventDefault();
                                                                     setIsSplitOpen(false);
                                                                     setShowSmartClose(true);
-                                                                }} 
+                                                                }}
                                                                 className="w-full text-left px-4 py-3 text-sm font-bold text-emerald-700 hover:bg-emerald-50 flex items-center gap-2 transition-colors border-b border-gray-100"
                                                             >
                                                                 <CheckCircle2 className="w-5 h-5" /> Cierre Inteligente
@@ -528,10 +540,10 @@ export default function TicketTimeline({ ticket, messages, currentUserId, isAgen
             )}
 
             {showSmartClose && (
-                <SmartCloseModal 
-                    ticketId={ticket.id} 
-                    onClose={() => setShowSmartClose(false)} 
-                    packingList={packingList} 
+                <SmartCloseModal
+                    ticketId={ticket.id}
+                    onClose={() => setShowSmartClose(false)}
+                    packingList={packingList}
                 />
             )}
         </div>
