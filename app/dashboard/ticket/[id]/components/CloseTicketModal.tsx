@@ -201,7 +201,7 @@ export function CloseTicketModal({ isOpen, onClose, ticket, materiales = [], onC
                                 </button>
                             </div>
                             <div className="bg-white border-2 border-dashed border-slate-300 rounded-xl overflow-hidden touch-none relative" style={{ height: 160 }}>
-                                {/* @ts-expect-error Ignorando el tipado estricto de Vercel para el ref de esta librería */}
+                                {/* @ts-ignore */}
                                 <SignatureCanvas
                                     ref={sigCanvasCliente}
                                     penColor="black"
