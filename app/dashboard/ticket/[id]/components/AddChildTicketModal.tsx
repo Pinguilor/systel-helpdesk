@@ -6,6 +6,7 @@ import { Loader2, Plus, X } from 'lucide-react';
 import { createChildTicketAction } from '../actions';
 import { createClient } from '@/lib/supabase/client';
 import { CatalogoServicio } from '@/types/database.types';
+import { CustomSelect } from '@/app/dashboard/components/CustomSelect';
 
 interface Props {
     ticketPadreId: string;
@@ -24,6 +25,7 @@ export function AddChildTicketModal({ ticketPadreId, onClose }: Props) {
     const [selectedCategoria, setSelectedCategoria] = useState<string>('');
     const [selectedSubcategoria, setSelectedSubcategoria] = useState<string>('');
     const [selectedCatalogoId, setSelectedCatalogoId] = useState<string>('');
+    const [prioridad, setPrioridad] = useState('media');
 
     // Fetch master data on mount
     useEffect(() => {
@@ -63,6 +65,7 @@ export function AddChildTicketModal({ ticketPadreId, onClose }: Props) {
         const formData = new FormData(e.currentTarget);
         formData.append('ticketPadreId', ticketPadreId);
         formData.append('catalogo_servicio_id', selectedCatalogoId);
+        formData.append('prioridad', prioridad);
 
         try {
             const result = await createChildTicketAction(formData);
@@ -95,6 +98,7 @@ export function AddChildTicketModal({ ticketPadreId, onClose }: Props) {
                     </div>
                     <button 
                         onClick={onClose}
+                        title="Cerrar modal"
                         className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
                     >
                         <X className="w-5 h-5" />
@@ -118,61 +122,49 @@ export function AddChildTicketModal({ ticketPadreId, onClose }: Props) {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label className="block text-sm font-bold text-slate-700 mb-1.5 uppercase tracking-wider text-[11px]">Categoría</label>
-                            <select
-                                title="Seleccionar Categoría"
-                                required
+                            <CustomSelect
+                                id="categoria"
                                 value={selectedCategoria}
-                                onChange={(e) => {
-                                    setSelectedCategoria(e.target.value);
+                                onChange={(val) => {
+                                    setSelectedCategoria(val);
                                     setSelectedSubcategoria('');
                                     setSelectedCatalogoId('');
                                 }}
+                                options={categoriasUnicas.map(cat => ({ value: cat, label: cat }))}
+                                placeholder="Selecciona Categoría..."
                                 disabled={isLoadingCatalog}
-                                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all text-sm font-semibold text-slate-800 disabled:opacity-50"
-                            >
-                                <option value="">Selecciona Categoría...</option>
-                                {categoriasUnicas.map(cat => (
-                                    <option key={cat} value={cat}>{cat}</option>
-                                ))}
-                            </select>
+                                required
+                            />
                         </div>
                         <div>
                             <label className="block text-sm font-bold text-slate-700 mb-1.5 uppercase tracking-wider text-[11px]">Subcategoría</label>
-                            <select
-                                title="Seleccionar Subcategoría"
-                                required
+                            <CustomSelect
+                                id="subcategoria"
                                 value={selectedSubcategoria}
-                                onChange={(e) => {
-                                    setSelectedSubcategoria(e.target.value);
+                                onChange={(val) => {
+                                    setSelectedSubcategoria(val);
                                     setSelectedCatalogoId('');
                                 }}
+                                options={subcategoriasFiltradas.map(sub => ({ value: sub, label: sub }))}
+                                placeholder="Selecciona Subcategoría..."
                                 disabled={!selectedCategoria || isLoadingCatalog}
-                                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all text-sm font-semibold text-slate-800 disabled:opacity-50"
-                            >
-                                <option value="">Selecciona Subcategoría...</option>
-                                {subcategoriasFiltradas.map(sub => (
-                                    <option key={sub} value={sub}>{sub}</option>
-                                ))}
-                            </select>
+                                required
+                            />
                         </div>
                     </div>
 
                     {/* Fila: Elemento (Catálogo ID) */}
                     <div>
                         <label className="block text-sm font-bold text-slate-700 mb-1.5 uppercase tracking-wider text-[11px]">Problema Específico (Elemento)</label>
-                        <select
-                            title="Seleccionar Elemento"
-                            required
+                        <CustomSelect
+                            id="elemento"
                             value={selectedCatalogoId}
-                            onChange={(e) => setSelectedCatalogoId(e.target.value)}
+                            onChange={setSelectedCatalogoId}
+                            options={elementosFiltrados.map(item => ({ value: item.id, label: item.elemento }))}
+                            placeholder="Selecciona Elemento..."
                             disabled={!selectedSubcategoria || isLoadingCatalog}
-                            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all text-sm font-semibold text-slate-800 disabled:opacity-50"
-                        >
-                            <option value="">Selecciona Elemento...</option>
-                            {elementosFiltrados.map(item => (
-                                <option key={item.id} value={item.id}>{item.elemento}</option>
-                            ))}
-                        </select>
+                            required
+                        />
                     </div>
 
                     <div>
@@ -201,19 +193,20 @@ export function AddChildTicketModal({ ticketPadreId, onClose }: Props) {
 
                     <div>
                         <label htmlFor="prioridad" className="block text-sm font-bold text-slate-700 mb-1.5 uppercase tracking-wider text-[11px]">Prioridad</label>
-                        <select
+                        <CustomSelect
                             id="prioridad"
-                            title="Seleccionar Prioridad"
                             name="prioridad"
+                            value={prioridad}
+                            onChange={setPrioridad}
+                            options={[
+                                { value: 'baja', label: 'Baja' },
+                                { value: 'media', label: 'Media' },
+                                { value: 'alta', label: 'Alta' },
+                                { value: 'crítica', label: 'Crítica' }
+                            ]}
+                            placeholder="Seleccionar Prioridad"
                             required
-                            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all sm:text-sm text-slate-900 font-bold appearance-none cursor-pointer"
-                            defaultValue="media"
-                        >
-                            <option value="baja">Baja</option>
-                            <option value="media">Media</option>
-                            <option value="alta">Alta</option>
-                            <option value="crítica">Crítica</option>
-                        </select>
+                        />
                     </div>
 
                     {/* Footer Actions */}

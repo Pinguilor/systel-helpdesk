@@ -1,11 +1,12 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { Inventario, CatalogoEquipos, Bodega } from '@/types/database.types';
+import { Inventario, Bodega } from '@/types/database.types';
 import { Search, Server, Box, ChevronDown, ChevronRight, PackageOpen } from 'lucide-react';
+import { CustomSelect } from '@/app/dashboard/components/CustomSelect';
 
 interface BodegasTableProps {
-    inventario: (Inventario & { catalogo_equipos: CatalogoEquipos, bodegas: Bodega })[];
+    inventario: (Inventario & { bodegas: Bodega })[];
     bodegasDisponibles: Bodega[];
 }
 
@@ -22,33 +23,39 @@ export function BodegasTable({ inventario, bodegasDisponibles }: BodegasTablePro
     const filteredInventario = useMemo(() => {
         return inventario.filter(item => {
             const matchesBodega = selectedBodegaId === 'all' || item.bodega_id === selectedBodegaId;
-            const matchesSearch = item.catalogo_equipos?.modelo.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                                  item.catalogo_equipos?.familia.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            const matchesSearch = item.modelo?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                                  item.familia?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                                   (item.numero_serie && item.numero_serie.toLowerCase().includes(searchTerm.toLowerCase()));
             
             return matchesBodega && matchesSearch;
         });
     }, [inventario, selectedBodegaId, searchTerm]);
 
-    // Grouping by catalogo_id
+    // Grouping by modelo+familia
     const groupedInventario = useMemo(() => {
         const groups: Record<string, {
-            catalogo: CatalogoEquipos;
+            id: string; // Composite key
+            modelo: string;
+            familia: string;
+            es_serializado: boolean;
             totalItems: number;
             items: (Inventario & { bodegas: Bodega })[];
         }> = {};
 
         filteredInventario.forEach(item => {
-            const catId = item.catalogo_id;
+            const catId = `${item.modelo}|${item.familia}`;
             if (!groups[catId]) {
                 groups[catId] = {
-                    catalogo: item.catalogo_equipos,
+                    id: catId,
+                    modelo: item.modelo || 'Desconocido',
+                    familia: item.familia || 'Sin Familia',
+                    es_serializado: !!item.es_serializado,
                     totalItems: 0,
                     items: []
                 };
             }
             groups[catId].items.push(item);
-            if (item.estado?.toLowerCase() === 'disponible') {
+            if (item.estado?.toLowerCase() === 'disponible' || item.estado?.toLowerCase() === 'dañado') {
                 groups[catId].totalItems += item.cantidad;
             }
         });
@@ -70,22 +77,21 @@ export function BodegasTable({ inventario, bodegasDisponibles }: BodegasTablePro
                     />
                 </div>
 
-                <div className="flex items-center gap-3 w-full md:w-auto">
+                <div className="flex items-center gap-3 w-full md:w-80">
                     <span className="text-sm font-bold text-slate-500 whitespace-nowrap">Filtrar Bodega:</span>
-                    <select
+                    <CustomSelect
+                        id="bodegaFilter"
                         value={selectedBodegaId}
-                        onChange={(e) => setSelectedBodegaId(e.target.value)}
-                        className="bg-white border border-slate-300 text-slate-700 text-sm rounded-xl focus:ring-brand-primary focus:border-brand-primary block w-full p-2.5 font-bold shadow-sm"
-                    >
-                        <option value="all">Ver Todas (Global)</option>
-                        <option disabled>──────────</option>
-                        {bodegasDisponibles.map(b => (
-                            <option key={b.id} value={b.id}>
-                                {b.tipo === 'Central' ? '🏢 ' : b.tipo === 'Local' ? '🏪 ' : b.tipo === 'Dañados' ? '🔌 ' : '🚚 '}
-                                {b.nombre}
-                            </option>
-                        ))}
-                    </select>
+                        onChange={setSelectedBodegaId}
+                        options={[
+                            { value: 'all', label: 'Ver Todas (Global)' },
+                            ...bodegasDisponibles.map(b => ({
+                                value: b.id,
+                                label: `${b.tipo?.toUpperCase() === 'CENTRAL' ? '🏢 ' : b.tipo?.toUpperCase() === 'DAÑADOS' ? '🔌 ' : '📦 '} ${b.nombre}`
+                            }))
+                        ]}
+                        placeholder="Filtrar Bodega..."
+                    />
                 </div>
             </div>
 
@@ -96,30 +102,34 @@ export function BodegasTable({ inventario, bodegasDisponibles }: BodegasTablePro
                             <th className="px-6 py-4 rounded-tl-lg">Hardware</th>
                             <th className="px-6 py-4">Familia</th>
                             <th className="px-6 py-4 text-center">Tipo</th>
-                            <th className="px-6 py-4 text-right">Cantidad Disponible</th>
+                            <th className="px-6 py-4 text-center">Bodega</th>
+                            <th className="px-6 py-4 text-right">Cantidad Total</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                         {groupedInventario.length === 0 ? (
                             <tr>
-                                <td colSpan={4} className="px-6 py-12 text-center text-slate-500">
+                                <td colSpan={5} className="px-6 py-12 text-center text-slate-500">
                                     <div className="flex flex-col items-center justify-center gap-3 p-6 bg-slate-50 rounded-2xl border border-dashed border-slate-300 mx-auto max-w-md">
                                         <PackageOpen className="w-12 h-12 text-slate-300" />
                                         <div className="font-bold text-slate-700">No hay inventario</div>
-                                        <p className="text-xs text-slate-500">No se encontraron equipos bajo los filtros seleccionados.</p>
+                                        <p className="text-xs text-slate-500">No se encontraron equipos bajo los filtros seleccionados en la red central.</p>
                                     </div>
                                 </td>
                             </tr>
                         ) : (
                             groupedInventario.map(group => {
-                                const isExpanded = expandedRows[group.catalogo.id];
-                                const hasSeriales = group.catalogo.es_serializado;
+                                const isExpanded = expandedRows[group.id];
+                                const hasSeriales = group.es_serializado;
+
+                                // Extract unique bodegas for this hardware
+                                const bodegasPresentes = Array.from(new Map(group.items.map(i => [i.bodegas?.id, i.bodegas])).values()).filter(Boolean);
 
                                 return (
-                                    <React.Fragment key={group.catalogo.id}>
+                                    <React.Fragment key={group.id}>
                                         <tr 
                                             className={`hover:bg-slate-50 transition-colors ${hasSeriales ? 'cursor-pointer' : ''} ${isExpanded ? 'bg-indigo-50/30' : ''}`}
-                                            onClick={() => hasSeriales && toggleRow(group.catalogo.id)}
+                                            onClick={() => hasSeriales && toggleRow(group.id)}
                                         >
                                             <td className="px-6 py-4 font-bold text-slate-900 flex items-center gap-3">
                                                 {hasSeriales && (
@@ -130,20 +140,35 @@ export function BodegasTable({ inventario, bodegasDisponibles }: BodegasTablePro
                                                 {!hasSeriales && <div className="w-6" />}
                                                 <div className="flex items-center gap-2">
                                                     <Server className="w-4 h-4 text-indigo-500" />
-                                                    {group.catalogo.modelo}
+                                                    {group.modelo}
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4 font-medium">
                                                 <span className="bg-slate-100 text-slate-600 px-2 py-1 rounded-md text-xs font-bold border border-slate-200">
-                                                    {group.catalogo.familia}
+                                                    {group.familia}
                                                 </span>
                                             </td>
                                             <td className="px-6 py-4 text-center">
                                                 {hasSeriales ? (
-                                                    <span className="bg-amber-100 text-amber-700 font-bold px-2 py-0.5 rounded-full text-xs">Serializado</span>
+                                                    <span className="bg-amber-100 text-amber-700 font-bold px-2 py-0.5 rounded-full text-xs border border-amber-200">Serializado</span>
                                                 ) : (
-                                                    <span className="bg-emerald-100 text-emerald-700 font-bold px-2 py-0.5 rounded-full text-xs">Genérico</span>
+                                                    <span className="bg-emerald-100 text-emerald-700 font-bold px-2 py-0.5 rounded-full text-xs border border-emerald-200">Genérico</span>
                                                 )}
+                                            </td>
+                                            <td className="px-6 py-4 text-center">
+                                                <div className="flex flex-col gap-1 items-center justify-center">
+                                                    {bodegasPresentes.map((b: any) => {
+                                                        const isCentral = b.tipo?.toUpperCase() === 'CENTRAL';
+                                                        return (
+                                                            <span 
+                                                                key={b.id} 
+                                                                className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-widest border border-dashed ${isCentral ? 'bg-indigo-50 text-indigo-600 border-indigo-200' : 'bg-rose-50 text-rose-600 border-rose-200'}`}
+                                                            >
+                                                                {isCentral ? '🏢 ' : '🔌 '} {b.nombre}
+                                                            </span>
+                                                        );
+                                                    })}
+                                                </div>
                                             </td>
                                             <td className="px-6 py-4 text-right">
                                                 <span className="text-xl font-black text-slate-800">{group.totalItems}</span>
@@ -152,7 +177,7 @@ export function BodegasTable({ inventario, bodegasDisponibles }: BodegasTablePro
                                         </tr>
                                         {isExpanded && hasSeriales && (
                                             <tr className="bg-slate-50/80 border-b border-indigo-100/50">
-                                                <td colSpan={4} className="px-10 py-5">
+                                                <td colSpan={5} className="px-10 py-5">
                                                     <div className="bg-white rounded-xl shadow-inner border border-slate-200 p-4 relative overflow-hidden">
                                                         <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500"></div>
                                                         <h4 className="text-xs font-black uppercase text-slate-500 mb-3 tracking-widest flex items-center gap-2">
@@ -169,10 +194,9 @@ export function BodegasTable({ inventario, bodegasDisponibles }: BodegasTablePro
                                                                             {item.estado}
                                                                         </span>
                                                                     </div>
-                                                                    <div className="text-[10px] text-slate-400 font-medium flex items-center gap-1 mt-1 truncate">
-                                                                        📍 {(item.bodegas as any)?.sigla 
-                                                                             ? `Bodega ${(item.bodegas as any).sigla}` 
-                                                                             : (item.bodegas?.nombre || 'Bodega Desconocida')}
+                                                                    <div className={`text-[10px] font-black uppercase flex items-center gap-1 mt-1 truncate ${item.bodegas?.tipo?.toUpperCase() === 'CENTRAL' ? 'text-indigo-500' : 'text-rose-500'}`}>
+                                                                        {item.bodegas?.tipo?.toUpperCase() === 'CENTRAL' ? '🏢 ' : '🔌 '} 
+                                                                        {item.bodegas?.nombre || 'Bodega Desconocida'}
                                                                     </div>
                                                                 </div>
                                                             ))}

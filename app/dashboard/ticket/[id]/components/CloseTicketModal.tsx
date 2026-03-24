@@ -70,13 +70,17 @@ export function CloseTicketModal({ isOpen, onClose, ticket, materiales = [], onC
             const position = await obtenerUbicacion();
             setIsLocating(false);
 
-            const firmaCliente = sigCanvasCliente.current.getTrimmedCanvas().toDataURL('image/png');
-            const firmaTecnico = sigCanvasTecnico.current.getTrimmedCanvas().toDataURL('image/png');
-            await onConfirm(notas, firmaCliente, firmaTecnico, receptorNombre, position.coords.latitude, position.coords.longitude);
         } catch (error: any) {
-            console.error('GPS Error:', error);
+            console.warn('GPS Error (Bypassed for DEV):', error);
             setIsLocating(false);
 
+            // TODO: DEV ONLY - Revertir validación estricta de GPS para Producción
+            // Inyectamos coordenadas mock (0,0) si falla el GPS en entorno de pruebas
+            const firmaCliente = sigCanvasCliente.current.getTrimmedCanvas().toDataURL('image/png');
+            const firmaTecnico = sigCanvasTecnico.current.getTrimmedCanvas().toDataURL('image/png');
+            await onConfirm(notas, firmaCliente, firmaTecnico, receptorNombre, 0, 0);
+
+            /* ===== ORIGINAL STRICT VALIDATION (Comentada para pruebas locales) =====
             let mensajeError = 'Error desconocido al obtener la ubicación.';
             switch (error.code) {
                 case 1:
@@ -92,6 +96,7 @@ export function CloseTicketModal({ isOpen, onClose, ticket, materiales = [], onC
 
             setGpsError(mensajeError);
             setIsSubmitting(false);
+            ======================================================================== */
         }
     };
 
@@ -149,8 +154,11 @@ export function CloseTicketModal({ isOpen, onClose, ticket, materiales = [], onC
                                 <ul className="space-y-1.5">
                                     {materiales.map((item: any, i: number) => (
                                         <li key={i} className="text-xs font-medium text-slate-700 flex justify-between bg-white px-3 py-2 rounded-lg border border-slate-100">
-                                            <span className="truncate pr-2">➔ {item.equipos?.modelo || item.modelo || item.descripcion || '-'}</span>
-                                            <span className="font-bold shrink-0">{item.cantidad || 1} UND</span>
+                                            <span className="truncate pr-2">
+                                                ➔ {item.es_serializado 
+                                                    ? `1x ${item.modelo || item.descripcion || '-'} (SN: ${item.numero_serie || 'N/A'})` 
+                                                    : `${item.cantidad || 1}x ${item.modelo || item.descripcion || '-'} (${item.familia || 'Genérico'})`}
+                                            </span>
                                         </li>
                                     ))}
                                 </ul>

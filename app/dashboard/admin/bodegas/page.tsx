@@ -20,20 +20,52 @@ export default async function BodegasPage() {
 
     if (profile?.rol?.toUpperCase() !== 'ADMIN' && profile?.rol?.toUpperCase() !== 'ADMIN_BODEGA') redirect('/dashboard/usuario');
 
-    // Fetch Bodegas
-    const { data: bodegas } = await supabase
+    // Fetch Bodegas (Solo Central y Dañados)
+    const { data: bodegasRaw } = await supabase
         .from('bodegas')
         .select('*')
         .order('tipo', { ascending: true });
+        
+    const bodegas = (bodegasRaw || []).filter(b => 
+        ['CENTRAL', 'DAÑADOS'].includes(b.tipo?.toUpperCase() || '')
+    );
 
-    // Fetch Inventario + Catalog + Bodegas Data
+    // Fetch Familias de Hardware
+    const { data: familiasRaw } = await supabase
+        .from('familias_hardware')
+        .select('*')
+        .order('nombre', { ascending: true });
+
+    // Fetch Inventario + Bodegas Data
     const { data: inventarioRaw, error: inventarioError } = await supabase
         .from('inventario')
-        .select('*, catalogo_equipos(*), bodegas(*)');
+        .select('*, bodegas(*)');
 
     if (inventarioError) {
         console.error('Error fetching inventario:', inventarioError.message, inventarioError.details);
     }
+    
+    // Filtrar estrictamente el inventario para que NO incluya Mochilas ni Locales (Restaurantes)
+    const inventarioGlobal = (inventarioRaw || []).filter(item => {
+        const tipoBodega = item.bodegas?.tipo?.toUpperCase() || '';
+        return ['CENTRAL', 'DAÑADOS'].includes(tipoBodega);
+    });
+
+    // Extraer nombres de equipos únicos para el combobox
+    const equiposUnicosMap = new Map();
+    (inventarioRaw || []).forEach(item => {
+        if (item.modelo && item.familia) {
+            const key = `${item.modelo}|${item.familia}`;
+            if (!equiposUnicosMap.has(key)) {
+                equiposUnicosMap.set(key, {
+                    modelo: item.modelo,
+                    familia: item.familia,
+                    es_serializado: !!item.es_serializado
+                });
+            }
+        }
+    });
+    const equiposUnicos = Array.from(equiposUnicosMap.values());
 
     return (
         <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-6">
@@ -43,15 +75,19 @@ export default async function BodegasPage() {
                         <Box className="w-8 h-8 text-indigo-600" />
                         Inventario Global
                     </h1>
-                    <p className="text-slate-500 font-medium mt-1">Supervisa y filtra el equipamiento central, equipos en tránsito y bodega de locales.</p>
+                    <p className="text-slate-500 font-medium mt-1">Supervisa y administra el inventario de la Bodega Central y Equipos Dañados.</p>
                 </div>
                 <div>
-                    <AddStockModal bodegas={bodegas || []} catalogo={Array.from(new Map(inventarioRaw?.filter(i => i.catalogo_equipos).map(item => [item.catalogo_equipos.id, item.catalogo_equipos])).values()) || []} />
+                    <AddStockModal 
+                        bodegas={bodegas || []} 
+                        inventario={inventarioGlobal as any || []} 
+                        familias={familiasRaw || []}
+                    />
                 </div>
             </div>
 
             <BodegasTable 
-                inventario={inventarioRaw as any || []} 
+                inventario={inventarioGlobal as any || []} 
                 bodegasDisponibles={bodegas || []} 
             />
         </div>

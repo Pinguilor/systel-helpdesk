@@ -46,3 +46,40 @@ export async function updateTicketStatusAction(
     revalidatePath('/dashboard/tecnico');
     return { success: true };
 }
+
+export async function getTechnicianMochilaAction() {
+    try {
+        const supabase = await createClient();
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+        if (authError || !user) {
+            return { error: 'No estás autenticado.' };
+        }
+
+        // 1. Obtener la mochila del técnico
+        const { data: mochila, error: mochilaError } = await supabase
+            .from('bodegas')
+            .select('id, nombre')
+            .eq('tecnico_id', user.id)
+            .ilike('tipo', 'MOCHILA')
+            .maybeSingle();
+
+        if (mochilaError) throw new Error(`Error al buscar mochila: ${mochilaError.message}`);
+        if (!mochila) return { data: [], mochilaNombre: null };
+
+        // 2. Obtener el inventario de la mochila
+        const { data: inventario, error: invError } = await supabase
+            .from('inventario')
+            .select('*')
+            .eq('bodega_id', mochila.id)
+            .gt('cantidad', 0)
+            .order('familia', { ascending: true })
+            .order('modelo', { ascending: true });
+
+        if (invError) throw new Error(`Error al cargar inventario: ${invError.message}`);
+
+        return { data: inventario || [], mochilaNombre: mochila.nombre };
+    } catch (e: any) {
+        return { error: e.message || 'Error interno al cargar la mochila.' };
+    }
+}

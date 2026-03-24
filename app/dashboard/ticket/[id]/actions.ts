@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { TicketStatus } from '@/types/database.types';
+import { sendTicketResolvedEmail } from '@/lib/sendEmail';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ALLOWED_TYPES = [
@@ -407,12 +408,13 @@ export async function assignMaterialAction(ticketId: string, inventarioId: strin
 
     // Validar rol
     const { data: profile } = await supabase.from('profiles').select('rol').eq('id', user.id).maybeSingle();
-    if (profile?.rol?.toUpperCase() !== 'ADMIN' && profile?.rol?.toUpperCase() !== 'COORDINADOR') return { error: 'Solo coordinadores y administradores pueden asignar materiales.' };
+    const isAllowed = ['ADMIN', 'COORDINADOR', 'TECNICO'].includes(profile?.rol?.toUpperCase() || '');
+    if (!isAllowed) return { error: 'No tienes permisos para asignar materiales.' };
 
     // Get item inventario
     const { data: originalItem, error: invError } = await supabase
         .from('inventario')
-        .select('*, catalogo_equipos(*), bodegas(*)')
+        .select('*')
         .eq('id', inventarioId)
         .single();
 
@@ -420,37 +422,41 @@ export async function assignMaterialAction(ticketId: string, inventarioId: strin
 
     if (originalItem.cantidad < cantidad) return { error: 'Cantidad superior al stock disponible.' };
 
-    // Si es serializado, o la cantidad es total, cambiamos estado.
-    // Si no es serializado y la cantidad es menor al total, necesitamos restar y crear nuevo registro para "En Tránsito".
     let newInventarioId = originalItem.id;
 
-    if (originalItem.catalogo_equipos.es_serializado || originalItem.cantidad === cantidad) {
+    if (originalItem.es_serializado || originalItem.cantidad === cantidad) {
         // Mover todo
         const { error: moveError } = await supabase.from('inventario')
             .update({ estado: 'En Tránsito', ticket_id: ticketId })
             .eq('id', originalItem.id)
             .select().single();
-            
-        if (moveError) return { error: 'Error moviendo inventario completo: ' + moveError.message };
+
+        if (moveError) return { error: 'Error moviendo inventario: ' + moveError.message };
     } else {
-        // Split (Cables, etc)
+        // Split genéricos (Cables, etc)
         const { error: updateError } = await supabase.from('inventario')
             .update({ cantidad: originalItem.cantidad - cantidad })
-            .eq('id', originalItem.id)
-            .select().single();
-            
-        if (updateError) return { error: 'Error descontando inventario central: ' + updateError.message };
-        
-        const { data: newItem, error: insertError } = await supabase.from('inventario').insert({
+            .eq('id', originalItem.id);
+
+        if (updateError) return { error: 'Error descontando inventario origen: ' + updateError.message };
+
+        const cloneData: any = {
             bodega_id: originalItem.bodega_id,
-            catalogo_id: originalItem.catalogo_id,
+            modelo: originalItem.modelo,
+            familia: originalItem.familia,
+            es_serializado: false,
+            numero_serie: null,
             estado: 'En Tránsito',
             cantidad: cantidad,
-            numero_serie: null,
             ticket_id: ticketId
-        }).select().single();
+        };
 
-        if (insertError || !newItem) return { error: 'Error creando nuevo lote asignado: ' + (insertError?.message || 'Lote no retornado') };
+        if (originalItem.tipo !== undefined) cloneData.tipo = originalItem.tipo;
+        if (originalItem.descripcion !== undefined) cloneData.descripcion = originalItem.descripcion;
+
+        const { data: newItem, error: insertError } = await supabase.from('inventario').insert(cloneData).select().single();
+
+        if (insertError || !newItem) return { error: 'Error creando nuevo lote asignado: ' + insertError?.message };
         newInventarioId = (newItem as any).id;
     }
 
@@ -471,10 +477,10 @@ export async function assignMaterialAction(ticketId: string, inventarioId: strin
                 📦
             </div>
             <div class="flex flex-col">
-                <span class="text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-1">Equipo Reservado (Central)</span>
-                <span class="text-sm font-black text-slate-800">${cantidad}x ${originalItem.catalogo_equipos.modelo}</span>
-                <span class="text-[11px] font-medium text-slate-500 capitalize mt-0.5">${originalItem.catalogo_equipos.familia}</span>
-                ${originalItem.catalogo_equipos.es_serializado ? `<span class="mt-2 inline-block bg-white border border-indigo-200 text-indigo-700 text-[10px] font-black px-2 py-0.5 rounded shadow-sm">SN: ${originalItem.numero_serie}</span>` : ''}
+                <span class="text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-1">Equipo Reservado</span>
+                <span class="text-sm font-black text-slate-800">${cantidad}x ${originalItem.modelo}</span>
+                <span class="text-[11px] font-medium text-slate-500 capitalize mt-0.5">${originalItem.familia}</span>
+                ${originalItem.es_serializado ? `<span class="mt-2 inline-block bg-white border border-indigo-200 text-indigo-700 text-[10px] font-black px-2 py-0.5 rounded shadow-sm">SN: ${originalItem.numero_serie || 'N/A'}</span>` : ''}
             </div>
         </div>
     `;
@@ -539,8 +545,8 @@ export async function closeTicketWithActaAction(
         // 2. Actualización Logística (Inventario)
         if (bodegaId) {
             const { error: invError } = await supabase.from('inventario')
-                .update({ 
-                    estado: 'operativo' as any, 
+                .update({
+                    estado: 'operativo' as any,
                     bodega_id: bodegaId,
                     ticket_id: ticketId // Garantizando persistencia férrea
                 })
@@ -565,7 +571,15 @@ export async function closeTicketWithActaAction(
             throw new Error(`Error insertando mensaje en el historial: ${msgError.message}`);
         }
 
-        // 4. Revalidación
+        // 4. Send Transactional Email
+        const { data: fetchTicketInfo } = await supabase.from('tickets').select('numero_ticket, titulo').eq('id', ticketId).single();
+        if (fetchTicketInfo) {
+            const adminEmail = process.env.ADMIN_EMAIL || 'no-reply@loopdeskapp.com';
+            sendTicketResolvedEmail(ticketId, fetchTicketInfo.numero_ticket, fetchTicketInfo.titulo, adminEmail)
+                .catch(err => console.error('Fallo disparando email de resolución:', err));
+        }
+
+        // 5. Revalidación
         revalidatePath(`/dashboard/ticket/${ticketId}`);
         return { success: true };
 
@@ -592,8 +606,8 @@ export async function smartCloseAction(formData: FormData) {
         let materialInstaladoIds: string[] = [];
         let equiposDañados: { catalogo_id: string; numero_serie: string }[] = [];
 
-        try { materialInstaladoIds = JSON.parse(materialInstaladoRaw); } catch (e) {}
-        try { equiposDañados = JSON.parse(equiposDañadosRaw); } catch (e) {}
+        try { materialInstaladoIds = JSON.parse(materialInstaladoRaw); } catch (e) { }
+        try { equiposDañados = JSON.parse(equiposDañadosRaw); } catch (e) { }
 
         const fileUrls: string[] = [];
 
@@ -641,7 +655,7 @@ export async function smartCloseAction(formData: FormData) {
         }
 
         const bodegaLocalId = (ticketData.restaurantes as any)?.bodega_id;
-        
+
         if (!bodegaLocalId) {
             console.error('El restaurante asociado a este ticket no tiene un bodega_id configurado.');
             throw new Error('El Restaurante del ticket no tiene una Bodega asignada en la base de datos (bodega_id es nulo).');
@@ -698,14 +712,14 @@ export async function smartCloseAction(formData: FormData) {
         } else {
             console.log('No se encontraron equipos con ticket_id asociado y en estado en_transito.');
         }
-        
+
         console.log(`✅ ${equiposActualizados} equipos transferidos exitosamente a 'Operativo' en la Bodega ${bodegaLocalId}.`);
 
         // 3. Logística Inversa (Equipos Dañados)
         if (equiposDañados.length > 0) {
             console.log(`Verificando ${equiposDañados.length} equipos dañados reportados...`);
             const { data: bodegaDanados } = await supabase.from('bodegas').select('id').eq('tipo', 'Dañados').limit(1).maybeSingle();
-            
+
             if (!bodegaDanados) {
                 console.error('No existe una bodega tipo Dañados.');
             } else {
@@ -878,11 +892,11 @@ export async function createChildTicketAction(formData: FormData) {
             descripcion: descripcion,
             prioridad: prioridad,
             restaurante_id: parentTicket.restaurante_id,
-            catalogo_servicio_id: catalogo_servicio_id, 
-            zona_id: parentTicket.zona_id, 
-            estado: 'abierto', 
-            agente_asignado_id: user.id, 
-            creado_por: parentTicket.creado_por, 
+            catalogo_servicio_id: catalogo_servicio_id,
+            zona_id: parentTicket.zona_id,
+            estado: 'abierto',
+            agente_asignado_id: user.id,
+            creado_por: parentTicket.creado_por,
             vencimiento_sla: vencimiento_sla,
         });
 
@@ -1069,7 +1083,7 @@ export async function updateChildTicketDescription(childTicketId: string, nuevaD
 
         const { error: updateError } = await supabase
             .from('tickets')
-            .update({ 
+            .update({
                 descripcion: nuevaDescripcion,
                 descripcion_editada: true,
                 modificado_por: profile?.full_name || 'Técnico',
@@ -1083,7 +1097,7 @@ export async function updateChildTicketDescription(childTicketId: string, nuevaD
         }
 
         revalidatePath(`/dashboard/ticket/[id]`, 'page');
-        
+
         return { success: true };
 
     } catch (error: any) {

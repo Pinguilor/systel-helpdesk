@@ -129,6 +129,11 @@ export interface Bodega {
     local_id?: string | null; // references restaurantes 
 }
 
+export interface FamiliaHardware {
+    id: string;
+    nombre: string;
+}
+
 export interface CatalogoEquipos {
     id: string;
     familia: string;
@@ -139,14 +144,15 @@ export interface CatalogoEquipos {
 export interface Inventario {
     id: string;
     bodega_id: string; // ref bodegas
-    catalogo_id: string; // ref catalogo_equipos
+    modelo: string;
+    familia: string;
+    es_serializado: boolean;
     numero_serie?: string | null; // opcional para cables, etc.
     estado: 'Disponible' | 'En Tránsito' | 'Dañado' | 'Instalado';
     cantidad: number; // 1 para serializado, N para cables
     
     // Virtual relations for joins
     bodegas?: Bodega;
-    catalogo_equipos?: CatalogoEquipos;
 }
 
 export interface MovimientoInventario {

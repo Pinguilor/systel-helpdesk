@@ -11,16 +11,23 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'flex-start',
     marginBottom: 20,
     borderBottomWidth: 1,
     borderBottomColor: '#ccc',
     paddingBottom: 10
   },
   title: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: 'bold',
     marginBottom: 5,
     color: '#0e3187'
+  },
+  companyLogo: {
+    height: 90,
+    width: 240,
+    objectFit: 'contain',
+    marginBottom: 5
   },
   section: {
     marginBottom: 15,
@@ -104,15 +111,15 @@ export const ActaCierrePDF = ({ ticket, materiales = [], notas, firmaClienteUrl,
         {/* Header */}
         <View style={styles.header}>
             <View>
-                {/* Logo Placeholder */}
-                <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#0e3187' }}>SYSTEL</Text>
-                <Text style={{ fontSize: 8, color: '#666' }}>Soluciones Tecnológicas</Text>
+                {/* Company Logo */}
+                <Image src="/systelcom.png" style={styles.companyLogo} />
+                <Text style={{ fontSize: 9, color: '#666', fontWeight: 'bold' }}>Soluciones Tecnológicas</Text>
                 <Text style={{ fontSize: 8, color: '#666', marginTop: 2 }}>www.systelltda.cl</Text>
             </View>
-            <View style={{ textAlign: 'right' }}>
+            <View style={{ textAlign: 'right', paddingTop: 10 }}>
                 <Text style={styles.title}>ORDEN DE SERVICIO</Text>
-                <Text>Nº: {ticket?.numero_ticket}</Text>
-                <Text>Fecha: {new Date().toLocaleDateString()}</Text>
+                <Text style={{ fontSize: 9, color: '#333', marginBottom: 2 }}>Nº: {ticket?.numero_ticket}</Text>
+                <Text style={{ fontSize: 9, color: '#333' }}>Fecha: {new Date().toLocaleDateString()}</Text>
             </View>
         </View>
 

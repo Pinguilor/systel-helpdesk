@@ -185,7 +185,7 @@ export default function TicketSidebar({ ticket, isAgent, isAdmin, agents = [], i
                             </div>
                         )}
 
-                        {isAdmin && !isTerminal && (
+                        {(isAgent || isAdmin) && !isTerminal && (
                             <button 
                                 onClick={() => setShowMaterialModal(true)}
                                 className="w-full mt-2 flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-white border border-slate-300 text-slate-700 text-xs font-black tracking-widest hover:bg-slate-50 transition-colors shadow-sm"
@@ -357,11 +357,11 @@ export default function TicketSidebar({ ticket, isAgent, isAdmin, agents = [], i
                                 return (
                                     <div key={mov.id} className="flex justify-between items-start p-3 bg-indigo-50/30 border border-indigo-100/50 rounded-xl shadow-sm hover:bg-white hover:border-indigo-200 transition-colors group">
                                         <div className="flex flex-col gap-0.5">
-                                            <span className="text-sm font-bold text-slate-800">{inv.catalogo_equipos?.modelo}</span>
-                                            <span className="text-[10px] font-bold text-slate-400 capitalize">{inv.catalogo_equipos?.familia}</span>
-                                            {inv.catalogo_equipos?.es_serializado && (
+                                            <span className="text-sm font-bold text-slate-800">{inv.modelo}</span>
+                                            <span className="text-[10px] font-bold text-slate-400 capitalize">{inv.familia}</span>
+                                            {inv.es_serializado && (
                                                 <span className="text-[10px] font-black text-indigo-600 bg-indigo-100/50 py-0.5 px-1.5 rounded uppercase mt-1 inline-block w-max">
-                                                    SN: {inv.numero_serie}
+                                                    SN: {inv.numero_serie || 'N/A'}
                                                 </span>
                                             )}
                                         </div>
@@ -510,11 +510,10 @@ export default function TicketSidebar({ ticket, isAgent, isAdmin, agents = [], i
                 </div>
             )}
 
-            {showMaterialModal && isAdmin && (
+            {showMaterialModal && (isAgent || isAdmin) && (
                 <AssignMaterialModal 
                     ticketId={ticket.id} 
                     onClose={() => setShowMaterialModal(false)} 
-                    inventarioCentral={inventarioCentral} 
                 />
             )}
 

@@ -32,7 +32,10 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
             profiles:creado_por (full_name),
             agente:agente_asignado_id (full_name),
             restaurantes (*),
-            catalogo_servicios (*),
+            tipo_servicio:ticket_tipos_servicio (nombre),
+            categoria:ticket_categorias (nombre),
+            subcategoria:ticket_subcategorias (nombre),
+            accion:ticket_acciones (nombre),
             ticket_messages (
                 id,
                 mensaje,
@@ -113,10 +116,7 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
         .from('movimientos_inventario')
         .select(`
             *,
-            inventario (
-                *,
-                catalogo_equipos(*)
-            )
+            inventario (*)
         `)
         .eq('ticket_id', ticketId)
         .order('fecha_movimiento', { ascending: false });
@@ -144,11 +144,14 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
     }
 
     // Fetch materiales asignados directamente (para PDF de cierre)
-    const { data: inventarioTicketRaw } = await supabase
+    const { data: inventarioTicketRaw, error: invTicketErr } = await supabase
         .from('inventario')
-        .select('*, equipos:catalogo_equipos(*)')
+        .select('*')
         .eq('ticket_id', ticketId);
-    console.log('DATA INVENTARIO PDF:', inventarioTicketRaw);
+    
+    if (invTicketErr) {
+        console.error('ERROR AL OBTENER INVENTARIO TICKET:', invTicketErr);
+    }
     
     const inventarioTicket = inventarioTicketRaw || [];
 

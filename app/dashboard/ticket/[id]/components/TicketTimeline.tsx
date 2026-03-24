@@ -240,12 +240,28 @@ export default function TicketTimeline({ ticket, messages, currentUserId, isAgen
                             <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] w-full sm:w-auto mb-1 sm:mb-0">Ubicación</span>
                             <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-bold text-slate-600">
                                 <span className="bg-white px-2.5 py-1 rounded-lg border border-slate-200 shadow-sm flex items-center gap-1">📍 {ticket.restaurantes.nombre_restaurante}</span>
-                                {ticket.catalogo_servicios && (
+                                {ticket.tipo_servicio && (
                                     <>
-                                        <ChevronsRight className="w-3.5 h-3.5 text-slate-300" />
-                                        <span className="bg-white px-2.5 py-1 rounded-lg border border-slate-200 shadow-sm">{ticket.catalogo_servicios.categoria}</span>
-                                        <ChevronsRight className="w-3.5 h-3.5 text-slate-300" />
-                                        <span className="bg-indigo-600 text-white px-2.5 py-1 rounded-lg shadow-md">{ticket.catalogo_servicios.elemento}</span>
+                                        <ChevronsRight className="w-3.5 h-3.5 text-slate-300 shrink-0" />
+                                        <span className="bg-white px-2 sm:px-2.5 py-1 rounded-lg border border-slate-200 shadow-sm truncate max-w-[140px] sm:max-w-none">{ticket.tipo_servicio.nombre}</span>
+                                    </>
+                                )}
+                                {ticket.categoria && (
+                                    <>
+                                        <ChevronsRight className="w-3.5 h-3.5 text-slate-300 shrink-0" />
+                                        <span className="bg-white px-2 sm:px-2.5 py-1 rounded-lg border border-slate-200 shadow-sm truncate max-w-[140px] sm:max-w-none">{ticket.categoria.nombre}</span>
+                                    </>
+                                )}
+                                {ticket.subcategoria && (
+                                    <>
+                                        <ChevronsRight className="w-3.5 h-3.5 text-slate-300 shrink-0" />
+                                        <span className="bg-white px-2 sm:px-2.5 py-1 rounded-lg border border-slate-200 shadow-sm truncate max-w-[140px] sm:max-w-none">{ticket.subcategoria.nombre}</span>
+                                    </>
+                                )}
+                                {ticket.accion && (
+                                    <>
+                                        <ChevronsRight className="w-3.5 h-3.5 text-slate-300 shrink-0" />
+                                        <span className="bg-indigo-600 text-white px-2 sm:px-2.5 py-1 rounded-lg shadow-md truncate max-w-[140px] sm:max-w-none">{ticket.accion.nombre}</span>
                                     </>
                                 )}
                             </div>

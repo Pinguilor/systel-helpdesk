@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
+import { sendTicketCreatedEmail } from '@/lib/sendEmail';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ALLOWED_TYPES = [
@@ -28,18 +29,17 @@ export async function createTicketAction(formData: FormData) {
     const descripcion = formData.get('descripcion') as string;
     const prioridad = formData.get('prioridad') as 'baja' | 'media' | 'alta' | 'crítica';
     const restaurante_id = formData.get('restaurante_id') as string;
-    const catalogo_servicio_id = formData.get('catalogo_servicio_id') as string;
+    const tipo_servicio_id = formData.get('tipo_servicio_id') as string;
+    const categoria_id = formData.get('categoria_id') as string;
+    const subcategoria_id = formData.get('subcategoria_id') as string;
+    const accion_id = formData.get('accion_id') as string;
     const zona_id = formData.get('zona_id') as string | null;
 
     const adjuntos = formData.getAll('adjuntos') as File[];
 
-    if (!titulo || !descripcion || !prioridad || !restaurante_id || !catalogo_servicio_id) {
-        return { error: 'Por favor completa todos los campos requeridos, incluyendo la categoría principal.' };
+    if (!titulo || !descripcion || !prioridad || !restaurante_id || !tipo_servicio_id || !categoria_id || !subcategoria_id || !accion_id) {
+        return { error: 'Por favor completa todos los campos requeridos, incluyendo la clasificación completa de 4 niveles.' };
     }
-
-    // Validate that catalog exists
-    const { data: catExists } = await supabase.from('catalogo_servicios').select('id').eq('id', catalogo_servicio_id).single();
-    if (!catExists) return { error: 'La categoría seleccionada no existe o no es válida.' };
 
     // Zone validation is optional now
     if (zona_id) {
@@ -107,7 +107,10 @@ export async function createTicketAction(formData: FormData) {
             descripcion,
             prioridad,
             restaurante_id,
-            catalogo_servicio_id,
+            tipo_servicio_id,
+            categoria_id,
+            subcategoria_id,
+            accion_id,
             zona_id: zona_id || null,
 
             estado: 'esperando_agente', // Setting correct status as defined earlier
@@ -134,6 +137,15 @@ export async function createTicketAction(formData: FormData) {
             }));
             await supabase.from('notifications').insert(notifications);
         }
+
+        // --- ENVIAR CORREO TRANSACCIONAL ---
+        const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', user.id).maybeSingle();
+        const creatorName = profile?.full_name || 'Usuario del Sistema';
+        const adminEmail = process.env.ADMIN_EMAIL || 'no-reply@loopdeskapp.com';
+        
+        // Disparamos el correo sin bloquear (fire and forget)
+        sendTicketCreatedEmail(ticketId, newTicket.numero_ticket, titulo, prioridad, creatorName, adminEmail)
+            .catch(err => console.error('Fallo disparando email de creación:', err));
     }
     // -------------------------
 

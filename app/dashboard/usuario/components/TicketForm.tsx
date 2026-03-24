@@ -45,15 +45,19 @@ export function TicketForm({ onClose }: Props) {
     const [showDropdown, setShowDropdown] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
-    // Catalog & Zone State
-    const [catalogos, setCatalogos] = useState<CatalogoServicio[]>([]);
+    // Relational Catalog & Zone State (4 Niveles)
+    const [tiposServicio, setTiposServicio] = useState<any[]>([]);
+    const [categorias, setCategorias] = useState<any[]>([]);
+    const [subcategorias, setSubcategorias] = useState<any[]>([]);
+    const [acciones, setAcciones] = useState<any[]>([]);
     const [zonas, setZonas] = useState<Zona[]>([]);
     const [isLoadingCatalog, setIsLoadingCatalog] = useState(true);
 
     // Cascading selection state
-    const [selectedCategoria, setSelectedCategoria] = useState<string>('');
-    const [selectedSubcategoria, setSelectedSubcategoria] = useState<string>('');
-    const [selectedCatalogoId, setSelectedCatalogoId] = useState<string>('');
+    const [selectedTipoServicioId, setSelectedTipoServicioId] = useState<string>('');
+    const [selectedCategoriaId, setSelectedCategoriaId] = useState<string>('');
+    const [selectedSubcategoriaId, setSelectedSubcategoriaId] = useState<string>('');
+    const [selectedAccionId, setSelectedAccionId] = useState<string>('');
 
     // Priority state
     const [prioridad, setPrioridad] = useState<string>('media');
@@ -65,11 +69,13 @@ export function TicketForm({ onClose }: Props) {
             const supabase = createClient();
 
             try {
-                const { data: catData } = await supabase.from('catalogo_servicios').select('*').eq('activo', true);
-                const { data: zonaData } = await supabase.from('zonas').select('*').eq('activo', true);
+                const [ts, zs] = await Promise.all([
+                    supabase.from('ticket_tipos_servicio').select('id, nombre').eq('activo', true).order('nombre'),
+                    supabase.from('zonas').select('*').eq('activo', true)
+                ]);
 
-                if (catData) setCatalogos(catData);
-                if (zonaData) setZonas(zonaData);
+                if (ts.data) setTiposServicio(ts.data);
+                if (zs.data) setZonas(zs.data);
             } catch (error) {
                 console.error('Error fetching catalog data:', error);
             } finally {
@@ -80,16 +86,71 @@ export function TicketForm({ onClose }: Props) {
         fetchMasterData();
     }, []);
 
-    // Derived State for Cascading Drops
-    const categoriasUnicas = Array.from(new Set(catalogos.map(c => c.categoria))).sort();
+    // Reactive fetch for Categorías based on selected Tipo de Servicio
+    useEffect(() => {
+        if (!selectedTipoServicioId) {
+            setCategorias([]);
+            return;
+        }
 
-    const subcategoriasFiltradas = selectedCategoria
-        ? Array.from(new Set(catalogos.filter(c => c.categoria === selectedCategoria).map(c => c.subcategoria))).sort()
-        : [];
+        async function fetchCategorias() {
+            const supabase = createClient();
+            const { data } = await supabase
+                .from('ticket_categorias')
+                .select('id, nombre')
+                .eq('tipo_servicio_id', selectedTipoServicioId)
+                .eq('activo', true)
+                .order('nombre');
+                
+            if (data) setCategorias(data);
+        }
 
-    const elementosFiltrados = (selectedCategoria && selectedSubcategoria)
-        ? catalogos.filter(c => c.categoria === selectedCategoria && c.subcategoria === selectedSubcategoria).sort((a, b) => a.elemento.localeCompare(b.elemento))
-        : [];
+        fetchCategorias();
+    }, [selectedTipoServicioId]);
+
+    // Reactive fetch for Subcategories based on selected Category
+    useEffect(() => {
+        if (!selectedCategoriaId) {
+            setSubcategorias([]);
+            return;
+        }
+
+        async function fetchSubcategorias() {
+            const supabase = createClient();
+            const { data } = await supabase
+                .from('ticket_subcategorias')
+                .select('id, nombre')
+                .eq('categoria_id', selectedCategoriaId)
+                .eq('activo', true)
+                .order('nombre');
+                
+            if (data) setSubcategorias(data);
+        }
+
+        fetchSubcategorias();
+    }, [selectedCategoriaId]);
+
+    // Reactive fetch for Actions based on selected Subcategory
+    useEffect(() => {
+        if (!selectedSubcategoriaId) {
+            setAcciones([]);
+            return;
+        }
+
+        async function fetchAcciones() {
+            const supabase = createClient();
+            const { data } = await supabase
+                .from('ticket_acciones')
+                .select('id, nombre')
+                .eq('subcategoria_id', selectedSubcategoriaId)
+                .eq('activo', true)
+                .order('nombre');
+                
+            if (data) setAcciones(data);
+        }
+
+        fetchAcciones();
+    }, [selectedSubcategoriaId]);
 
     // Debounce and Search Logic
     useEffect(() => {
@@ -186,8 +247,8 @@ export function TicketForm({ onClose }: Props) {
             return;
         }
 
-        if (!selectedCatalogoId) {
-            setMessage({ type: 'error', text: 'Por favor, completa todas las selecciones del catálogo.' });
+        if (!selectedTipoServicioId || !selectedCategoriaId || !selectedSubcategoriaId || !selectedAccionId) {
+            setMessage({ type: 'error', text: 'Por favor, completa todas las selecciones de clasificación.' });
             return;
         }
 
@@ -195,6 +256,12 @@ export function TicketForm({ onClose }: Props) {
         setMessage(null);
 
         const formData = new FormData(e.currentTarget);
+
+        // Append relational IDs manually
+        formData.append('tipo_servicio_id', selectedTipoServicioId);
+        formData.append('categoria_id', selectedCategoriaId);
+        formData.append('subcategoria_id', selectedSubcategoriaId);
+        formData.append('accion_id', selectedAccionId);
 
         // Append ReactQuill content manually since it's not a native input
         formData.append('descripcion', descripcion);
@@ -305,19 +372,39 @@ export function TicketForm({ onClose }: Props) {
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
+                            
+                            {/* A. Tipo de Servicio */}
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">Tipo de Servicio</label>
+                                <CustomSelect
+                                    id="tipo_servicio_id"
+                                    required
+                                    value={selectedTipoServicioId}
+                                    onChange={(val) => {
+                                        setSelectedTipoServicioId(val);
+                                        setSelectedCategoriaId(''); // Cascada: Nivel 2 Reset
+                                        setSelectedSubcategoriaId(''); // Cascada: Nivel 3 Reset
+                                        setSelectedAccionId(''); // Cascada: Nivel 4 Reset
+                                    }}
+                                    options={tiposServicio.map(t => ({ value: t.id, label: t.nombre }))}
+                                    placeholder="Seleccione el tipo general..."
+                                />
+                            </div>
+
                             {/* B. Categoria */}
                             <div>
                                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">Categoría Principal</label>
                                 <CustomSelect
                                     id="cat_select"
                                     required
-                                    value={selectedCategoria}
+                                    disabled={!selectedTipoServicioId}
+                                    value={selectedCategoriaId}
                                     onChange={(val) => {
-                                        setSelectedCategoria(val);
-                                        setSelectedSubcategoria('');
-                                        setSelectedCatalogoId('');
+                                        setSelectedCategoriaId(val);
+                                        setSelectedSubcategoriaId(''); // Cascada: Nivel 3 Reset
+                                        setSelectedAccionId(''); // Cascada: Nivel 4 Reset
                                     }}
-                                    options={categoriasUnicas.map(c => ({ value: c, label: c }))}
+                                    options={categorias.map(c => ({ value: c.id, label: c.nombre }))}
                                     placeholder="Seleccione categoría..."
                                 />
                             </div>
@@ -328,28 +415,27 @@ export function TicketForm({ onClose }: Props) {
                                 <CustomSelect
                                     id="subcat_select"
                                     required
-                                    disabled={!selectedCategoria}
-                                    value={selectedSubcategoria}
+                                    disabled={!selectedCategoriaId}
+                                    value={selectedSubcategoriaId}
                                     onChange={(val) => {
-                                        setSelectedSubcategoria(val);
-                                        setSelectedCatalogoId('');
+                                        setSelectedSubcategoriaId(val);
+                                        setSelectedAccionId(''); // Cascada: Nivel 3 Reset
                                     }}
-                                    options={subcategoriasFiltradas.map(s => ({ value: s, label: s }))}
+                                    options={subcategorias.map(s => ({ value: s.id, label: s.nombre }))}
                                     placeholder="Seleccione equipo..."
                                 />
                             </div>
 
-                            {/* D. Elemento (Falla) */}
+                            {/* D. Acción (Falla) */}
                             <div>
                                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">Acción / Falla</label>
                                 <CustomSelect
                                     id="element_select"
                                     required
-                                    name="catalogo_servicio_id"
-                                    disabled={!selectedSubcategoria}
-                                    value={selectedCatalogoId}
-                                    onChange={(val) => setSelectedCatalogoId(val)}
-                                    options={elementosFiltrados.map(e => ({ value: e.id, label: e.elemento }))}
+                                    disabled={!selectedSubcategoriaId}
+                                    value={selectedAccionId}
+                                    onChange={(val) => setSelectedAccionId(val)}
+                                    options={acciones.map(a => ({ value: a.id, label: a.nombre }))}
                                     placeholder="Indique la falla..."
                                 />
                             </div>

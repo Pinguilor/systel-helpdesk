@@ -14,104 +14,114 @@ export async function addStockAction(formData: FormData) {
         return { error: 'Permisos insuficientes' };
     }
 
-    const mode = formData.get('mode') as 'existing' | 'new';
     const bodegaId = formData.get('bodega_id') as string;
-    const cantidad = Number(formData.get('cantidad'));
-    const numeroSerie = formData.get('numero_serie') as string | null;
+    const mode = formData.get('mode') as string; // 'existing' | 'new'
 
-    if (!bodegaId || isNaN(cantidad)) {
-        return { error: 'Faltan campos obligatorios básicos.' };
+    if (!bodegaId) {
+        return { error: 'Falta la bodega de destino.' };
     }
 
-    let catalogoId = formData.get('catalogo_id') as string;
-    let esSerializado = formData.get('es_serializado') === 'true';
-
     try {
-        // Step 1: Create new catalog item if requested
-        if (mode === 'new') {
-            const familia = formData.get('familia') as string;
-            const modelo = formData.get('modelo') as string;
+        // Validar que la bodega elegida de hecho pertenezca a Central o Dañados
+        const { data: bodegaDestino } = await supabase.from('bodegas').select('tipo').eq('id', bodegaId).maybeSingle();
+        if (!bodegaDestino || !['CENTRAL', 'DAÑADOS'].includes(bodegaDestino.tipo?.toUpperCase() || '')) {
+            return { error: 'Bodega de destino inválida o no permitida.' };
+        }
+
+        if (mode === 'existing') {
+            const inventarioId = formData.get('inventario_id') as string;
             
-            if (!familia || !modelo) return { error: 'La familia y modelo son obligatorios para un nuevo registro.' };
+            if (!inventarioId) {
+                return { error: 'Debe seleccionar un equipo existente.' };
+            }
 
-            const { data: newCatalogo, error: catError } = await supabase
-                .from('catalogo_equipos')
-                .insert({
-                    familia,
-                    modelo,
-                    es_serializado: esSerializado
-                })
-                .select()
-                .single();
-
-            if (catError) throw new Error(`Error creando catálogo: ${catError.message}`);
-            catalogoId = newCatalogo.id;
-        }
-
-        // Validate serial logic
-        if (esSerializado && !numeroSerie && cantidad === 1) {
-            return { error: 'El número de serie es obligatorio para equipos serializados.' };
-        }
-
-        // Prevent adding multiple identical serials
-        if (esSerializado && cantidad > 1) {
-             return { error: 'Los equipos serializados deben ingresarse de a 1 indicando su número de serie respectivo.' };
-        }
-
-        // Step 2: Insert into inventory (Stock always inserts a new row with 'Disponible' initially)
-        // If it's non-serialized, technically we could UPDATE an existing row instead of making a new one,
-        // but often appending a new row is safer for lot tracking, or we just update the existing one.
-        // Let's try to update if it's non-serialized and exists in the same bodega with exactly same properties.
-        
-        let stockInserted;
-
-        if (!esSerializado) {
-            const { data: existingStock, error: errFind } = await supabase
+            // Fetch current equipment details
+            const { data: existingStock, error: errStock } = await supabase
                 .from('inventario')
-                .select('id, cantidad')
-                .eq('bodega_id', bodegaId)
-                .eq('catalogo_id', catalogoId)
-                .eq('estado', 'Disponible')
+                .select('id, cantidad, es_serializado, modelo, familia')
+                .eq('id', inventarioId)
                 .maybeSingle();
             
-            if (existingStock) {
-                const { data, error } = await supabase
-                    .from('inventario')
-                    .update({ cantidad: existingStock.cantidad + cantidad })
-                    .eq('id', existingStock.id)
-                    .select()
-                    .single();
-                if (error) throw new Error(`Error actualizando stock existente: ${error.message}`);
-                stockInserted = data;
-            } else {
-                const { data, error } = await supabase
+            if (errStock || !existingStock) throw new Error('Equipo no encontrado en inventario');
+            
+            if (existingStock.es_serializado) {
+                const nuevoSerieBruto = formData.get('nuevo_numero_serie') as string;
+                if (!nuevoSerieBruto) {
+                    return { error: 'El número de serie es obligatorio para ingresar un nuevo equipo serializado.' };
+                }
+                const serieLimpia = nuevoSerieBruto.trim();
+                
+                if (serieLimpia.length < 5) {
+                    return { error: 'El número de serie debe tener al menos 5 caracteres.' };
+                }
+
+                // Insertar nueva fila en lugar de updatear
+                const { error: insertErr } = await supabase
                     .from('inventario')
                     .insert({
                         bodega_id: bodegaId,
-                        catalogo_id: catalogoId,
-                        cantidad: cantidad,
+                        modelo: existingStock.modelo,
+                        familia: existingStock.familia,
+                        cantidad: 1,
+                        es_serializado: true,
+                        numero_serie: serieLimpia,
                         estado: 'Disponible'
-                    })
-                    .select()
-                    .single();
-                if (error) throw new Error(`Error insertando nuevo stock: ${error.message}`);
-                stockInserted = data;
+                    });
+                
+                if (insertErr) throw insertErr;
+            } else {
+                const cantidadToAdd = Number(formData.get('cantidad'));
+                if (isNaN(cantidadToAdd) || cantidadToAdd <= 0) {
+                    return { error: 'Debe especificar una cantidad válida a sumar.' };
+                }
+
+                const { error: updateErr } = await supabase
+                    .from('inventario')
+                    .update({ cantidad: existingStock.cantidad + cantidadToAdd })
+                    .eq('id', inventarioId);
+                
+                if (updateErr) throw updateErr;
             }
-        } else {
-            // Serialized: Must insert exact 1 quantity with serial
-            const { data, error } = await supabase
+
+        } else if (mode === 'new') {
+            const cantidad = Number(formData.get('cantidad'));
+            const numeroSerie = formData.get('numero_serie') as string | null;
+            let esSerializado = formData.get('es_serializado') === 'true';
+            const modelo = formData.get('modelo') as string;
+            const familia = formData.get('familia') as string;
+
+            if (isNaN(cantidad) || cantidad <= 0 || !modelo || !familia) {
+                return { error: 'Faltan campos obligatorios para el nuevo equipo (modelo, familia, cantidad).' };
+            }
+
+            // Validaciones Seriales
+            let serieLimpiaNuevo = numeroSerie ? numeroSerie.trim() : null;
+
+            if (esSerializado) {
+                if (!serieLimpiaNuevo) {
+                    return { error: 'El número de serie es obligatorio para equipos serializados.' };
+                }
+                if (serieLimpiaNuevo.length < 5) {
+                    return { error: 'El número de serie debe tener al menos 5 caracteres.' };
+                }
+                if (cantidad > 1) {
+                    return { error: 'Los equipos serializados deben ingresarse de a 1 indicando su respectivo número de serie.' };
+                }
+            }
+
+            const { error: insertErr } = await supabase
                 .from('inventario')
                 .insert({
                     bodega_id: bodegaId,
-                    catalogo_id: catalogoId,
-                    cantidad: 1, // enforced
-                    numero_serie: numeroSerie,
+                    modelo,
+                    familia,
+                    cantidad: esSerializado ? 1 : cantidad,
+                    es_serializado: esSerializado,
+                    numero_serie: serieLimpiaNuevo,
                     estado: 'Disponible'
-                })
-                .select()
-                .single();
-            if (error) throw new Error(`Error insertando stock serializado: ${error.message}`);
-            stockInserted = data;
+                });
+            
+            if (insertErr) throw insertErr;
         }
 
         revalidatePath('/dashboard/admin/bodegas');

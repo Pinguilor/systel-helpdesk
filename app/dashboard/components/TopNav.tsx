@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import { useState, useRef, useEffect } from 'react';
-import { Bell, User, LogOut, Search, LayoutDashboard, Plus, X, PieChart } from 'lucide-react';
+import { Bell, User, LogOut, Search, LayoutDashboard, Plus, X, PieChart, Settings, Briefcase } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
@@ -10,6 +10,7 @@ import { searchTicketByNumberAction, markNotificationReadAction } from '../actio
 import { Notification } from '@/types/database.types';
 import debounce from 'lodash.debounce';
 import { TicketForm } from '../usuario/components/TicketForm';
+import { CatalogConfigModal } from './CatalogConfigModal';
 
 interface TopNavProps {
     userFullName: string | null;
@@ -20,6 +21,7 @@ export default function TopNav({ userFullName, userRole }: TopNavProps) {
     const [isProfileOpen, setIsProfileOpen] = useState(false);
     const [isNotifOpen, setIsNotifOpen] = useState(false);
     const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
+    const [isCatalogModalOpen, setIsCatalogModalOpen] = useState(false);
     const [notifications, setNotifications] = useState<Notification[]>([]);
 
     const [searchQuery, setSearchQuery] = useState('');
@@ -380,6 +382,23 @@ export default function TopNav({ userFullName, userRole }: TopNavProps) {
                                     >
                                         <User className="w-4 h-4" /> Mi Perfil
                                     </Link>
+                                    {userRole === 'admin' && (
+                                        <button
+                                            onClick={() => { setIsProfileOpen(false); setIsCatalogModalOpen(true); }}
+                                            className="hidden md:flex w-full text-left px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 items-center gap-2"
+                                        >
+                                            <Settings className="w-4 h-4" /> Configuración
+                                        </button>
+                                    )}
+                                    {userRole === 'tecnico' && (
+                                        <Link
+                                            href="/dashboard/tecnico/mochila"
+                                            onClick={() => setIsProfileOpen(false)}
+                                            className="w-full text-left px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                                        >
+                                            <Briefcase className="w-4 h-4" /> Mi Mochila
+                                        </Link>
+                                    )}
                                     <button
                                         onClick={handleSignOut}
                                         className="w-full text-left px-4 py-2.5 text-sm font-bold text-red-600 hover:bg-red-50 flex items-center gap-2 border-t border-slate-50 mt-1"
@@ -400,7 +419,7 @@ export default function TopNav({ userFullName, userRole }: TopNavProps) {
                         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50" onClick={() => setIsTicketModalOpen(false)} />
                         <div className="relative z-[60] transform overflow-hidden rounded-3xl bg-white text-left shadow-2xl transition-all sm:my-8 sm:w-full sm:max-w-2xl border border-white/20">
                             <div className="absolute right-0 top-0 pr-6 pt-6 z-10">
-                                <button onClick={() => setIsTicketModalOpen(false)} className="rounded-full bg-slate-100 p-2 text-slate-400 hover:text-slate-600 transition-colors">
+                                <button onClick={() => setIsTicketModalOpen(false)} className="rounded-full bg-slate-100 p-2 text-slate-400 hover:text-slate-600 transition-colors" title="Cerrar" aria-label="Cerrar modal">
                                     <X className="h-5 w-5" />
                                 </button>
                             </div>
@@ -410,6 +429,11 @@ export default function TopNav({ userFullName, userRole }: TopNavProps) {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* Modal de Configuración de Catálogos */}
+            {isCatalogModalOpen && (
+                <CatalogConfigModal onClose={() => setIsCatalogModalOpen(false)} />
             )}
         </header>
     );

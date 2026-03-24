@@ -47,7 +47,7 @@ export function CustomSelect({
         <div className="relative" ref={dropdownRef}>
             {/* Native hidden select for standard form submission validation */}
             {name && (
-                <select name={name} value={value} onChange={() => { }} required={required} className="hidden">
+                <select name={name} title={placeholder || 'Select option'} value={value} onChange={() => { }} required={required} className="hidden">
                     <option value="" disabled></option>
                     {options.map(o => (
                         <option key={o.value} value={o.value}>{o.label}</option>
@@ -60,17 +60,12 @@ export function CustomSelect({
                 id={id}
                 disabled={disabled}
                 onClick={() => !disabled && setIsOpen(!isOpen)}
-                className={`
-                    flex items-center justify-between w-full px-3 py-2.5 
-                    bg-white border rounded-xl shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-brand-primary focus:border-transparent
-                    ${disabled ? 'opacity-50 cursor-not-allowed bg-slate-50 border-gray-200' : 'cursor-pointer border-gray-300 hover:border-gray-400'}
-                    ${isOpen ? 'ring-2 ring-brand-primary border-transparent' : ''}
-                `}
+                className={`flex items-center justify-between w-full px-4 py-3 bg-white border border-gray-300 rounded-lg shadow-sm appearance-none transition-all outline-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:rounded-lg ${disabled ? 'opacity-50 cursor-not-allowed bg-slate-50 border-gray-200' : 'cursor-pointer hover:border-gray-400'} ${isOpen ? 'ring-2 ring-blue-500 border-blue-500' : ''}`}
             >
-                <span className={`block truncate text-[13px] ${!selectedOption ? 'text-slate-400' : 'text-slate-900 font-medium'}`}>
+                <span className={`block truncate text-sm font-bold ${!selectedOption ? 'text-slate-400' : 'text-slate-800'}`}>
                     {selectedOption ? selectedOption.label : placeholder}
                 </span>
-                <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${isOpen ? 'rotate-180 text-brand-primary' : ''}`} />
+                <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${isOpen ? 'rotate-180 text-blue-500' : ''}`} />
             </button>
 
             {isOpen && !disabled && (
@@ -86,8 +81,8 @@ export function CustomSelect({
                                         setIsOpen(false);
                                     }}
                                     className={`
-                                        px-3 py-2 text-[13px] cursor-pointer transition-colors
-                                        ${isSelected ? 'bg-brand-primary/10 text-brand-primary font-bold' : 'text-slate-700 hover:bg-slate-100'}
+                                        px-4 py-3 text-sm font-bold cursor-pointer transition-colors border-b border-slate-100 last:border-0
+                                        ${isSelected ? 'bg-indigo-50 text-indigo-700' : 'text-slate-800 hover:bg-slate-50'}
                                     `}
                                 >
                                     {option.label}

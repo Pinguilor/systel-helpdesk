@@ -27,48 +27,68 @@ export function DashboardKPIs({ tickets }: Props) {
 
     return (
         <>
-            {/* AQUÍ ESTÁ LA MAGIA: grid-cols-3 forzado en móvil, con un gap pequeño */}
-            <div className="grid grid-cols-3 gap-2 sm:gap-4">
+            <div className="grid grid-cols-3 gap-2 sm:gap-4 mb-2">
 
                 {/* TARJETA 1: TOTAL */}
                 <button
                     onClick={() => setActiveModal('total')}
-                    className="bg-white rounded-xl shadow-sm sm:shadow-md border border-slate-200 p-3 sm:p-6 flex flex-col sm:flex-row items-center sm:justify-start justify-center gap-2 sm:gap-4 hover:border-indigo-300 hover:shadow-lg transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500 active:scale-95"
+                    className="group relative bg-white overflow-hidden rounded-xl sm:rounded-2xl shadow-sm hover:shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] border border-slate-200 hover:border-indigo-300 hover:ring-2 hover:ring-indigo-100 p-3 sm:p-4 flex flex-col justify-center transition-all duration-300 active:scale-[0.98] outline-none text-left"
                 >
-                    <div className="p-2 sm:p-3 bg-indigo-50 text-indigo-600 rounded-lg shrink-0">
-                        <LayoutDashboard className="w-5 h-5 sm:w-6 sm:h-6" />
+                    <div className="absolute -top-3 -right-3 sm:top-0 sm:right-0 p-3 opacity-0 group-hover:opacity-[0.03] transition-all duration-500 scale-75 group-hover:scale-150 transform origin-top-right pointer-events-none">
+                        <LayoutDashboard className="w-16 h-16 sm:w-20 sm:h-20 text-indigo-900" />
                     </div>
-                    <div className="text-center sm:text-left">
-                        <h4 className="text-lg sm:text-2xl font-black text-gray-900 leading-none mb-0.5 sm:mb-0">{totalTickets.length}</h4>
-                        <p className="text-[9px] sm:text-sm font-bold sm:font-medium text-gray-500 uppercase sm:capitalize tracking-tighter sm:tracking-normal truncate w-full">Totales</p>
+                    
+                    <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5 sm:mb-2.5 relative z-10 w-full">
+                        <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-md sm:rounded-lg bg-slate-50 text-slate-500 flex items-center justify-center shrink-0 group-hover:bg-indigo-600 group-hover:text-white transition-colors duration-300 border border-slate-200 group-hover:border-indigo-500">
+                            <LayoutDashboard className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                        </div>
+                        <span className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-widest group-hover:text-indigo-500 transition-colors truncate">Totales</span>
+                    </div>
+                    
+                    <div className="relative z-10 w-full">
+                        <span className="text-xl sm:text-3xl font-black text-slate-800 group-hover:text-indigo-600 transition-colors tracking-tight block leading-none">{totalTickets.length}</span>
                     </div>
                 </button>
 
                 {/* TARJETA 2: ACTIVOS */}
                 <button
                     onClick={() => setActiveModal('activos')}
-                    className="bg-white rounded-xl shadow-sm sm:shadow-md border border-slate-200 p-3 sm:p-6 flex flex-col sm:flex-row items-center sm:justify-start justify-center gap-2 sm:gap-4 hover:border-amber-300 hover:shadow-lg transition-all focus:outline-none focus:ring-2 focus:ring-amber-500 active:scale-95"
+                    className="group relative bg-white overflow-hidden rounded-xl sm:rounded-2xl shadow-sm hover:shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] border border-slate-200 hover:border-amber-300 hover:ring-2 hover:ring-amber-100 p-3 sm:p-4 flex flex-col justify-center transition-all duration-300 active:scale-[0.98] outline-none text-left"
                 >
-                    <div className="p-2 sm:p-3 bg-amber-50 text-amber-600 rounded-lg shrink-0">
-                        <Clock className="w-5 h-5 sm:w-6 sm:h-6" />
+                    <div className="absolute -top-3 -right-3 sm:top-0 sm:right-0 p-3 opacity-0 group-hover:opacity-[0.03] transition-all duration-500 scale-75 group-hover:scale-150 transform origin-top-right pointer-events-none">
+                        <Clock className="w-16 h-16 sm:w-20 sm:h-20 text-amber-900" />
                     </div>
-                    <div className="text-center sm:text-left">
-                        <h4 className="text-lg sm:text-2xl font-black text-gray-900 leading-none mb-0.5 sm:mb-0">{openTickets.length}</h4>
-                        <p className="text-[9px] sm:text-sm font-bold sm:font-medium text-gray-500 uppercase sm:capitalize tracking-tighter sm:tracking-normal truncate w-full">Activos</p>
+                    
+                    <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5 sm:mb-2.5 relative z-10 w-full">
+                        <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-md sm:rounded-lg bg-slate-50 text-slate-500 flex items-center justify-center shrink-0 group-hover:bg-amber-500 group-hover:text-white transition-colors duration-300 border border-slate-200 group-hover:border-amber-400">
+                            <Clock className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                        </div>
+                        <span className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-widest group-hover:text-amber-500 transition-colors truncate">Activos</span>
+                    </div>
+                    
+                    <div className="relative z-10 w-full">
+                        <span className="text-xl sm:text-3xl font-black text-slate-800 group-hover:text-amber-500 transition-colors tracking-tight block leading-none">{openTickets.length}</span>
                     </div>
                 </button>
 
                 {/* TARJETA 3: RESUELTOS */}
                 <button
                     onClick={() => setActiveModal('resueltos')}
-                    className="bg-white rounded-xl shadow-sm sm:shadow-md border border-slate-200 p-3 sm:p-6 flex flex-col sm:flex-row items-center sm:justify-start justify-center gap-2 sm:gap-4 hover:border-emerald-300 hover:shadow-lg transition-all focus:outline-none focus:ring-2 focus:ring-emerald-500 active:scale-95"
+                    className="group relative bg-white overflow-hidden rounded-xl sm:rounded-2xl shadow-sm hover:shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] border border-slate-200 hover:border-emerald-300 hover:ring-2 hover:ring-emerald-100 p-3 sm:p-4 flex flex-col justify-center transition-all duration-300 active:scale-[0.98] outline-none text-left"
                 >
-                    <div className="p-2 sm:p-3 bg-emerald-50 text-emerald-600 rounded-lg shrink-0">
-                        <CheckCircle2 className="w-5 h-5 sm:w-6 sm:h-6" />
+                    <div className="absolute -top-3 -right-3 sm:top-0 sm:right-0 p-3 opacity-0 group-hover:opacity-[0.03] transition-all duration-500 scale-75 group-hover:scale-150 transform origin-top-right pointer-events-none">
+                        <CheckCircle2 className="w-16 h-16 sm:w-20 sm:h-20 text-emerald-900" />
                     </div>
-                    <div className="text-center sm:text-left">
-                        <h4 className="text-lg sm:text-2xl font-black text-gray-900 leading-none mb-0.5 sm:mb-0">{resolvedTickets.length}</h4>
-                        <p className="text-[9px] sm:text-sm font-bold sm:font-medium text-gray-500 uppercase sm:capitalize tracking-tighter sm:tracking-normal truncate w-full">Resueltos</p>
+                    
+                    <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5 sm:mb-2.5 relative z-10 w-full">
+                        <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-md sm:rounded-lg bg-slate-50 text-slate-500 flex items-center justify-center shrink-0 group-hover:bg-emerald-500 group-hover:text-white transition-colors duration-300 border border-slate-200 group-hover:border-emerald-400">
+                            <CheckCircle2 className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                        </div>
+                        <span className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-widest group-hover:text-emerald-500 transition-colors truncate">Resueltos</span>
+                    </div>
+                    
+                    <div className="relative z-10 w-full">
+                        <span className="text-xl sm:text-3xl font-black text-slate-800 group-hover:text-emerald-500 transition-colors tracking-tight block leading-none">{resolvedTickets.length}</span>
                     </div>
                 </button>
             </div>
@@ -90,6 +110,8 @@ export function DashboardKPIs({ tickets }: Props) {
                             <button
                                 onClick={() => setActiveModal(null)}
                                 className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-lg transition-colors"
+                                aria-label="Cerrar modal"
+                                title="Cerrar"
                             >
                                 <X className="w-5 h-5" />
                             </button>

@@ -9,19 +9,22 @@ import { MessageSquare, Search, ChevronLeft, ChevronRight, CornerDownRight } fro
 
 const ITEMS_PER_PAGE = 25;
 
+type FilterType = 'TODOS' | 'PENDIENTES' | 'RESUELTOS';
+
 export default function TicketList({ limit }: { limit?: number }) {
     const [tickets, setTickets] = useState<Ticket[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+    const [filter, setFilter] = useState<FilterType>('TODOS');
     const [currentPage, setCurrentPage] = useState(1);
     const [isMounted, setIsMounted] = useState(false);
     const router = useRouter();
 
-    // Reset pagination when search term changes
+    // Reset pagination when search term or filter changes
     useEffect(() => {
         setIsMounted(true);
         setCurrentPage(1);
-    }, [searchTerm]);
+    }, [searchTerm, filter]);
 
     const fetchTickets = async () => {
         const supabase = createClient();
@@ -37,7 +40,7 @@ export default function TicketList({ limit }: { limit?: number }) {
                 .from('tickets')
                 .select(`
                     *, 
-                    restaurantes(nombre_restaurante), 
+                    restaurantes(nombre_restaurante, sigla), 
                     catalogo_servicios(categoria, subcategoria, elemento),
                     padre:ticket_padre_id(numero_ticket)
                 `)
@@ -118,9 +121,15 @@ export default function TicketList({ limit }: { limit?: number }) {
     };
 
     const processedTickets = useMemo(() => {
-        let filtered = tickets;
+        // 1. Filter by Status Tab
+        let filtered = tickets.filter(ticket => {
+            if (filter === 'TODOS') return true;
+            if (filter === 'PENDIENTES') return !['anulado', 'resuelto', 'cerrado'].includes(ticket.estado);
+            if (filter === 'RESUELTOS') return ['anulado', 'resuelto', 'cerrado'].includes(ticket.estado);
+            return true;
+        });
 
-        // Filter by Search Term
+        // 2. Filter by Search Term
         if (searchTerm.trim()) {
             const lowerSearch = searchTerm.toLowerCase();
             filtered = filtered.filter(ticket => {
@@ -133,7 +142,7 @@ export default function TicketList({ limit }: { limit?: number }) {
         }
 
         return filtered;
-    }, [tickets, searchTerm]);
+    }, [tickets, searchTerm, filter]);
 
     const totalPages = Math.ceil(processedTickets.length / ITEMS_PER_PAGE);
 
@@ -158,26 +167,41 @@ export default function TicketList({ limit }: { limit?: number }) {
 
     return (
         <div className="bg-white shadow-md rounded-xl overflow-hidden border border-slate-200 w-full mt-2">
-            <div className="p-5 border-b border-gray-200 flex flex-col justify-between items-start md:flex-row md:items-center bg-white gap-4">
-                <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2 whitespace-nowrap">
-                    Mis Tickets
-                    <span className="bg-emerald-100 text-emerald-800 text-xs font-bold px-2 py-0.5 rounded-full">
-                        {processedTickets.length}
-                    </span>
-                </h3>
-
-                {/* Search Bar */}
-                <div className="relative w-full md:w-80">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <Search className="h-4 w-4 text-slate-400" />
+            {/* Header / Controles Principales (Visible Móvil y Desktop) */}
+            <div className="p-4 sm:p-5 border-b border-gray-200 flex flex-col bg-white gap-4 w-full">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 w-full">
+                    {/* Título y Badge */}
+                    <div className="flex items-center gap-2">
+                        <h3 className="text-xl font-black text-slate-800 flex items-center gap-2 whitespace-nowrap tracking-tight">
+                            Mis Tickets
+                            <span className="bg-brand-primary/10 text-brand-primary text-xs font-bold px-2.5 py-1 rounded-full border border-brand-primary/20">
+                                {processedTickets.length}
+                            </span>
+                        </h3>
                     </div>
-                    <input
-                        type="text"
-                        placeholder="Buscar por ID (NC-XX), título o descripción..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="block w-full pl-10 pr-3 py-2 border border-slate-300 rounded-xl leading-5 bg-slate-50 placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-2 focus:ring-brand-primary focus:border-brand-primary sm:text-sm transition-all shadow-sm"
-                    />
+
+                    {/* Barra de Búsqueda de Ancho Completo */}
+                    <div className="relative w-full lg:max-w-md">
+                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                            <Search className="h-4 w-4 text-slate-400" />
+                        </div>
+                        <input
+                            type="text"
+                            placeholder="Buscar por ID (NC-XX), título o descripción"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="block w-full pl-10 pr-3 py-2.5 sm:py-2 border border-slate-300 rounded-xl leading-5 bg-slate-50 placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-2 focus:ring-brand-primary focus:border-brand-primary text-[15px] sm:text-sm transition-all shadow-sm"
+                        />
+                    </div>
+                </div>
+
+                {/* Filtros Estrictos (Tabs) */}
+                <div className="flex overflow-x-auto w-full p-1 sm:p-1.5 rounded-xl bg-slate-100 border border-slate-200 shadow-inner mt-1 sm:mt-0">
+                    <div className="flex space-x-1 min-w-max w-full">
+                        <button onClick={() => setFilter('TODOS')} className={`flex-1 px-4 sm:px-6 py-2 rounded-lg text-sm font-bold transition-all ${filter === 'TODOS' ? 'bg-white text-brand-primary shadow-sm ring-1 ring-slate-200/50' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/50'}`}>Todos</button>
+                        <button onClick={() => setFilter('PENDIENTES')} className={`flex-1 px-4 sm:px-6 py-2 rounded-lg text-sm font-bold transition-all ${filter === 'PENDIENTES' ? 'bg-white text-amber-600 shadow-sm ring-1 ring-slate-200/50' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/50'}`}>Pendientes</button>
+                        <button onClick={() => setFilter('RESUELTOS')} className={`flex-1 px-4 sm:px-6 py-2 rounded-lg text-sm font-bold transition-all ${filter === 'RESUELTOS' ? 'bg-white text-emerald-600 shadow-sm ring-1 ring-slate-200/50' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/50'}`}>Resueltos</button>
+                    </div>
                 </div>
             </div>
 
@@ -187,7 +211,8 @@ export default function TicketList({ limit }: { limit?: number }) {
                     <thead className="bg-gray-50/50">
                         <tr>
                             <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider w-[15%]">ID / Fecha</th>
-                            <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider w-[50%]">Asunto</th>
+                            <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider w-[40%]">Asunto</th>
+                            <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider w-[15%]">Restaurante</th>
                             <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider w-[15%]">Prioridad</th>
                             <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Estado</th>
                         </tr>
@@ -237,15 +262,8 @@ export default function TicketList({ limit }: { limit?: number }) {
                                             {ticket.titulo}
                                         </div>
                                         <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium whitespace-nowrap overflow-hidden text-ellipsis">
-                                            {ticket.restaurantes?.nombre_restaurante && (
-                                                <span className="truncate max-w-[120px]" title={ticket.restaurantes.nombre_restaurante}>
-                                                    {ticket.restaurantes.nombre_restaurante}
-                                                </span>
-                                            )}
-
                                             {ticket.catalogo_servicios && (
                                                 <>
-                                                    <ChevronRight className="w-3 h-3 text-slate-300 flex-shrink-0" />
                                                     <span className="truncate max-w-[100px]" title={ticket.catalogo_servicios.categoria}>
                                                         {ticket.catalogo_servicios.categoria}
                                                     </span>
@@ -260,6 +278,20 @@ export default function TicketList({ limit }: { limit?: number }) {
                                                 </>
                                             )}
                                         </div>
+                                    </td>
+
+                                    <td className="px-6 py-4 whitespace-nowrap">
+                                        {ticket.restaurantes?.sigla ? (
+                                            <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[10px] font-black tracking-widest bg-slate-100 text-slate-700 border border-slate-200">
+                                                {ticket.restaurantes.sigla}
+                                            </span>
+                                        ) : ticket.restaurantes?.nombre_restaurante ? (
+                                            <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[10px] font-black tracking-widest bg-slate-100 text-slate-700 border border-slate-200" title={ticket.restaurantes.nombre_restaurante}>
+                                                {ticket.restaurantes.nombre_restaurante.substring(0, 4).toUpperCase()}
+                                            </span>
+                                        ) : (
+                                            <span className="text-sm text-slate-400 font-medium">-</span>
+                                        )}
                                     </td>
 
                                     <td className="px-6 py-4 whitespace-nowrap">
