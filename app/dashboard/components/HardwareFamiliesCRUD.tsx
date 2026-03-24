@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Plus, Edit2, Save, X, Trash2, Box, Loader2 } from 'lucide-react';
 import { FamiliaHardware } from '@/types/database.types';
+import { LoopLoader } from '@/components/LoopLoader';
 
 export function HardwareFamiliesCRUD() {
     const [data, setData] = useState<FamiliaHardware[]>([]);
@@ -171,10 +172,7 @@ export function HardwareFamiliesCRUD() {
                 )}
 
                 {loading ? (
-                    <div className="flex flex-col items-center justify-center py-20 gap-4">
-                        <Loader2 className="w-10 h-10 text-indigo-500 animate-spin" />
-                        <p className="text-sm font-bold text-slate-400">Cargando Familias...</p>
-                    </div>
+                    <LoopLoader text="Cargando Familias..." />
                 ) : data.length === 0 && !isFormOpen ? (
                     <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl border border-dashed border-slate-300">
                         <Box className="w-16 h-16 text-slate-200 mb-4" />

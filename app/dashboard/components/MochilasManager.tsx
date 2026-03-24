@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { Package, User, ChevronRight, Plus, ArrowLeftRight, Loader2, PackagePlus, History, Clock, X } from 'lucide-react';
 import { assignToMochilaAction, returnFromMochilaAction, createMochilaAction } from './mochilasActions';
 import { CustomSelect } from './CustomSelect';
+import { LoopLoader } from '@/components/LoopLoader';
 
 interface Bodega {
     id: string;
@@ -221,7 +222,7 @@ export function MochilasManager() {
         }
     };
 
-    if (loading) return <div className="p-8 flex items-center justify-center flex-1 w-full"><Loader2 className="animate-spin w-8 h-8 text-slate-300"/></div>;
+    if (loading) return <LoopLoader text="Cargando Mochilas..." />;
 
     if (!selectedBodega) {
         return (

@@ -31,6 +31,7 @@ export default function TicketSidebar({ ticket, isAgent, isAdmin, agents = [], i
     const [editingChildId, setEditingChildId] = useState<string | null>(null);
     const [editingDescription, setEditingDescription] = useState('');
     const [isSavingDesc, setIsSavingDesc] = useState(false);
+    const [agentToConfirm, setAgentToConfirm] = useState<any>(null);
 
     const isTerminal = ['cerrado', 'resuelto', 'anulado'].includes(ticket.estado);
 
@@ -77,21 +78,23 @@ export default function TicketSidebar({ ticket, isAgent, isAdmin, agents = [], i
         }
     };
 
-    const handleAssignAgent = async (agent: any) => {
-        if (!confirm(`¿Estás seguro de que deseas asignar este ticket al agente: ${agent.full_name}?`)) {
-            setAgentOpen(false);
-            return;
-        }
-        setIsUpdating(true);
+    const handleAssignAgent = (agent: any) => {
+        setAgentToConfirm(agent);
         setAgentOpen(false);
+    };
+
+    const confirmAgentAssignment = async () => {
+        if (!agentToConfirm) return;
+        setIsUpdating(true);
         try {
-            const updates = { agente_asignado_id: agent.id, estado: 'abierto' } as any;
+            const updates = { agente_asignado_id: agentToConfirm.id, estado: 'abierto' } as any;
             const result = await updateTicketPropertiesAction(ticket.id, updates);
             if (result.error) alert(result.error);
         } catch (error) {
             console.error(error);
         } finally {
             setIsUpdating(false);
+            setAgentToConfirm(null);
         }
     };
 
@@ -522,6 +525,56 @@ export default function TicketSidebar({ ticket, isAgent, isAdmin, agents = [], i
                     ticketPadreId={ticket.id}
                     onClose={() => setShowChildTicketModal(false)}
                 />
+            )}
+
+            {/* CUSTOM AGENT CONFIRMATION MODAL */}
+            {agentToConfirm && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                    {/* Backdrop */}
+                    <div 
+                        className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity animate-in fade-in" 
+                        onClick={() => !isUpdating && setAgentToConfirm(null)}
+                    />
+                    
+                    {/* Modal Card */}
+                    <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                        <div className="p-6">
+                            <div className="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center mb-4 text-indigo-600">
+                                <UserPlus className="w-6 h-6" />
+                            </div>
+                            <h3 className="text-lg font-black text-slate-800 mb-2 tracking-tight">
+                                Confirmar Asignación
+                            </h3>
+                            <p className="text-sm text-slate-500 font-medium">
+                                ¿Estás seguro de que deseas asignar este ticket al agente <strong className="text-slate-800">{agentToConfirm.full_name}</strong>?
+                            </p>
+                        </div>
+                        
+                        <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+                            <button
+                                onClick={() => setAgentToConfirm(null)}
+                                disabled={isUpdating}
+                                className="px-5 py-2.5 rounded-xl border border-slate-300 text-slate-700 text-sm font-bold hover:bg-white transition-colors disabled:opacity-50"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={confirmAgentAssignment}
+                                disabled={isUpdating}
+                                className="px-6 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 transition-all shadow-md disabled:opacity-50 flex items-center gap-2"
+                            >
+                                {isUpdating ? (
+                                    <>
+                                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                        <span>Asignando...</span>
+                                    </>
+                                ) : (
+                                    <span>Asignar</span>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );

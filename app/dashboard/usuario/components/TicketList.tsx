@@ -6,6 +6,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { MessageSquare, Search, ChevronLeft, ChevronRight, CornerDownRight } from 'lucide-react';
+import { LoopLoader } from '@/components/LoopLoader';
 
 const ITEMS_PER_PAGE = 25;
 
@@ -158,11 +159,7 @@ export default function TicketList({ limit }: { limit?: number }) {
     if (!isMounted) return null;
 
     if (loading) {
-        return (
-            <div className="flex justify-center p-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-            </div>
-        );
+        return <LoopLoader text="Cargando Tickets..." />;
     }
 
     return (

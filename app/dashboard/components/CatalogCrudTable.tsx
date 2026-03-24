@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Plus, Edit2, Save, X, ToggleLeft, ToggleRight, Loader2, RefreshCw, ListTree, Trash2 } from 'lucide-react';
+import { LoopLoader } from '@/components/LoopLoader';
 
 interface RowData {
     id: string;
@@ -189,11 +190,8 @@ export function CatalogCrudTable({ tableName, labelName, baseFilter, onDrillDown
                         <tbody className="bg-white divide-y divide-slate-100">
                             {loading ? (
                                 <tr>
-                                    <td colSpan={3} className="px-6 py-12 text-center text-slate-400">
-                                        <div className="flex flex-col items-center justify-center gap-3">
-                                            <Loader2 className="w-8 h-8 animate-spin text-brand-primary/50" />
-                                            <span className="font-medium text-sm">Cargando catálogo...</span>
-                                        </div>
+                                    <td colSpan={3} className="px-6 py-12">
+                                        <LoopLoader text="Cargando catálogo..." />
                                     </td>
                                 </tr>
                             ) : data.length === 0 ? (

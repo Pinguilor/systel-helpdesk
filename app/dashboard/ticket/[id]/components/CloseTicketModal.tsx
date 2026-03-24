@@ -53,7 +53,7 @@ export function CloseTicketModal({ isOpen, onClose, ticket, materiales = [], onC
             } else {
                 navigator.geolocation.getCurrentPosition(resolve, reject, {
                     enableHighAccuracy: true,
-                    timeout: 15000,
+                    timeout: 10000,
                     maximumAge: 0
                 });
             }
@@ -66,37 +66,39 @@ export function CloseTicketModal({ isOpen, onClose, ticket, materiales = [], onC
         setIsLocating(true);
         setGpsError('');
 
+        let lat = 0;
+        let lng = 0;
+
         try {
             const position = await obtenerUbicacion();
-            setIsLocating(false);
-
+            lat = position.coords.latitude;
+            lng = position.coords.longitude;
         } catch (error: any) {
-            console.warn('GPS Error (Bypassed for DEV):', error);
-            setIsLocating(false);
-
-            // TODO: DEV ONLY - Revertir validación estricta de GPS para Producción
-            // Inyectamos coordenadas mock (0,0) si falla el GPS en entorno de pruebas
-            const firmaCliente = sigCanvasCliente.current.getTrimmedCanvas().toDataURL('image/png');
-            const firmaTecnico = sigCanvasTecnico.current.getTrimmedCanvas().toDataURL('image/png');
-            await onConfirm(notas, firmaCliente, firmaTecnico, receptorNombre, 0, 0);
-
-            /* ===== ORIGINAL STRICT VALIDATION (Comentada para pruebas locales) =====
-            let mensajeError = 'Error desconocido al obtener la ubicación.';
-            switch (error.code) {
-                case 1:
-                    mensajeError = 'Permiso de ubicación denegado.';
-                    break;
-                case 2:
-                    mensajeError = 'Posición no disponible (comprueba tu señal o Wi-Fi).';
-                    break;
-                case 3:
-                    mensajeError = 'Tiempo de espera agotado al buscar el GPS.';
-                    break;
-            }
+            console.error('GPS Validation Failed:', error);
+            let mensajeError = 'Error: Es obligatorio registrar la ubicación GPS real para finalizar el servicio. Activa la ubicación de tu dispositivo.';
+            
+            // Provides contextual errors for better UX debugging
+            if (error.code === 1) mensajeError = 'Permiso denegado: Es obligatorio dar acceso al GPS para finalizar.';
+            else if (error.code === 2) mensajeError = 'GPS no disponible: Comprueba tu señal o reinicia la ubicación.';
+            else if (error.code === 3) mensajeError = 'Tiempo agotado: No se pudo obtener la ubicación a tiempo.';
 
             setGpsError(mensajeError);
+            setIsLocating(false);
             setIsSubmitting(false);
-            ======================================================================== */
+            return; // ABORT SUBMISSION
+        }
+
+        setIsLocating(false);
+
+        const firmaCliente = sigCanvasCliente.current.getTrimmedCanvas().toDataURL('image/png');
+        const firmaTecnico = sigCanvasTecnico.current.getTrimmedCanvas().toDataURL('image/png');
+        
+        try {
+            await onConfirm(notas, firmaCliente, firmaTecnico, receptorNombre, lat, lng);
+        } catch (error) {
+            console.error('Error al confirmar acta:', error);
+            setGpsError('Error al guardar el acta: Verifique su conexión y contacte a soporte si el problema persiste.');
+            setIsSubmitting(false);
         }
     };
 

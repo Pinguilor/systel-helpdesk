@@ -375,7 +375,7 @@ export default function TicketTimeline({ ticket, messages, currentUserId, isAgen
                                         <h4 className="text-sm font-bold text-slate-800">Orden de Servicio Finalizada</h4>
                                         <p className="text-xs text-slate-500 flex flex-col sm:flex-row sm:items-center gap-2 mt-1">
                                             <span>El trabajo y firmas fueron registrados.</span>
-                                            {ticket.latitud_cierre && ticket.longitud_cierre && (
+                                            {ticket.latitud_cierre !== null && ticket.latitud_cierre !== 0 && (
                                                 <a
                                                     href={`https://www.google.com/maps?q=${ticket.latitud_cierre},${ticket.longitud_cierre}`}
                                                     target="_blank"
