@@ -10,6 +10,7 @@ import { SmartCloseModal } from './SmartCloseModal';
 import { ActaCierrePDF } from './ActaCierrePDF';
 import { AnularTicketModal } from './AnularTicketModal';
 import 'react-quill-new/dist/quill.snow.css';
+import imageCompression from 'browser-image-compression';
 
 const PDFDownloadLink = dynamic(() => import('@react-pdf/renderer').then(mod => mod.PDFDownloadLink), { ssr: false });
 
@@ -434,7 +435,23 @@ export default function TicketTimeline({ ticket, messages, currentUserId, isAgen
                                     type="file"
                                     multiple
                                     ref={fileInputRef}
-                                    onChange={(e) => { if (e.target.files) setSelectedFiles(Array.from(e.target.files)); }}
+                                    onChange={async (e) => {
+                                        if (e.target.files) {
+                                            const filesArray = Array.from(e.target.files);
+                                            const processedFiles = await Promise.all(filesArray.map(async (file) => {
+                                                if (file.type.startsWith('image/')) {
+                                                    try {
+                                                        return await imageCompression(file, { maxSizeMB: 0.8, maxWidthOrHeight: 1920, useWebWorker: true });
+                                                    } catch (error) {
+                                                        console.error('Error compressing image', error);
+                                                        return file;
+                                                    }
+                                                }
+                                                return file;
+                                            }));
+                                            setSelectedFiles(processedFiles);
+                                        }
+                                    }}
                                     className="hidden"
                                     accept=".pdf,.jpg,.jpeg,.png,.xlsx,.csv,.docx"
                                 />

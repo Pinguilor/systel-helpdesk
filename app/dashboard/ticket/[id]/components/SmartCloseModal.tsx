@@ -5,6 +5,7 @@ import SignatureCanvas from 'react-signature-canvas';
 import { X, CheckCircle2, UploadCloud, File as FileIcon, XCircle, PackageCheck, AlertTriangle } from 'lucide-react';
 import { smartCloseAction } from '../actions';
 import { useRouter } from 'next/navigation';
+import imageCompression from 'browser-image-compression';
 
 interface SmartCloseModalProps {
     ticketId: string;
@@ -145,7 +146,23 @@ export function SmartCloseModal({ ticketId, onClose, packingList }: SmartCloseMo
                                     className="hidden" 
                                     ref={fileInputRef}
                                     accept=".jpg,.jpeg,.png,.pdf"
-                                    onChange={(e) => { if (e.target.files) setAdjuntos(Array.from(e.target.files)); }}
+                                    onChange={async (e) => {
+                                        if (e.target.files) {
+                                            const filesArray = Array.from(e.target.files);
+                                            const processedFiles = await Promise.all(filesArray.map(async (file) => {
+                                                if (file.type.startsWith('image/')) {
+                                                    try {
+                                                        return await imageCompression(file, { maxSizeMB: 0.8, maxWidthOrHeight: 1920, useWebWorker: true });
+                                                    } catch (error) {
+                                                        console.error('Error compressing image', error);
+                                                        return file;
+                                                    }
+                                                }
+                                                return file;
+                                            }));
+                                            setAdjuntos(processedFiles);
+                                        }
+                                    }}
                                 />
 
                                 {adjuntos.length > 0 && (

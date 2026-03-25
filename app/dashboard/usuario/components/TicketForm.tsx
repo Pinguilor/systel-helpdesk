@@ -9,6 +9,7 @@ import { createClient } from '@/lib/supabase/client';
 import { Restaurante, CatalogoServicio, Zona } from '@/types/database.types';
 import { CustomSelect } from '../../components/CustomSelect';
 import 'react-quill-new/dist/quill.snow.css';
+import imageCompression from 'browser-image-compression';
 
 // Dynamic import of ReactQuill to prevent document hydration errors in Next.js
 const ReactQuill = dynamic(() => import('react-quill-new'), {
@@ -197,7 +198,7 @@ export function TicketForm({ onClose }: Props) {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const selectedFiles = Array.from(e.target.files || []);
 
         // Validate number of files
@@ -220,7 +221,18 @@ export function TicketForm({ onClose }: Props) {
         });
 
         if (validFiles.length > 0) {
-            setFiles(prev => [...prev, ...validFiles]);
+            const processedFiles = await Promise.all(validFiles.map(async (file) => {
+                if (file.type.startsWith('image/')) {
+                    try {
+                        return await imageCompression(file, { maxSizeMB: 0.8, maxWidthOrHeight: 1920, useWebWorker: true });
+                    } catch (error) {
+                        console.error('Error compressing image', error);
+                        return file;
+                    }
+                }
+                return file;
+            }));
+            setFiles(prev => [...prev, ...processedFiles]);
             setMessage(null);
         }
 

@@ -25,8 +25,9 @@ export default async function AnaliticasPage() {
     // Fetch tickets based on rol
     let ticketQuery = supabase.from('tickets').select('*');
 
-    // For requester, only show their own tickets. For agents, show all.
-    if (profile?.rol?.toUpperCase() !== 'tecnico') {
+    // For requester, only show their own tickets. For agents/admins/coordinators, show all.
+    const userRole = profile?.rol?.toUpperCase() || '';
+    if (userRole === 'USUARIO') {
         ticketQuery = ticketQuery.eq('creado_por', user.id);
     }
 
@@ -49,7 +50,7 @@ export default async function AnaliticasPage() {
                             Análisis y Reportes <Sparkles className="w-5 h-5 text-amber-500" />
                         </h1>
                         <p className="mt-1 text-sm text-slate-500 font-medium">
-                            {profile.rol === 'tecnico'
+                            {userRole !== 'USUARIO'
                                 ? 'Visión global de todas las solicitudes en la plataforma.'
                                 : 'Métricas y estadísticas sobre tus solicitudes.'}
                         </p>

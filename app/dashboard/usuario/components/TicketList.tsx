@@ -103,14 +103,28 @@ export default function TicketList({ limit }: { limit?: number }) {
     };
 
     const renderSlaBadge = (ticket: Ticket) => {
+        const dbSlaStatus = (ticket as any).slaStatus;
+        if (dbSlaStatus) {
+            const statusStr = String(dbSlaStatus).toLowerCase();
+            if (statusStr.includes('incumplido')) {
+                return <span className="inline-flex items-center px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold bg-red-100 text-red-700 tracking-wide uppercase whitespace-nowrap">{dbSlaStatus}</span>;
+            } else if (statusStr.includes('cumplido')) {
+                return <span className="inline-flex items-center px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold bg-green-100 text-green-700 tracking-wide uppercase whitespace-nowrap">{dbSlaStatus}</span>;
+            }
+            return <span className="inline-flex items-center px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold bg-gray-100 text-gray-700 tracking-wide uppercase whitespace-nowrap">{dbSlaStatus}</span>;
+        }
+
         if (!ticket.vencimiento_sla) return null;
 
         const isResolved = ticket.estado === 'resuelto' || ticket.estado === 'cerrado' || ticket.estado === 'anulado';
         const sla = new Date(ticket.vencimiento_sla);
 
         if (isResolved) {
-            const resolvedAt = new Date(ticket.actualizado_en);
-            return resolvedAt <= sla
+            let resolutionDate = new Date(ticket.actualizado_en);
+            if (ticket.fecha_resolucion) {
+                resolutionDate = new Date(ticket.fecha_resolucion);
+            }
+            return resolutionDate <= sla
                 ? <span className="inline-flex items-center px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold bg-green-100 text-green-700 tracking-wide uppercase whitespace-nowrap">SLA Cumplido</span>
                 : <span className="inline-flex items-center px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold bg-red-100 text-red-700 tracking-wide uppercase whitespace-nowrap">SLA Incumplido</span>;
         }

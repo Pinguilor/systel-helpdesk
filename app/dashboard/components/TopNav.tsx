@@ -184,13 +184,13 @@ export default function TopNav({ userFullName, userRole }: TopNavProps) {
                     {/* IZQUIERDA: Logo (Oculto en móvil si es tecnico) */}
                     <div className={`flex items-center flex-shrink-0 ${userRole === 'tecnico' ? 'hidden md:flex' : 'flex'}`}>
                         <Link href={dashboardLink} className="flex items-center group">
-                            <div className="group-hover:scale-105 transition-all duration-300">
+                            <div className="group-hover:opacity-80 transition-opacity duration-300">
                                 <Image
-                                    src="/looplogo.png"
-                                    alt="Logo Loop"
-                                    width={150}
+                                    src="/systeltldablanco.png"
+                                    alt="Logo Systel Principal"
+                                    width={160}
                                     height={50}
-                                    className="w-auto max-w-[120px] sm:max-w-[180px] h-10 sm:h-12 object-contain drop-shadow-sm"
+                                    className="h-8 sm:h-10 w-auto object-contain drop-shadow-sm"
                                     priority
                                 />
                             </div>
@@ -202,11 +202,11 @@ export default function TopNav({ userFullName, userRole }: TopNavProps) {
                         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 md:hidden pointer-events-auto">
                             <Link href={dashboardLink} className="flex items-center">
                                 <Image
-                                    src="/looplogo.png"
-                                    alt="Logo Loop"
+                                    src="/systeltldablanco.png"
+                                    alt="Logo Systel Principal"
                                     width={130}
-                                    height={45}
-                                    className="w-auto h-10 object-contain drop-shadow-sm"
+                                    height={40}
+                                    className="h-7 sm:h-9 w-auto object-contain drop-shadow-sm"
                                     priority
                                 />
                             </Link>

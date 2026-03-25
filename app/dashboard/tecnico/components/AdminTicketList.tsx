@@ -94,15 +94,30 @@ export function AdminTicketList({ initialTickets, currentAgentId, agentName }: P
 
     // Función extraída para calcular el SLA y renderizar la pastilla
     const renderSlaBadge = (ticket: Ticket, isCompound = false) => {
+        const shape = isCompound ? 'rounded-r-md border border-l-0 text-[10px]' : 'rounded text-[9px] sm:text-[10px] shadow-sm border';
+        const dbSlaStatus = (ticket as any).slaStatus;
+        
+        if (dbSlaStatus) {
+            const statusStr = String(dbSlaStatus).toLowerCase();
+            if (statusStr.includes('incumplido')) {
+                return <span className={`inline-flex items-center px-2 py-0.5 ${shape} font-bold bg-red-100 text-red-700 border-red-200 tracking-wide uppercase whitespace-nowrap`}>{dbSlaStatus}</span>;
+            } else if (statusStr.includes('cumplido')) {
+                return <span className={`inline-flex items-center px-2 py-0.5 ${shape} font-bold bg-green-100 text-green-700 border-green-200 tracking-wide uppercase whitespace-nowrap`}>{dbSlaStatus}</span>;
+            }
+            return <span className={`inline-flex items-center px-2 py-0.5 ${shape} font-bold bg-gray-100 text-gray-700 border-gray-200 tracking-wide uppercase whitespace-nowrap`}>{dbSlaStatus}</span>;
+        }
+
         if (!ticket.vencimiento_sla) return null;
 
         const isResolved = ticket.estado === 'resuelto' || ticket.estado === 'cerrado' || ticket.estado === 'anulado';
         const sla = new Date(ticket.vencimiento_sla);
-        const shape = isCompound ? 'rounded-r-md border border-l-0 text-[10px]' : 'rounded text-[9px] sm:text-[10px] shadow-sm border';
 
         if (isResolved) {
-            const resolvedAt = new Date(ticket.actualizado_en);
-            return resolvedAt <= sla
+            let resolutionDate = new Date(ticket.actualizado_en);
+            if (ticket.fecha_resolucion) {
+                resolutionDate = new Date(ticket.fecha_resolucion);
+            }
+            return resolutionDate <= sla
                 ? <span className={`inline-flex items-center px-2 py-0.5 ${shape} font-bold bg-green-100 text-green-700 border-green-200 tracking-wide uppercase whitespace-nowrap`}>SLA Cumplido</span>
                 : <span className={`inline-flex items-center px-2 py-0.5 ${shape} font-bold bg-red-100 text-red-700 border-red-200 tracking-wide uppercase whitespace-nowrap`}>SLA Incumplido</span>;
         }
