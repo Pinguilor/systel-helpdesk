@@ -389,7 +389,7 @@ export default function TicketTimeline({ ticket, messages, currentUserId, isAgen
                                             <span>El trabajo y firmas fueron registrados.</span>
                                             {ticket.latitud_cierre !== null && ticket.latitud_cierre !== 0 && (
                                                 <a
-                                                    href={`https://www.google.com/maps?q=$${ticket.latitud_cierre},${ticket.longitud_cierre}`}
+                                                    href={`https://www.google.com/maps/search/?api=1&query=${ticket.latitud_cierre},${ticket.longitud_cierre}`}
                                                     target="_blank"
                                                     rel="noopener noreferrer"
                                                     className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-100/80 hover:bg-emerald-200 text-emerald-700 border border-emerald-200/60 rounded text-[10px] font-bold uppercase tracking-widest transition-colors w-max mx-auto sm:mx-0"
