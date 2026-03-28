@@ -51,7 +51,7 @@ export default async function MochilasPage() {
 
     // ── 5. Construir el mapa de mochila por tecnico_id ─────────
     const bodegaMap = new Map((bodegas ?? []).map(b => [b.tecnico_id, b]));
-    const inventarioMap = new Map<string, typeof inventario>();
+   const inventarioMap = new Map<string, any[]>();
 
     (inventario ?? []).forEach(item => {
         if (!item.bodega_id) return;
