@@ -48,15 +48,20 @@ export function CustomSelect({
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    // Cierra al hacer scroll o resize
+    // Cierra al hacer scroll fuera del dropdown o al hacer resize
     useEffect(() => {
         if (!isOpen) return;
-        const close = () => setIsOpen(false);
-        window.addEventListener('scroll', close, true);
-        window.addEventListener('resize', close);
+        const handleScroll = (e: Event) => {
+            // Ignorar scroll interno del propio dropdown (arrastrar scrollbar)
+            if (dropdownRef.current?.contains(e.target as Node)) return;
+            setIsOpen(false);
+        };
+        const handleResize = () => setIsOpen(false);
+        window.addEventListener('scroll', handleScroll, true);
+        window.addEventListener('resize', handleResize);
         return () => {
-            window.removeEventListener('scroll', close, true);
-            window.removeEventListener('resize', close);
+            window.removeEventListener('scroll', handleScroll, true);
+            window.removeEventListener('resize', handleResize);
         };
     }, [isOpen]);
 
@@ -120,6 +125,7 @@ export function CustomSelect({
                 <div
                     ref={dropdownRef}
                     style={dropdownStyle}
+                    onMouseDown={(e) => e.preventDefault()}
                     className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200"
                 >
                     <ul className="max-h-60 overflow-y-auto py-1 custom-scrollbar">

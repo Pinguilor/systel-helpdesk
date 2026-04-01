@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import {
-    Settings, Users, Backpack, BookOpen,
+    Settings, Users, Backpack,
     ChevronRight, ShieldCheck, Eye,
     Layers, Wrench, Building2
 } from 'lucide-react';
@@ -37,18 +37,6 @@ const MODULOS = [
         iconBg:      'bg-amber-100 text-amber-600',
         rolesAllow:  ['admin', 'coordinador'],
         items:       ['Inventario por técnico', 'Historial de movimientos', 'Stock en campo'],
-    },
-    {
-        href:        '/dashboard/admin/catalogo',
-        icon:        BookOpen,
-        title:       'Catálogo de Servicios',
-        description: 'Gestiona los tipos de proyecto, categorías de ticket, subcategorías y elementos del catálogo de servicios.',
-        badge:       'Configuración',
-        badgeColor:  'bg-emerald-100 text-emerald-700 border-emerald-200',
-        gradient:    'from-emerald-500 to-teal-600',
-        iconBg:      'bg-emerald-100 text-emerald-600',
-        rolesAllow:  ['admin', 'coordinador'],
-        items:       ['Tipos de ticket', 'Categorías', 'Subcategorías'],
     },
     {
         href:        '/dashboard/configuracion/clientes',

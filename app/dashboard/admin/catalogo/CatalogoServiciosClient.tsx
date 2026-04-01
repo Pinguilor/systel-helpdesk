@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useTransition, useCallback, useMemo, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { createClient } from '@/lib/supabase/client';
 import {
     BookOpen, Plus, Pencil, Trash2, Loader2, AlertTriangle,
@@ -212,6 +213,41 @@ function ModalEliminar({ levelLabel, nombre, onClose, onConfirm }: {
     );
 }
 
+// ── NodeTooltip: tooltip via portal (escapa overflow-hidden/auto) ──
+function NodeTooltip({ text, children }: { text: string; children: React.ReactNode }) {
+    const [coords, setCoords] = useState<{ x: number; y: number } | null>(null);
+    const ref = useRef<HTMLDivElement>(null);
+
+    return (
+        <>
+            <div
+                ref={ref}
+                className="flex-1 min-w-0"
+                onMouseEnter={() => {
+                    if (ref.current) {
+                        const r = ref.current.getBoundingClientRect();
+                        setCoords({ x: r.left + r.width / 2, y: r.top });
+                    }
+                }}
+                onMouseLeave={() => setCoords(null)}
+            >
+                {children}
+            </div>
+            {coords && createPortal(
+                <span
+                    style={{ position: 'fixed', top: coords.y - 8, left: coords.x, transform: 'translate(-50%, -100%)', zIndex: 9999 }}
+                    className="bg-slate-800 text-white text-xs font-semibold rounded-lg py-1.5 px-2.5 whitespace-nowrap pointer-events-none shadow-xl"
+                >
+                    {text}
+                    {/* Flecha apuntando hacia abajo */}
+                    <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-800" />
+                </span>,
+                document.body
+            )}
+        </>
+    );
+}
+
 // ── NodeItem: fila individual dentro de una columna ────────────
 function NodeItem({
     node, isSelected, isLast, cfg, isAdmin,
@@ -252,9 +288,11 @@ function NodeItem({
             )}
 
             {/* Name */}
-            <span className={`flex-1 text-sm font-semibold truncate ${isSelected ? 'text-white' : 'text-slate-700'}`}>
-                {node.nombre}
-            </span>
+            <NodeTooltip text={node.nombre}>
+                <span className={`block text-sm font-semibold truncate ${isSelected ? 'text-white' : 'text-slate-700'}`}>
+                    {node.nombre}
+                </span>
+            </NodeTooltip>
 
             {/* Count or status badge */}
             {!isLast && childCount !== undefined && (

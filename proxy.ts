@@ -59,6 +59,11 @@ export async function proxy(request: NextRequest) {
             return supabaseResponse;
         }
 
+        // Shared route bypass: Rutas de autenticación (signout, callbacks, etc.)
+        if (url.pathname.startsWith('/auth/')) {
+            return supabaseResponse;
+        }
+
         // Shared route bypass: Permitir acceso a Analíticas y Perfil a cualquier usuario autenticado
         if (url.pathname.startsWith('/dashboard/analiticas') || url.pathname.startsWith('/dashboard/perfil')) {
             return supabaseResponse;

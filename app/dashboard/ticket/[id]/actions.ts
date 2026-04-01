@@ -123,20 +123,66 @@ export async function addTicketMessageAction(formData: FormData) {
     }
 
     // --- NOTIFICATION LOGIC ---
-    if (ticket.creado_por !== user.id) {
-        const mensajeNotif = isStaff
-            ? `El agente ha respondido a tu solicitud NC-${ticket.numero_ticket}`
-            : `Un compañero de tu empresa ha comentado en la solicitud NC-${ticket.numero_ticket}`;
+    // Usamos admin client para bypasear RLS al insertar notificaciones con user_id ajeno.
+    const { createClient: createAdminClient } = await import('@supabase/supabase-js');
+    const adminSupabase = createAdminClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
 
-        await supabase.from('notifications').insert({
-            user_id: ticket.creado_por,
-            ticket_id: ticketId,
-            mensaje: mensajeNotif,
-            leida: false,
-        });
+    if (isStaff) {
+        // Staff (agente/admin) comenta → notificar al creador del ticket si es distinto
+        if (ticket.creado_por !== user.id) {
+            const { error: ne } = await adminSupabase.from('notifications').insert({
+                user_id:   ticket.creado_por,
+                ticket_id: ticketId,
+                mensaje:   `El agente ha respondido a tu solicitud NC-${ticket.numero_ticket}`,
+                leida:     false,
+                tipo:      'mensaje',
+            });
+            if (ne) console.error('Error notif staff→creator:', ne.message);
+        }
+    } else {
+        // Cliente comenta → notificar a admins y coordinadores con el nombre del cliente
+        const { data: senderProfile } = await supabase
+            .from('profiles')
+            .select('full_name')
+            .eq('id', user.id)
+            .maybeSingle();
+        const senderName = senderProfile?.full_name || 'El cliente';
+
+        const { data: staffProfiles } = await supabase
+            .from('profiles')
+            .select('id')
+            .in('rol', ['admin', 'coordinador']);
+
+        if (staffProfiles && staffProfiles.length > 0) {
+            const staffNotifs = staffProfiles.map(p => ({
+                user_id:   p.id,
+                ticket_id: ticketId,
+                mensaje:   `${senderName} ha comentado en la solicitud NC-${ticket.numero_ticket}`,
+                leida:     false,
+                tipo:      'mensaje',
+            }));
+            const { error: ne } = await adminSupabase.from('notifications').insert(staffNotifs);
+            if (ne) console.error('Error notif client→staff:', ne.message);
+        }
+
+        // Si hay un compañero de empresa como creador distinto, notificarlo también
+        if (ticket.creado_por !== user.id && mismaEmpresa) {
+            const { error: ne } = await adminSupabase.from('notifications').insert({
+                user_id:   ticket.creado_por,
+                ticket_id: ticketId,
+                mensaje:   `Un compañero de tu empresa ha comentado en la solicitud NC-${ticket.numero_ticket}`,
+                leida:     false,
+                tipo:      'mensaje',
+            });
+            if (ne) console.error('Error notif client→peer:', ne.message);
+        }
     }
     // -------------------------
 
+    revalidatePath('/dashboard', 'layout');
     revalidatePath(`/dashboard/ticket/${ticketId}`);
     revalidatePath('/dashboard/ticket/[id]', 'page');
     revalidatePath('/dashboard/solicitante');

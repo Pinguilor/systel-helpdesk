@@ -68,5 +68,6 @@ export async function markAllNotificationsReadAction() {
         .eq('user_id', user.id)
         .eq('leida', false);
 
+    revalidatePath('/dashboard', 'layout');
     return { success: true };
 }

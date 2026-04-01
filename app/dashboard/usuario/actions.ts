@@ -113,35 +113,48 @@ export async function createTicketAction(formData: FormData) {
     }
 
     // --- NOTIFY ADMINS & COORDINADORES (técnicos solo se notifican al asignarles) ---
-    const { data: newTicket } = await supabase.from('tickets').select('numero_ticket').eq('id', ticketId).single();
+    const [{ data: newTicket }, { data: profile }] = await Promise.all([
+        supabase.from('tickets').select('numero_ticket').eq('id', ticketId).single(),
+        supabase.from('profiles').select('full_name').eq('id', user.id).maybeSingle(),
+    ]);
+    const creatorName = profile?.full_name || 'Usuario del Sistema';
+
     if (newTicket) {
         const { data: adminProfiles } = await supabase
             .from('profiles')
             .select('id')
             .in('rol', ['admin', 'coordinador']);
+
         if (adminProfiles && adminProfiles.length > 0) {
+            // Usamos el cliente admin (service role) para bypasear RLS,
+            // ya que el usuario autenticado no puede insertar notifs con user_id ajeno.
+            const { createClient: createAdminClient } = await import('@supabase/supabase-js');
+            const adminSupabase = createAdminClient(
+                process.env.NEXT_PUBLIC_SUPABASE_URL!,
+                process.env.SUPABASE_SERVICE_ROLE_KEY!
+            );
             const notifications = adminProfiles.map(p => ({
-                user_id: p.id,
+                user_id:   p.id,
                 ticket_id: ticketId,
-                mensaje: `Nueva solicitud ingresada: NC-${newTicket.numero_ticket}`,
-                leida: false,
-                tipo: 'nuevo_ticket',
+                mensaje:   `Nueva solicitud ingresada por ${creatorName}: NC-${newTicket.numero_ticket}`,
+                leida:     false,
+                tipo:      'nuevo_ticket',
             }));
-            await supabase.from('notifications').insert(notifications);
+            const { error: notifError } = await adminSupabase.from('notifications').insert(notifications);
+            if (notifError) console.error('Error insertando notificaciones de nuevo ticket:', notifError.message);
         }
 
         // --- ENVIAR CORREO TRANSACCIONAL ---
-        const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', user.id).maybeSingle();
-        const creatorName = profile?.full_name || 'Usuario del Sistema';
         const adminEmail = process.env.ADMIN_EMAIL || 'no-reply@loopdeskapp.com';
-        
+
         // Disparamos el correo sin bloquear (fire and forget)
         sendTicketCreatedEmail(ticketId, newTicket.numero_ticket, titulo, prioridad, creatorName, adminEmail)
             .catch(err => console.error('Fallo disparando email de creación:', err));
     }
     // -------------------------
 
-    // Revalidate dashboard so the new ticket appears in the list
+    // Revalidate dashboard so the new ticket appears in the list and TopNav refreshes
+    revalidatePath('/dashboard', 'layout');
     revalidatePath(`/dashboard/ticket/${ticketId}`);
     revalidatePath('/dashboard/usuario');
     return { success: true, id: ticketId };

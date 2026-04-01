@@ -181,6 +181,39 @@ export async function actualizarUsuarioAction(formData: FormData) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// BLANQUEAR contraseña: genera clave temporal y fuerza cambio
+// ─────────────────────────────────────────────────────────────
+export async function blanquearPasswordAction(userId: string) {
+    try {
+        const guard = await assertAdmin();
+        if (guard.error) return { error: guard.error };
+
+        // Generar contraseña temporal: 8 chars alfanuméricos + sufijo fijo para cumplir requisitos
+        const tempPassword = Math.random().toString(36).slice(-8).toUpperCase() + 'a1!';
+
+        const adminSupabase = getAdminClient();
+
+        // 1. Actualizar contraseña en Auth
+        const { error: authError } = await adminSupabase.auth.admin.updateUserById(userId, {
+            password: tempPassword,
+        });
+        if (authError) throw new Error(`Error Auth: ${authError.message}`);
+
+        // 2. Marcar que debe cambiar contraseña en el próximo login
+        const { error: profileError } = await adminSupabase
+            .from('profiles')
+            .update({ debe_cambiar_password: true })
+            .eq('id', userId);
+        if (profileError) throw new Error(`Error perfil: ${profileError.message}`);
+
+        revalidatePath(RUTA);
+        return { success: true, tempPassword };
+    } catch (e: any) {
+        return { error: e.message || 'Error interno al blanquear la contraseña.' };
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
 // ELIMINAR usuario completamente (Auth + profiles)
 // Limpia FK constraints antes de borrar para evitar errores de BD
 // ─────────────────────────────────────────────────────────────

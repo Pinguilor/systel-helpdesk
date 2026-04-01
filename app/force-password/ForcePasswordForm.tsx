@@ -33,8 +33,7 @@ export default function ForcePasswordForm() {
                 <div>
                     <p className="text-sm font-black text-amber-900">Contraseña temporal activa</p>
                     <p className="text-xs text-amber-700 mt-0.5">
-                        Tu contraseña actual es <span className="font-mono font-bold">SystelPassword</span>.
-                        Ingrésala abajo y elige una nueva contraseña segura.
+                        Valida tu identidad ingresando la contraseña temporal que te fue asignada y establece una nueva clave segura.
                     </p>
                 </div>
             </div>
@@ -48,7 +47,7 @@ export default function ForcePasswordForm() {
                             name="password_actual"
                             type={showActual ? 'text' : 'password'}
                             required
-                            placeholder="SystelPassword"
+                            placeholder="••••••••"
                             className={inputClass}
                         />
                         <button type="button" onClick={() => setShowActual(v => !v)}
@@ -115,6 +114,22 @@ export default function ForcePasswordForm() {
                     {isPending ? 'Guardando…' : 'Establecer nueva contraseña'}
                 </button>
             </form>
+
+            {/* Vía de escape: cerrar sesión */}
+            <div className="px-6 pb-5">
+                <button
+                    type="button"
+                    onClick={async () => {
+                        // El fetch deja que el servidor limpie las cookies en su respuesta
+                        // antes de que window.location fuerce una recarga limpia
+                        await fetch('/auth/signout', { method: 'POST' });
+                        window.location.href = '/login';
+                    }}
+                    className="w-full py-2 text-sm font-medium text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                    Cancelar y cerrar sesión
+                </button>
+            </div>
         </div>
     );
 }

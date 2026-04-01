@@ -23,6 +23,8 @@ export default function TopNav({ userFullName, userRole }: TopNavProps) {
     const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
     const [isCatalogModalOpen, setIsCatalogModalOpen] = useState(false);
     const [notifications, setNotifications] = useState<any[]>([]);
+    const [hasMore, setHasMore]             = useState(false);
+    const [loadingMore, setLoadingMore]     = useState(false);
 
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState<{ id: string, numero_ticket: number, titulo: string }[]>([]);
@@ -36,10 +38,32 @@ export default function TopNav({ userFullName, userRole }: TopNavProps) {
     const pathname = usePathname();
     const supabase = createClient();
 
+    const isGlobalViewer = userRole === 'admin' || userRole === 'coordinador';
+    const NOTIF_PAGE_SIZE = 20;
+
+    const fetchMoreNotifications = async () => {
+        setLoadingMore(true);
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) { setLoadingMore(false); return; }
+
+        let query = supabase
+            .from('notifications')
+            .select('*, tickets(numero_ticket)')
+            .order('creado_en', { ascending: false })
+            .range(notifications.length, notifications.length + NOTIF_PAGE_SIZE - 1);
+
+        if (!isGlobalViewer) query = query.eq('user_id', user.id);
+
+        const { data } = await query;
+        if (data) {
+            setNotifications(prev => [...prev, ...data]);
+            setHasMore(data.length === NOTIF_PAGE_SIZE);
+        }
+        setLoadingMore(false);
+    };
+
     useEffect(() => {
         let userId: string | null = null;
-
-        const isGlobalViewer = userRole === 'admin' || userRole === 'coordinador';
 
         const fetchNotifications = async () => {
             const { data: { user } } = await supabase.auth.getUser();
@@ -50,14 +74,17 @@ export default function TopNav({ userFullName, userRole }: TopNavProps) {
                 .from('notifications')
                 .select('*, tickets(numero_ticket)')
                 .order('creado_en', { ascending: false })
-                .limit(50);
+                .limit(NOTIF_PAGE_SIZE);
 
             if (!isGlobalViewer) {
                 query = query.eq('user_id', user.id);
             }
 
             const { data } = await query;
-            if (data) setNotifications(data);
+            if (data) {
+                setNotifications(data);
+                setHasMore(data.length === NOTIF_PAGE_SIZE);
+            }
         };
 
         fetchNotifications();
@@ -465,10 +492,22 @@ export default function TopNav({ userFullName, userRole }: TopNavProps) {
 
                                     {/* Footer */}
                                     {notifications.length > 0 && (
-                                        <div className="border-t border-slate-100 px-4 py-2.5 bg-slate-50/50">
-                                            <p className="text-[11px] text-slate-400 font-medium text-center">
-                                                Mostrando las últimas {notifications.length} notificaciones
-                                            </p>
+                                        <div className="border-t border-slate-100 px-4 py-2.5 bg-slate-50/50 flex flex-col items-center gap-1">
+                                            {hasMore ? (
+                                                <button
+                                                    onClick={fetchMoreNotifications}
+                                                    disabled={loadingMore}
+                                                    className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 transition-colors disabled:opacity-50 flex items-center gap-1.5 py-1"
+                                                >
+                                                    {loadingMore
+                                                        ? <><span className="w-3 h-3 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin inline-block" /> Cargando…</>
+                                                        : '↓ Ver más notificaciones'}
+                                                </button>
+                                            ) : (
+                                                <p className="text-[11px] text-slate-400 font-medium text-center">
+                                                    {notifications.length} notificación{notifications.length !== 1 ? 'es' : ''} · estás al día
+                                                </p>
+                                            )}
                                         </div>
                                     )}
                                 </div>

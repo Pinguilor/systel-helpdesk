@@ -3,12 +3,13 @@
 import React, { useState, useTransition, useCallback } from 'react';
 import {
     UserPlus, Pencil, Trash2, Loader2, AlertTriangle,
-    CheckCircle2, X, Shield, Users, RefreshCw, KeyRound,
+    CheckCircle2, X, Shield, Users, RefreshCw, KeyRound, Copy, Check,
 } from 'lucide-react';
 import {
     crearUsuarioAction,
     actualizarUsuarioAction,
     eliminarUsuarioAction,
+    blanquearPasswordAction,
 } from './actions';
 import { CustomSelect } from '@/app/dashboard/components/CustomSelect';
 import { useRouter } from 'next/navigation';
@@ -342,6 +343,126 @@ function ModalEliminar({ usuario, onClose, onSuccess }: {
     );
 }
 
+// ── Modal: Blanquear Contraseña ────────────────────────────────
+function ModalBlanquear({ usuario, onClose }: {
+    usuario: Usuario; onClose: () => void;
+}) {
+    const [isPending, startTransition] = useTransition();
+    const [error, setError]            = useState('');
+    const [tempPassword, setTempPassword] = useState('');
+    const [copied, setCopied]          = useState(false);
+
+    const handleBlanquear = () => {
+        setError('');
+        startTransition(async () => {
+            const res = await blanquearPasswordAction(usuario.id);
+            if (res.error) { setError(res.error); return; }
+            setTempPassword(res.tempPassword ?? '');
+        });
+    };
+
+    const handleCopy = () => {
+        navigator.clipboard.writeText(tempPassword);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    };
+
+    return (
+        <ModalBackdrop onClose={() => !isPending && onClose()}>
+            <div className="relative bg-white rounded-2xl w-full max-w-md shadow-2xl animate-in fade-in zoom-in-95 duration-200 overflow-hidden z-10">
+                {/* Header */}
+                <div className="bg-amber-500 px-6 py-4 flex items-center gap-3">
+                    <div className="p-2 bg-white/20 rounded-xl"><KeyRound className="w-5 h-5 text-white" /></div>
+                    <div>
+                        <h3 className="text-base font-black text-white">Blanquear Contraseña</h3>
+                        <p className="text-xs text-amber-100 font-medium truncate max-w-[220px]">{usuario.email}</p>
+                    </div>
+                    <button onClick={onClose} disabled={isPending} title="Cerrar"
+                        className="ml-auto p-1.5 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-colors disabled:opacity-40">
+                        <X className="w-4 h-4" />
+                    </button>
+                </div>
+
+                <div className="p-6 space-y-4">
+                    {/* Estado: resultado exitoso */}
+                    {tempPassword ? (
+                        <>
+                            <div className="flex flex-col items-center text-center gap-2">
+                                <div className="w-12 h-12 rounded-2xl bg-emerald-100 flex items-center justify-center">
+                                    <CheckCircle2 className="w-7 h-7 text-emerald-600" />
+                                </div>
+                                <p className="text-base font-black text-slate-900">Contraseña restablecida</p>
+                                <p className="text-sm text-slate-500">
+                                    Entrega esta clave temporal a{' '}
+                                    <span className="font-bold text-slate-700">{usuario.full_name || 'el usuario'}</span>.
+                                    Deberá cambiarla en su próximo ingreso.
+                                </p>
+                            </div>
+
+                            {/* Contraseña + copiar */}
+                            <div className="flex items-center gap-2 bg-slate-900 rounded-xl px-4 py-3">
+                                <span className="flex-1 font-mono text-lg font-black text-white tracking-widest select-all">
+                                    {tempPassword}
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={handleCopy}
+                                    title="Copiar al portapapeles"
+                                    className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors shrink-0"
+                                >
+                                    {copied
+                                        ? <Check className="w-4 h-4 text-emerald-400" />
+                                        : <Copy className="w-4 h-4" />
+                                    }
+                                </button>
+                            </div>
+                            {copied && (
+                                <p className="text-center text-xs text-emerald-600 font-bold animate-in fade-in duration-200">
+                                    ¡Copiado al portapapeles!
+                                </p>
+                            )}
+
+                            <button onClick={onClose}
+                                className="w-full px-4 py-2.5 bg-slate-800 text-white text-sm font-black rounded-xl hover:bg-slate-700 transition-all shadow-md">
+                                Listo, cerrar
+                            </button>
+                        </>
+                    ) : (
+                        /* Estado: confirmación */
+                        <>
+                            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                                <p className="text-sm font-medium text-amber-900">
+                                    Se generará una contraseña temporal aleatoria para{' '}
+                                    <span className="font-black">{usuario.full_name || 'este usuario'}</span>.
+                                    El usuario deberá cambiarla en su próximo inicio de sesión.
+                                </p>
+                            </div>
+
+                            {error && (
+                                <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5 text-red-600 text-sm font-medium">
+                                    <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />{error}
+                                </div>
+                            )}
+
+                            <div className="flex gap-3">
+                                <button type="button" onClick={onClose} disabled={isPending}
+                                    className="flex-1 px-4 py-2.5 text-sm font-bold text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors disabled:opacity-50">
+                                    Cancelar
+                                </button>
+                                <button onClick={handleBlanquear} disabled={isPending}
+                                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-500 text-white text-sm font-black rounded-xl hover:bg-amber-600 transition-all shadow-md active:scale-95 disabled:opacity-40">
+                                    {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <KeyRound className="w-4 h-4" />}
+                                    {isPending ? 'Generando…' : 'Generar contraseña'}
+                                </button>
+                            </div>
+                        </>
+                    )}
+                </div>
+            </div>
+        </ModalBackdrop>
+    );
+}
+
 // ── Componente Principal ───────────────────────────────────────
 export function GestionUsuariosClient({
     usuarios: initialUsuarios,
@@ -351,9 +472,10 @@ export function GestionUsuariosClient({
     const router = useRouter();
     const [search, setSearch]             = useState('');
     const [filtroRol, setFiltroRol]       = useState('todos');
-    const [modalCrear, setModalCrear]     = useState(false);
-    const [modalEditar, setModalEditar]   = useState<Usuario | null>(null);
-    const [modalEliminar, setModalEliminar] = useState<Usuario | null>(null);
+    const [modalCrear, setModalCrear]         = useState(false);
+    const [modalEditar, setModalEditar]       = useState<Usuario | null>(null);
+    const [modalEliminar, setModalEliminar]   = useState<Usuario | null>(null);
+    const [modalBlanquear, setModalBlanquear] = useState<Usuario | null>(null);
 
     const handleRefresh = useCallback(() => router.refresh(), [router]);
 
@@ -479,6 +601,10 @@ export function GestionUsuariosClient({
                                         {/* Acciones */}
                                         <td className="px-6 py-4 text-right">
                                             <div className="flex items-center justify-end gap-2">
+                                                <button onClick={() => setModalBlanquear(u)} title="Blanquear contraseña"
+                                                    className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all">
+                                                    <KeyRound className="w-4 h-4" />
+                                                </button>
                                                 <button onClick={() => setModalEditar(u)} title="Editar usuario"
                                                     className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all">
                                                     <Pencil className="w-4 h-4" />
@@ -518,9 +644,10 @@ export function GestionUsuariosClient({
             </div>
 
             {/* Modales */}
-            {modalCrear    && <ModalCrear    onClose={() => setModalCrear(false)}   onSuccess={handleRefresh} />}
-            {modalEditar   && <ModalEditar   usuario={modalEditar}  onClose={() => setModalEditar(null)}  onSuccess={handleRefresh} />}
-            {modalEliminar && <ModalEliminar usuario={modalEliminar} onClose={() => setModalEliminar(null)} onSuccess={handleRefresh} />}
+            {modalCrear     && <ModalCrear     onClose={() => setModalCrear(false)}    onSuccess={handleRefresh} />}
+            {modalEditar    && <ModalEditar    usuario={modalEditar}   onClose={() => setModalEditar(null)}   onSuccess={handleRefresh} />}
+            {modalEliminar  && <ModalEliminar  usuario={modalEliminar}  onClose={() => setModalEliminar(null)}  onSuccess={handleRefresh} />}
+            {modalBlanquear && <ModalBlanquear usuario={modalBlanquear} onClose={() => setModalBlanquear(null)} />}
         </div>
     );
 }

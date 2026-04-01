@@ -15,7 +15,11 @@ export async function POST(req: NextRequest) {
     }
 
     revalidatePath('/', 'layout')
-    return NextResponse.redirect(new URL('/login', req.url), {
-        status: 302,
-    })
+
+    // Retornar 200 en lugar de redirect:
+    // NextResponse.redirect crea un objeto de respuesta nuevo que NO hereda los
+    // headers Set-Cookie de limpieza que supabase.auth.signOut() escribió via
+    // next/headers cookies(). Al devolver 200, esos headers viajan correctamente
+    // al navegador, y el cliente navega a /login con window.location.href.
+    return new NextResponse(null, { status: 200 })
 }
