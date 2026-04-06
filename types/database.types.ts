@@ -125,8 +125,10 @@ export interface Notification {
 export interface Bodega {
     id: string;
     nombre: string;
-    tipo: 'Central' | 'Local' | 'Dañados' | 'Transito';
-    local_id?: string | null; // references restaurantes 
+    tipo: 'INTERNA' | 'VIRTUAL' | 'MOCHILA';
+    descripcion?: string | null;
+    activo?: boolean;
+    local_id?: string | null; // references restaurantes
 }
 
 export interface FamiliaHardware {

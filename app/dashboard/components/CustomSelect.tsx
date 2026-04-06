@@ -4,6 +4,7 @@ import { ChevronDown } from 'lucide-react';
 interface Option {
     value: string;
     label: string;
+    disabled?: boolean;
 }
 
 interface CustomSelectProps {
@@ -15,6 +16,7 @@ interface CustomSelectProps {
     disabled?: boolean;
     required?: boolean;
     name?: string;
+    renderOption?: (option: Option) => React.ReactNode;
 }
 
 export function CustomSelect({
@@ -25,7 +27,8 @@ export function CustomSelect({
     placeholder,
     disabled = false,
     required = false,
-    name
+    name,
+    renderOption,
 }: CustomSelectProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
@@ -131,19 +134,25 @@ export function CustomSelect({
                     <ul className="max-h-60 overflow-y-auto py-1 custom-scrollbar">
                         {options.map((option) => {
                             const isSelected = option.value === value;
+                            const isItemDisabled = !!option.disabled;
                             return (
                                 <li
                                     key={option.value}
                                     onClick={() => {
+                                        if (isItemDisabled) return;
                                         onChange(option.value);
                                         setIsOpen(false);
                                     }}
                                     className={`
-                                        px-4 py-3 text-sm font-bold cursor-pointer transition-colors border-b border-slate-100 last:border-0
-                                        ${isSelected ? 'bg-indigo-50 text-indigo-700' : 'text-slate-800 hover:bg-slate-50'}
+                                        px-4 py-3 text-sm font-bold border-b border-slate-100 last:border-0 transition-colors
+                                        ${isItemDisabled
+                                            ? 'opacity-45 cursor-not-allowed text-slate-400'
+                                            : isSelected
+                                                ? 'bg-indigo-50 text-indigo-700 cursor-pointer'
+                                                : 'text-slate-800 hover:bg-slate-50 cursor-pointer'}
                                     `}
                                 >
-                                    {option.label}
+                                    {renderOption ? renderOption(option) : option.label}
                                 </li>
                             );
                         })}

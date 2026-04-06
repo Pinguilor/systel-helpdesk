@@ -69,6 +69,11 @@ export async function proxy(request: NextRequest) {
             return supabaseResponse;
         }
 
+        // Shared route bypass: Trazabilidad de Materiales (accesible para admin, coordinador, admin_bodega)
+        if (url.pathname.startsWith('/dashboard/trazabilidad-materiales')) {
+            return supabaseResponse;
+        }
+
         // Shared route bypass: Configuración (admin-only, validado dentro de la página)
         if (url.pathname.startsWith('/dashboard/configuracion')) {
             return supabaseResponse;

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { updateTicketPropertiesAction, assignTicketToMeAction, updateChildTicketDescription } from '../actions';
+import { updateTicketPropertiesAction, assignTicketToMeAction, updateChildTicketDescription, setPendingWithReasonAction } from '../actions';
 import Link from 'next/link';
 import { AlertCircle, Clock, CheckCircle2, XCircle, ChevronDown, ChevronRight, Activity, Flag, UserPlus, Calendar, Plus, Layers, Pencil, Banknote } from 'lucide-react';
 import { TicketStatus } from '@/types/database.types';
@@ -9,6 +9,7 @@ import { AssignMaterialModal } from './AssignMaterialModal';
 import { AddChildTicketModal } from './AddChildTicketModal';
 import { CloseTicketModal } from './CloseTicketModal';
 import { AsignarViaticoModal } from './AsignarViaticoModal';
+import { PendingReasonModal } from './PendingReasonModal';
 import { closeTicketWithActaAction } from '../actions';
 
 interface Props {
@@ -16,15 +17,18 @@ interface Props {
     isAgent: boolean;
     isAdmin?: boolean;
     userRole?: string;
+    currentUserId?: string;
     agents?: any[];
+    ayudantesInfo?: { id: string; full_name: string }[];
     inventarioCentral?: any[];
     packingList?: any[];
     inventarioTicket?: any[];
     childTickets?: any[];
 }
 
-export default function TicketSidebar({ ticket, isAgent, isAdmin, userRole = 'usuario', agents = [], inventarioCentral = [], packingList = [], inventarioTicket = [], childTickets = [] }: Props) {
+export default function TicketSidebar({ ticket, isAgent, isAdmin, userRole = 'usuario', currentUserId, agents = [], ayudantesInfo = [], inventarioCentral = [], packingList = [], inventarioTicket = [], childTickets = [] }: Props) {
     const [isUpdating, setIsUpdating] = useState(false);
+    const [showPendingModal, setShowPendingModal] = useState(false);
     const [showMaterialModal, setShowMaterialModal] = useState(false);
     const [showChildTicketModal, setShowChildTicketModal] = useState(false);
     const [showCloseModal, setShowCloseModal] = useState(false);
@@ -64,13 +68,11 @@ export default function TicketSidebar({ ticket, isAgent, isAdmin, userRole = 'us
     const StatusIcon = currentStatusMenu.icon;
 
     const [statusOpen, setStatusOpen] = useState(false);
-    const [priorityOpen, setPriorityOpen] = useState(false);
     const [agentOpen, setAgentOpen] = useState(false);
 
     const handleUpdate = async (field: 'estado' | 'prioridad', value: string) => {
         setIsUpdating(true);
         setStatusOpen(false);
-        setPriorityOpen(false);
         try {
             const updates = { [field]: value };
             const result = await updateTicketPropertiesAction(ticket.id, updates);
@@ -81,6 +83,15 @@ export default function TicketSidebar({ ticket, isAgent, isAdmin, userRole = 'us
             console.error('Update failed', error);
         } finally {
             setIsUpdating(false);
+        }
+    };
+
+    const handleStatusClick = (statusId: string) => {
+        setStatusOpen(false);
+        if (statusId === 'pendiente') {
+            setShowPendingModal(true);
+        } else {
+            handleUpdate('estado', statusId);
         }
     };
 
@@ -153,7 +164,7 @@ export default function TicketSidebar({ ticket, isAgent, isAdmin, userRole = 'us
                         {isAdmin && !isTerminal ? (
                             <div className="relative">
                                 <button
-                                    onClick={() => { setAgentOpen(!agentOpen); setStatusOpen(false); setPriorityOpen(false); }}
+                                    onClick={() => { setAgentOpen(!agentOpen); setStatusOpen(false); }}
                                     disabled={isUpdating}
                                     className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl border border-indigo-200 bg-indigo-50/50 font-bold text-sm transition-all shadow-sm hover:bg-indigo-50/80 text-indigo-900"
                                 >
@@ -194,6 +205,20 @@ export default function TicketSidebar({ ticket, isAgent, isAdmin, userRole = 'us
                             </div>
                         )}
 
+                        {/* Técnicos Ayudantes (solo cuando está cerrado/resuelto y hay ayudantes) */}
+                        {isTerminal && ayudantesInfo.length > 0 && (
+                            <div className="mt-3 pt-3 border-t border-slate-100">
+                                <span className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Técnicos Ayudantes</span>
+                                <div className="flex flex-wrap gap-1.5">
+                                    {ayudantesInfo.map(a => (
+                                        <span key={a.id} className="inline-flex items-center bg-violet-100 text-violet-800 border border-violet-200 text-xs font-semibold px-2.5 py-1 rounded-full">
+                                            {a.full_name}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
                         {isAgent && !isTerminal && (
                             <button
                                 onClick={() => setShowMaterialModal(true)}
@@ -229,9 +254,11 @@ export default function TicketSidebar({ ticket, isAgent, isAdmin, userRole = 'us
                                 onClose={() => setShowCloseModal(false)}
                                 ticket={ticket}
                                 materiales={inventarioTicket}
-                                onConfirm={async (notas, firmaCliente, firmaTecnico, receptorNombre, latitud, longitud) => {
+                                agents={agents}
+                                currentUserId={currentUserId}
+                                onConfirm={async (notas, firmaCliente, firmaTecnico, receptorNombre, latitud, longitud, ayudantes) => {
                                     setIsUpdating(true);
-                                    const result = await closeTicketWithActaAction(ticket.id, notas, firmaCliente, firmaTecnico, receptorNombre, latitud, longitud);
+                                    const result = await closeTicketWithActaAction(ticket.id, notas, firmaCliente, firmaTecnico, receptorNombre, latitud, longitud, ayudantes);
                                     setIsUpdating(false);
                                     if (result.error) alert(result.error);
                                     else setShowCloseModal(false);
@@ -245,7 +272,7 @@ export default function TicketSidebar({ ticket, isAgent, isAdmin, userRole = 'us
                     {((isAgent || isAdmin) && ticket.estado !== 'cerrado' && ticket.estado !== 'resuelto' && ticket.estado !== 'anulado') ? (
                         <div className="relative">
                             <button
-                                onClick={() => { setStatusOpen(!statusOpen); setPriorityOpen(false); }}
+                                onClick={() => setStatusOpen(!statusOpen)}
                                 disabled={isUpdating}
                                 className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl border font-bold text-sm transition-all shadow-sm ${currentStatusMenu.color} ${isUpdating ? 'opacity-50 cursor-not-allowed' : 'hover:brightness-95 cursor-pointer'}`}
                             >
@@ -269,7 +296,7 @@ export default function TicketSidebar({ ticket, isAgent, isAdmin, userRole = 'us
                                             return (
                                                 <button
                                                     key={s.id}
-                                                    onClick={() => handleUpdate('estado', s.id)}
+                                                    onClick={() => handleStatusClick(s.id)}
                                                     className="w-full text-left px-4 py-2.5 text-sm font-medium hover:bg-gray-50 flex items-center gap-3 transition-colors"
                                                 >
                                                     <div className={`p-1.5 rounded-lg border ${s.color}`}>
@@ -296,51 +323,15 @@ export default function TicketSidebar({ ticket, isAgent, isAdmin, userRole = 'us
                 <div className="p-5 border-b border-gray-50">
                     <span className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Prioridad</span>
 
-                    {isAgent && ticket.estado !== 'cerrado' && ticket.estado !== 'anulado' ? (
-                        <div className="relative">
-                            <button
-                                onClick={() => { setPriorityOpen(!priorityOpen); setStatusOpen(false); }}
-                                disabled={isUpdating}
-                                className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl border border-gray-200 bg-white font-bold text-sm transition-all shadow-sm hover:bg-gray-50 text-gray-900"
-                            >
-                                <span className="flex items-center gap-2 capitalize">
-                                    <Flag className={`w-4 h-4 ${priorities.find(p => p.id === ticket.prioridad)?.color}`} />
-                                    {ticket.prioridad}
-                                </span>
-                                <ChevronDown className="w-4 h-4 text-gray-400" />
-                            </button>
-
-                            {priorityOpen && (
-                                <>
-                                    <div className="fixed inset-0 z-30" onClick={() => setPriorityOpen(false)}></div>
-                                    <div className="absolute z-40 mt-2 w-full bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden py-1.5 ring-1 ring-black/5 animate-in fade-in zoom-in-95 duration-100">
-                                        {priorities.map(p => (
-                                            <button
-                                                key={p.id}
-                                                onClick={() => handleUpdate('prioridad', p.id)}
-                                                className="w-full text-left px-4 py-2.5 text-sm font-medium hover:bg-gray-50 flex items-center gap-3 transition-colors"
-                                            >
-                                                <Flag className={`w-4 h-4 ${ticket.prioridad === p.id ? p.color : 'text-gray-300'}`} />
-                                                <span className={ticket.prioridad === p.id ? 'text-gray-900 font-bold' : 'text-gray-700 capitalize'}>
-                                                    {p.label}
-                                                </span>
-                                            </button>
-                                        ))}
-                                    </div>
-                                </>
-                            )}
+                    <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
+                        <div className="p-2 rounded-lg bg-white border border-gray-200 shadow-sm">
+                            <Flag className={`w-4 h-4 ${priorities.find(p => p.id === ticket.prioridad)?.color}`} />
                         </div>
-                    ) : (
-                        <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
-                            <div className={`p-2 rounded-lg bg-white border border-gray-200 shadow-sm`}>
-                                <Flag className={`w-4 h-4 ${priorities.find(p => p.id === ticket.prioridad)?.color}`} />
-                            </div>
-                            <div className="flex flex-col">
-                                <span className="text-[10px] text-gray-400 font-bold uppercase tracking-tight">Prioridad del caso</span>
-                                <span className="text-sm font-bold text-gray-900 capitalize">{ticket.prioridad}</span>
-                            </div>
+                        <div className="flex flex-col">
+                            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-tight">Prioridad del caso</span>
+                            <span className="text-sm font-bold text-gray-900 capitalize">{ticket.prioridad}</span>
                         </div>
-                    )}
+                    </div>
                 </div>
 
                 {/* PACKING LIST SECTION — solo personal Systel */}
@@ -578,6 +569,17 @@ export default function TicketSidebar({ ticket, isAgent, isAdmin, userRole = 'us
                     </button>
                 </div>
             )}
+
+            <PendingReasonModal
+                isOpen={showPendingModal}
+                onClose={() => setShowPendingModal(false)}
+                onConfirm={async (motivo) => {
+                    setIsUpdating(true);
+                    const result = await setPendingWithReasonAction(ticket.id, motivo);
+                    setIsUpdating(false);
+                    if (result.error) throw new Error(result.error);
+                }}
+            />
 
             {showMaterialModal && (isAgent || isAdmin) && (
                 <AssignMaterialModal 

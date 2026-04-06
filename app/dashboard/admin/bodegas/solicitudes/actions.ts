@@ -198,13 +198,78 @@ export async function getBodegasCentralesAction() {
         const { data, error } = await supabase
             .from('bodegas')
             .select('id, nombre, tipo')
-            .ilike('tipo', 'CENTRAL')
+            .ilike('tipo', 'INTERNA')
+            .eq('activo', true)
             .order('nombre', { ascending: true });
 
         if (error) throw new Error(error.message);
         return { data: data || [] };
     } catch (e: any) {
         return { error: e.message, data: [] };
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Verificar stock disponible en una bodega para una lista de ítems solicitados
+// Usado por el modal del aprobador cuando cambia la bodega de origen
+// ─────────────────────────────────────────────────────────────────────────────
+export interface StockCheckItem {
+    solicitudItemId: string;
+    modelo: string | null;
+    familia: string | null;
+    esSerializado: boolean;
+    cantidad: number;
+}
+
+export interface StockCheckResult {
+    solicitudItemId: string;
+    disponible: number;
+    suficiente: boolean;
+}
+
+export async function getStockEnBodegaAction(
+    bodegaId: string,
+    items: StockCheckItem[]
+): Promise<{ data: StockCheckResult[] | null; error?: string }> {
+    try {
+        const supabase = await createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return { data: null, error: 'No autorizado.' };
+
+        const results: StockCheckResult[] = await Promise.all(
+            items.map(async (item) => {
+                if (item.esSerializado) {
+                    // Serializado: ¿existe al menos 1 unidad disponible del mismo modelo en esta bodega?
+                    const { count } = await supabase
+                        .from('inventario')
+                        .select('id', { count: 'exact', head: true })
+                        .eq('bodega_id', bodegaId)
+                        .eq('modelo', item.modelo ?? '')
+                        .eq('es_serializado', true)
+                        .ilike('estado', 'Disponible');
+
+                    const disponible = count ?? 0;
+                    return { solicitudItemId: item.solicitudItemId, disponible, suficiente: disponible >= item.cantidad };
+                } else {
+                    // Genérico: suma total de cantidad en la bodega para ese modelo/familia
+                    const { data: rows } = await supabase
+                        .from('inventario')
+                        .select('cantidad')
+                        .eq('bodega_id', bodegaId)
+                        .eq('modelo', item.modelo ?? '')
+                        .eq('familia', item.familia ?? '')
+                        .eq('es_serializado', false)
+                        .gt('cantidad', 0);
+
+                    const disponible = (rows ?? []).reduce((s, r) => s + (r.cantidad ?? 0), 0);
+                    return { solicitudItemId: item.solicitudItemId, disponible, suficiente: disponible >= item.cantidad };
+                }
+            })
+        );
+
+        return { data: results };
+    } catch (e: any) {
+        return { data: null, error: e.message };
     }
 }
 
@@ -245,6 +310,55 @@ export async function aprobarSolicitudAction(
         if (!approvedItemIds || approvedItemIds.length === 0) {
             return { error: 'Debes seleccionar al menos un ítem para aprobar.' };
         }
+
+        // ── Validación de stock antes de ejecutar la RPC ─────────────────────
+        // Cargamos los ítems aprobados con su detalle de inventario
+        const { data: itemsToValidate, error: itemsErr } = await supabase
+            .from('solicitud_items')
+            .select('id, cantidad, inventario:inventario_id(id, modelo, familia, es_serializado, numero_serie)')
+            .in('id', approvedItemIds);
+
+        if (itemsErr) throw new Error(`Error obteniendo ítems: ${itemsErr.message}`);
+
+        // Para cada ítem verificamos stock en la bodega seleccionada
+        for (const si of (itemsToValidate ?? []) as any[]) {
+            const inv = si.inventario;
+            if (!inv) throw new Error(`Ítem ${si.id} no tiene inventario asociado.`);
+
+            if (inv.es_serializado) {
+                // Serializado: debe existir en esa bodega con estado Disponible
+                const { count } = await supabase
+                    .from('inventario')
+                    .select('id', { count: 'exact', head: true })
+                    .eq('bodega_id', bodegaCentralId)
+                    .eq('modelo', inv.modelo)
+                    .eq('es_serializado', true)
+                    .ilike('estado', 'Disponible');
+                if ((count ?? 0) < 1) {
+                    throw new Error(
+                        `Validación fallida: Stock insuficiente en bodega de origen para "${inv.modelo}" (serializado) al momento de aprobar.`
+                    );
+                }
+            } else {
+                // Genérico: suma de cantidad en esa bodega debe cubrir lo solicitado
+                const { data: stockRows } = await supabase
+                    .from('inventario')
+                    .select('cantidad')
+                    .eq('bodega_id', bodegaCentralId)
+                    .eq('modelo', inv.modelo)
+                    .eq('familia', inv.familia)
+                    .eq('es_serializado', false)
+                    .gt('cantidad', 0);
+
+                const totalDisponible = (stockRows ?? []).reduce((s: number, r: any) => s + (r.cantidad ?? 0), 0);
+                if (totalDisponible < si.cantidad) {
+                    throw new Error(
+                        `Validación fallida: Stock insuficiente en bodega de origen para "${inv.modelo}" — disponible: ${totalDisponible}, requerido: ${si.cantidad}.`
+                    );
+                }
+            }
+        }
+        // ────────────────────────────────────────────────────────────────────
 
         const { data, error } = await supabase.rpc('aprobar_solicitud_rpc', {
             p_solicitud_id:      solicitudId,

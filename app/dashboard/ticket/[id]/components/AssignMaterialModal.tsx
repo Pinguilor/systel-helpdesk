@@ -20,6 +20,7 @@ interface StockItem {
     cantidad: number;
     cantidadDisponible: number;
     ticket_id: string | null;
+    consumido: boolean;
 }
 
 interface AssignMaterialModalProps {
@@ -29,10 +30,17 @@ interface AssignMaterialModalProps {
 
 // ─── Stepper ─────────────────────────────────────────────────────────────────
 function Stepper({
-    value, max, onChange, bloqueado,
+    value, max, onChange, bloqueado, consumido,
 }: {
-    value: number; max: number; onChange: (n: number) => void; bloqueado: boolean;
+    value: number; max: number; onChange: (n: number) => void; bloqueado: boolean; consumido?: boolean;
 }) {
+    if (consumido) {
+        return (
+            <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-1 rounded-lg whitespace-nowrap">
+                Asignado
+            </span>
+        );
+    }
     if (bloqueado) {
         return (
             <span className="text-xs font-semibold text-red-400 bg-red-50 border border-red-100 px-2 py-1 rounded-lg whitespace-nowrap">
@@ -81,11 +89,13 @@ function Stepper({
 // ─── Item Row ─────────────────────────────────────────────────────────────────
 function ItemRow({ item, value, onChange }: { item: StockItem; value: number; onChange: (n: number) => void }) {
     const isSelected  = value > 0;
-    const bloqueado   = item.cantidadDisponible <= 0;
+    const consumido   = item.consumido;
+    const bloqueado   = !consumido && item.cantidadDisponible <= 0;
     const max         = item.es_serializado ? 1 : item.cantidadDisponible;
 
     return (
         <div className={`flex items-center justify-between gap-3 px-4 py-3 transition-colors ${
+            consumido   ? 'opacity-60 bg-emerald-50/30' :
             bloqueado   ? 'opacity-60 bg-slate-50/40' :
             isSelected  ? 'bg-indigo-50/60' : 'hover:bg-slate-50/60'
         }`}>
@@ -112,7 +122,7 @@ function ItemRow({ item, value, onChange }: { item: StockItem; value: number; on
                                 {item.numero_serie}
                             </span>
                         )}
-                        {!item.es_serializado && !bloqueado && (
+                        {!item.es_serializado && !bloqueado && !consumido && (
                             <span className={`text-xs font-bold px-1.5 py-0.5 rounded transition-colors ${
                                 isSelected ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500'
                             }`}>
@@ -123,8 +133,8 @@ function ItemRow({ item, value, onChange }: { item: StockItem; value: number; on
                 </div>
             </div>
 
-            {/* Right: stepper o badge bloqueado */}
-            <Stepper value={value} max={max} onChange={onChange} bloqueado={bloqueado} />
+            {/* Right: stepper o badge bloqueado/consumido */}
+            <Stepper value={value} max={max} onChange={onChange} bloqueado={bloqueado} consumido={consumido} />
         </div>
     );
 }
@@ -161,11 +171,12 @@ export function AssignMaterialModal({ ticketId, onClose }: AssignMaterialModalPr
                 const { data: { user } } = await supabase.auth.getUser();
                 if (!user) return;
 
-                // 1. Traer TODAS las bodegas de este usuario (sin filtros frágiles de texto en SQL)
+                // 1. Traer bodegas activas de este usuario
                 const { data: bodegas, error: errBodegas } = await supabase
                     .from('bodegas')
                     .select('id, tipo')
-                    .eq('tecnico_id', user.id);
+                    .eq('tecnico_id', user.id)
+                    .eq('activo', true);
 
                 if (errBodegas) throw errBodegas;
 
@@ -177,9 +188,10 @@ export function AssignMaterialModal({ ticketId, onClose }: AssignMaterialModalPr
                 }
 
                 // 3. Traer el inventario físico > 0
+                //    inventario mantiene modelo/familia como columnas directas
                 const { data: inventory, error: errInv } = await supabase
                     .from('inventario')
-                    .select('*')
+                    .select('id, modelo, familia, es_serializado, numero_serie, cantidad, ticket_id')
                     .eq('bodega_id', miMochila.id)
                     .gt('cantidad', 0);
 
@@ -187,7 +199,7 @@ export function AssignMaterialModal({ ticketId, onClose }: AssignMaterialModalPr
                 if (!inventory || inventory.length === 0) return;
 
                 // 4. Buscar devoluciones pendientes para calcular el bloqueo
-                const invIds = inventory.map(i => i.id);
+                const invIds = inventory.map((i: any) => i.id);
                 const { data: devolsPendientes } = await supabase
                     .from('solicitudes_devoluciones')
                     .select('inventario_id, cantidad')
@@ -199,18 +211,23 @@ export function AssignMaterialModal({ ticketId, onClose }: AssignMaterialModalPr
                     blockedMap[d.inventario_id] = (blockedMap[d.inventario_id] || 0) + (d.cantidad || 0);
                 }
 
-                // 5. Enriquecer los datos sin filtrar el array
-                const enriched: StockItem[] = inventory.map(item => ({
-                    id: item.id,
-                    modelo: item.modelo,
-                    familia: item.familia,
-                    es_serializado: item.es_serializado,
-                    numero_serie: item.numero_serie || null,
-                    cantidad: item.cantidad,
-                    cantidadDisponible: Math.max(0, item.cantidad - (blockedMap[item.id] || 0)),
-                    ticket_id: item.ticket_id || null,
-                })).sort((a, b) => {
-                    // Usamos un string vacío ('') como fallback si el modelo es null o undefined
+                // 5. Enriquecer los datos
+                const enriched: StockItem[] = (inventory as any[]).map(item => {
+                    const yaConsumido = item.ticket_id === ticketId;
+                    return {
+                        id: item.id,
+                        modelo:  item.modelo  ?? '—',
+                        familia: item.familia ?? '—',
+                        es_serializado: item.es_serializado,
+                        numero_serie: item.numero_serie || null,
+                        cantidad: item.cantidad,
+                        cantidadDisponible: yaConsumido
+                            ? 0
+                            : Math.max(0, item.cantidad - (blockedMap[item.id] || 0)),
+                        ticket_id: item.ticket_id || null,
+                        consumido: yaConsumido,
+                    };
+                }).sort((a, b) => {
                     const modeloA = a.modelo || '';
                     const modeloB = b.modelo || '';
                     return modeloA.localeCompare(modeloB);

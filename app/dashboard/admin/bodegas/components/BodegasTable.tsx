@@ -3,7 +3,7 @@
 import React, { useState, useMemo, useTransition, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Inventario, Bodega } from '@/types/database.types';
-import { Search, Server, Box, ChevronDown, ChevronUp, ChevronRight, PackageOpen, RefreshCw, AlertCircle, AlertTriangle, FileSpreadsheet } from 'lucide-react';
+import { Search, Server, Box, ChevronDown, ChevronUp, ChevronRight, PackageOpen, RefreshCw, AlertCircle, AlertTriangle, FileSpreadsheet, EyeOff, Eye } from 'lucide-react';
 import { CustomSelect } from '@/app/dashboard/components/CustomSelect';
 
 interface BodegasTableProps {
@@ -20,6 +20,7 @@ export function BodegasTable({ inventario, bodegasDisponibles }: BodegasTablePro
     const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
     const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
     const [isExporting, setIsExporting] = useState(false);
+    const [showAgotados, setShowAgotados] = useState(false);
 
     useEffect(() => {
         setLastUpdated(new Date());
@@ -53,32 +54,34 @@ export function BodegasTable({ inventario, bodegasDisponibles }: BodegasTablePro
         });
     }, [inventario, selectedBodegaId, searchTerm]);
 
-    // Grouping by modelo+familia
+    // Grouping by modelo + familia + bodega_id (one row per physical location)
     const groupedInventario = useMemo(() => {
         const groups: Record<string, {
-            id: string; // Composite key
+            id: string;
             modelo: string;
             familia: string;
             es_serializado: boolean;
             totalItems: number;
+            bodegaNombre: string;
             items: (Inventario & { bodegas: Bodega })[];
         }> = {};
 
         filteredInventario.forEach(item => {
-            const catId = `${item.modelo}|${item.familia}`;
-            if (!groups[catId]) {
-                groups[catId] = {
-                    id: catId,
+            const key = `${item.modelo}|${item.familia}|${item.bodega_id}`;
+            if (!groups[key]) {
+                groups[key] = {
+                    id: key,
                     modelo: item.modelo || 'Desconocido',
                     familia: item.familia || 'Sin Familia',
                     es_serializado: !!item.es_serializado,
                     totalItems: 0,
+                    bodegaNombre: (item as any).bodegas?.nombre || 'Bodega Desconocida',
                     items: []
                 };
             }
-            groups[catId].items.push(item);
+            groups[key].items.push(item);
             if (item.estado?.toLowerCase() === 'disponible' || item.estado?.toLowerCase() === 'dañado') {
-                groups[catId].totalItems += item.cantidad;
+                groups[key].totalItems += item.cantidad;
             }
         });
 
@@ -88,14 +91,17 @@ export function BodegasTable({ inventario, bodegasDisponibles }: BodegasTablePro
     const itemsCriticos = groupedInventario.filter(g => g.totalItems <= 3).length;
     const itemsBajos = groupedInventario.filter(g => g.totalItems > 3 && g.totalItems <= 10).length;
 
+    const agotadosCount = useMemo(
+        () => groupedInventario.filter(g => g.totalItems === 0).length,
+        [groupedInventario]
+    );
+
     const filteredGroups = useMemo(() => {
-        if (stockFilter === 'critical') {
-            return groupedInventario.filter(g => g.totalItems <= 3);
-        } else if (stockFilter === 'low') {
-            return groupedInventario.filter(g => g.totalItems > 3 && g.totalItems <= 10);
-        }
-        return groupedInventario;
-    }, [groupedInventario, stockFilter]);
+        let base = showAgotados ? groupedInventario : groupedInventario.filter(g => g.totalItems > 0);
+        if (stockFilter === 'critical') return base.filter(g => g.totalItems <= 3);
+        if (stockFilter === 'low') return base.filter(g => g.totalItems > 3 && g.totalItems <= 10);
+        return base;
+    }, [groupedInventario, stockFilter, showAgotados]);
 
     const handleExport = async () => {
         try {
@@ -150,15 +156,12 @@ export function BodegasTable({ inventario, bodegasDisponibles }: BodegasTablePro
                 const hasSeriales = group.es_serializado;
                 const isAgotado = group.totalItems === 0;
                 const tipo = isAgotado ? 'AGOTADO' : (hasSeriales ? 'Serializado' : 'Genérico');
-                
-                const bodegasPresentes = Array.from(new Map(group.items.map(i => [i.bodegas?.id, i.bodegas])).values()).filter(Boolean);
-                const bodegasStr = bodegasPresentes.map((b: any) => b.nombre).join(' / ');
 
                 const row = sheet.addRow([
                     group.modelo,
                     group.familia,
                     tipo,
-                    bodegasStr,
+                    group.bodegaNombre,
                     group.totalItems
                 ]);
 
@@ -268,24 +271,27 @@ export function BodegasTable({ inventario, bodegasDisponibles }: BodegasTablePro
                 </div>
             </div>
 
-            <div className="p-5 border-b border-gray-200 flex flex-col xl:flex-row gap-4 justify-between bg-white items-center">
-                <div className="flex flex-col sm:flex-row w-full xl:w-auto gap-3 items-center">
-                    <button 
+            {/* ── Toolbar: two-row layout ─────────────────────────────── */}
+            <div className="p-5 border-b border-gray-200 bg-white flex flex-col gap-3">
+
+                {/* Row 1 — Refresh + Search */}
+                <div className="flex flex-wrap items-center gap-3">
+                    <button
                         onClick={handleRefresh}
                         disabled={isPending}
-                        className="flex items-center justify-center gap-2 px-3 py-2 bg-white border border-slate-300 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-colors focus:ring-2 focus:ring-brand-primary/50 disabled:opacity-50"
+                        className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-300 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-colors disabled:opacity-50 shrink-0"
                     >
                         <RefreshCw className={`w-4 h-4 ${isPending ? 'animate-spin' : ''}`} />
-                        <span className="whitespace-nowrap">Actualizar Datos</span>
+                        <span className="whitespace-nowrap">Actualizar</span>
                     </button>
                     {lastUpdated && (
-                        <span className="text-xs font-medium text-zinc-400 whitespace-nowrap hidden sm:inline-block">
-                            Datos actualizados: {lastUpdated.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                        <span className="text-xs font-medium text-zinc-400 whitespace-nowrap hidden sm:inline-block shrink-0">
+                            {lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
                     )}
-                    <div className="relative w-full sm:w-80">
+                    <div className="relative flex-1 min-w-[200px]">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                        <input 
+                        <input
                             type="text"
                             placeholder="Buscar por modelo, familia o serie..."
                             value={searchTerm}
@@ -295,17 +301,30 @@ export function BodegasTable({ inventario, bodegasDisponibles }: BodegasTablePro
                     </div>
                 </div>
 
-                <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto">
-                    <button 
+                {/* Row 2 — Actions + Filters */}
+                <div className="flex flex-wrap items-center gap-3">
+                    <button
                         onClick={handleExport}
                         disabled={isExporting}
-                        className="flex items-center justify-center gap-2 px-3 py-2 bg-white border border-slate-300 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-colors focus:ring-2 focus:ring-brand-primary/50 whitespace-nowrap w-full sm:w-auto disabled:opacity-50"
+                        className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-300 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-colors disabled:opacity-50 shrink-0"
                     >
                         <FileSpreadsheet className={`w-4 h-4 text-emerald-600 ${isExporting ? 'animate-pulse' : ''}`} />
                         <span className="whitespace-nowrap">{isExporting ? 'Exportando...' : 'Exportar Inventario'}</span>
                     </button>
-                    <div className="flex items-center gap-3 w-full sm:w-80">
-                        <span className="text-sm font-bold text-slate-500 whitespace-nowrap hidden lg:inline">Filtrar Bodega:</span>
+                    <button
+                        onClick={() => setShowAgotados(v => !v)}
+                        title={showAgotados ? 'Ocultar ítems sin stock' : 'Mostrar ítems sin stock'}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-bold transition-colors whitespace-nowrap shrink-0 ${
+                            showAgotados
+                                ? 'bg-slate-700 border-slate-700 text-white'
+                                : 'bg-white border-slate-300 text-slate-600 hover:bg-slate-50'
+                        }`}
+                    >
+                        {showAgotados ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                        {showAgotados ? 'Ocultar sin stock' : `Ver sin stock${agotadosCount > 0 ? ` (${agotadosCount})` : ''}`}
+                    </button>
+                    <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+                        <span className="text-sm font-bold text-slate-500 whitespace-nowrap hidden lg:inline shrink-0">Filtrar Bodega:</span>
                         <div className="flex-1 w-full">
                             <CustomSelect
                                 id="bodegaFilter"
@@ -315,7 +334,7 @@ export function BodegasTable({ inventario, bodegasDisponibles }: BodegasTablePro
                                     { value: 'all', label: 'Ver Todas (Global)' },
                                     ...bodegasDisponibles.map(b => ({
                                         value: b.id,
-                                        label: `${b.tipo?.toUpperCase() === 'CENTRAL' ? '🏢 ' : b.tipo?.toUpperCase() === 'DAÑADOS' ? '🔌 ' : '📦 '} ${b.nombre}`
+                                        label: `${b.nombre?.toLowerCase().includes('dañado') ? '🔌 ' : '🏢 '} ${b.nombre}`
                                     }))
                                 ]}
                                 placeholder="Filtrar Bodega..."
@@ -324,6 +343,7 @@ export function BodegasTable({ inventario, bodegasDisponibles }: BodegasTablePro
                     </div>
                 </div>
             </div>
+            {/* ── End Toolbar ──────────────────────────────────────── */}
 
             {/* Desktop View */}
             <div className="overflow-x-auto hidden md:block">
@@ -354,12 +374,9 @@ export function BodegasTable({ inventario, bodegasDisponibles }: BodegasTablePro
                                 const hasSeriales = group.es_serializado;
                                 const isAgotado = group.totalItems === 0;
 
-                                // Extract unique bodegas for this hardware
-                                const bodegasPresentes = Array.from(new Map(group.items.map(i => [i.bodegas?.id, i.bodegas])).values()).filter(Boolean);
-
                                 return (
                                     <React.Fragment key={group.id}>
-                                        <tr 
+                                        <tr
                                             className={`hover:bg-slate-50 transition-colors ${hasSeriales ? 'cursor-pointer' : ''} ${isExpanded ? 'bg-indigo-50/30' : ''} ${isAgotado ? 'opacity-50' : ''}`}
                                             onClick={() => hasSeriales && toggleRow(group.id)}
                                         >
@@ -390,19 +407,9 @@ export function BodegasTable({ inventario, bodegasDisponibles }: BodegasTablePro
                                                 )}
                                             </td>
                                             <td className="px-6 py-4 text-center">
-                                                <div className="flex flex-col gap-1 items-center justify-center">
-                                                    {bodegasPresentes.map((b: any) => {
-                                                        const isCentral = b.tipo?.toUpperCase() === 'CENTRAL';
-                                                        return (
-                                                            <span 
-                                                                key={b.id} 
-                                                                className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-widest border border-dashed ${isCentral ? 'bg-indigo-50 text-indigo-600 border-indigo-200' : 'bg-rose-50 text-rose-600 border-rose-200'}`}
-                                                            >
-                                                                {isCentral ? '🏢 ' : '🔌 '} {b.nombre}
-                                                            </span>
-                                                        );
-                                                    })}
-                                                </div>
+                                                <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-widest border border-dashed bg-indigo-50 text-indigo-600 border-indigo-200">
+                                                    🏢 {group.bodegaNombre}
+                                                </span>
                                             </td>
                                             <td className="px-6 py-4 text-right">
                                                 {group.totalItems <= 3 ? (
@@ -440,8 +447,8 @@ export function BodegasTable({ inventario, bodegasDisponibles }: BodegasTablePro
                                                                             {item.estado}
                                                                         </span>
                                                                     </div>
-                                                                    <div className={`text-[10px] font-black uppercase flex items-center gap-1 mt-1 truncate ${item.bodegas?.tipo?.toUpperCase() === 'CENTRAL' ? 'text-indigo-500' : 'text-rose-500'}`}>
-                                                                        {item.bodegas?.tipo?.toUpperCase() === 'CENTRAL' ? '🏢 ' : '🔌 '} 
+                                                                    <div className={`text-[10px] font-black uppercase flex items-center gap-1 mt-1 truncate ${item.bodegas?.nombre?.toLowerCase().includes('dañado') ? 'text-rose-500' : 'text-indigo-500'}`}>
+                                                                        {item.bodegas?.nombre?.toLowerCase().includes('dañado') ? '🔌 ' : '🏢 '}
                                                                         {item.bodegas?.nombre || 'Bodega Desconocida'}
                                                                     </div>
                                                                 </div>
@@ -474,7 +481,6 @@ export function BodegasTable({ inventario, bodegasDisponibles }: BodegasTablePro
                         const isAgotado = group.totalItems === 0;
                         const isCritical = group.totalItems > 0 && group.totalItems <= 3;
                         const isLowStock = group.totalItems >= 4 && group.totalItems <= 10;
-                        const bodegasPresentes = Array.from(new Map(group.items.map(i => [i.bodegas?.id, i.bodegas])).values()).filter(Boolean);
 
                         const bgStyle = isAgotado ? 'bg-red-50/30' : 'bg-white';
                         const opacityStyle = isAgotado ? 'opacity-60 grayscale-[0.3]' : '';
@@ -533,14 +539,9 @@ export function BodegasTable({ inventario, bodegasDisponibles }: BodegasTablePro
                                                 <div className="flex flex-col">
                                                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Bodega</span>
                                                     <div className="flex flex-wrap gap-1 mt-0.5">
-                                                        {bodegasPresentes.map((b: any) => {
-                                                            const isCentral = b.tipo?.toUpperCase() === 'CENTRAL';
-                                                            return (
-                                                                <span key={b.id} className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold border border-dashed ${isCentral ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-rose-50 text-rose-700 border-rose-200'}`}>
-                                                                    {b.nombre}
-                                                                </span>
-                                                            );
-                                                        })}
+                                                        <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold border border-dashed bg-indigo-50 text-indigo-700 border-indigo-200">
+                                                            🏢 {group.bodegaNombre}
+                                                        </span>
                                                     </div>
                                                 </div>
                                             </div>
@@ -584,7 +585,7 @@ export function BodegasTable({ inventario, bodegasDisponibles }: BodegasTablePro
                                                         {group.items.filter(i => i.estado === 'Disponible' || i.estado === 'Dañado').map(item => (
                                                             <div key={item.id} className="flex flex-col p-1.5 bg-white rounded border border-slate-200 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
                                                                 <span className="text-[10px] font-mono font-bold text-slate-700 truncate">{item.numero_serie}</span>
-                                                                <span className={`text-[8px] font-black uppercase mt-0.5 truncate ${item.bodegas?.tipo?.toUpperCase() === 'CENTRAL' ? 'text-indigo-500' : 'text-rose-500'}`}>{item.bodegas?.nombre}</span>
+                                                                <span className={`text-[8px] font-black uppercase mt-0.5 truncate ${item.bodegas?.nombre?.toLowerCase().includes('dañado') ? 'text-rose-500' : 'text-indigo-500'}`}>{item.bodegas?.nombre}</span>
                                                             </div>
                                                         ))}
                                                     </div>

@@ -24,7 +24,7 @@ export function AdminSegmentedNav({ rol }: { rol: string }) {
     const isVistaGeneral = pathname === '/dashboard/admin';
     const isBodegas = pathname?.startsWith('/dashboard/admin/bodegas') && !pathname?.startsWith('/dashboard/admin/bodegas/solicitudes') && !pathname?.startsWith('/dashboard/admin/bodegas/serializados');
     const isSolicitudes = pathname?.startsWith('/dashboard/admin/bodegas/solicitudes');
-    const isSerializados = pathname?.startsWith('/dashboard/admin/bodegas/serializados');
+    const isSerializados = pathname?.startsWith('/dashboard/trazabilidad-materiales');
 
     // Default: Bodegas (Inventario) is selected if nothing exactly matches, 
     // but the task states "Maintain the second cell... as selected by default".
@@ -82,7 +82,7 @@ export function AdminSegmentedNav({ rol }: { rol: string }) {
 
             {(rol === 'ADMIN' || rol === 'ADMIN_BODEGA') && (
                 <button
-                    onClick={() => handleNavigation('/dashboard/admin/bodegas/serializados')}
+                    onClick={() => handleNavigation('/dashboard/trazabilidad-materiales')}
                     disabled={isTransitioning}
                     className={`flex items-center justify-center flex-1 md:flex-none gap-2 px-3 md:px-5 py-2.5 rounded-xl border text-sm font-bold transition-all duration-200 whitespace-nowrap shadow-sm ${isSerializados
                         ? 'bg-slate-950 border-slate-950 text-white'

@@ -4,7 +4,7 @@ import Link from 'next/link';
 import {
     Settings, Users, Backpack,
     ChevronRight, ShieldCheck, Eye,
-    Layers, Wrench, Building2
+    Layers, Wrench, Building2, Warehouse
 } from 'lucide-react';
 
 export const metadata = {
@@ -49,6 +49,18 @@ const MODULOS = [
         iconBg:      'bg-violet-100 text-violet-600',
         rolesAllow:  ['admin'],
         items:       ['Gestión de empresas', 'Activar / Desactivar', 'Catálogo por cliente'],
+    },
+    {
+        href:        '/dashboard/configuracion/bodegas',
+        icon:        Warehouse,
+        title:       'Gestión de Bodegas',
+        description: 'Administra las locaciones físicas o lógicas de almacenamiento. Crea nuevas bodegas, edita su estado y gestiona sus categorías.',
+        badge:       'INVENTARIO',
+        badgeColor:  'bg-emerald-100 text-emerald-700 border-emerald-200',
+        gradient:    'from-emerald-500 to-teal-600',
+        iconBg:      'bg-emerald-100 text-emerald-600',
+        rolesAllow:  ['admin'],
+        items:       ['Control de locaciones', 'Activar / Desactivar', 'Categorías de equipos'],
     },
 ];
 

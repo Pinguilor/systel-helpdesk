@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import { useState, useRef, useEffect } from 'react';
-import { Bell, User, LogOut, Search, LayoutDashboard, Plus, X, PieChart, Settings, Briefcase, CheckCheck, Ticket, MessageSquare, Calendar, XCircle, UserPlus, CheckCircle2 } from 'lucide-react';
+import { Bell, User, LogOut, Search, LayoutDashboard, Plus, X, PieChart, Settings, Briefcase, CheckCheck, Ticket, MessageSquare, Calendar, XCircle, UserPlus, CheckCircle2, ScanLine } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
@@ -388,6 +388,17 @@ export default function TopNav({ userFullName, userRole }: TopNavProps) {
                         >
                             <PieChart className="w-5 h-5" />
                         </Link>
+
+                        {/* Trazabilidad de Materiales — solo para clientes (usuario) */}
+                        {userRole === 'usuario' && (
+                            <Link
+                                href="/dashboard/trazabilidad-materiales"
+                                className={`hidden sm:flex p-2 rounded-full transition-colors items-center justify-center cursor-pointer ml-1 ${pathname === '/dashboard/trazabilidad-materiales' ? 'bg-white/20 text-white shadow-inner' : 'text-white/90 hover:text-white hover:bg-white/10'}`}
+                                title="Materiales Insumidos"
+                            >
+                                <ScanLine className="w-5 h-5" />
+                            </Link>
+                        )}
 
                         <Link
                             href={dashboardLink}

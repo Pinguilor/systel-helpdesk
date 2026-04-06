@@ -254,6 +254,59 @@ export async function updateTicketPropertiesAction(ticketId: string, updates: { 
     return { success: true };
 }
 
+export async function setPendingWithReasonAction(ticketId: string, motivo: string) {
+    const supabase = await createClient();
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) return { error: 'No estás autenticado.' };
+
+    const { data: profile } = await supabase.from('profiles').select('rol').eq('id', user.id).maybeSingle();
+    const rol = profile?.rol?.toUpperCase();
+    if (rol !== 'TECNICO' && rol !== 'ADMIN' && rol !== 'COORDINADOR') {
+        return { error: 'No tienes permisos para realizar esta acción.' };
+    }
+
+    if (!motivo.trim()) return { error: 'Debes ingresar un motivo.' };
+
+    // 1. Update ticket state
+    const { error: updateError } = await supabase
+        .from('tickets')
+        .update({ estado: 'pendiente' })
+        .eq('id', ticketId);
+
+    if (updateError) {
+        console.error('setPendingWithReasonAction update error:', updateError);
+        return { error: 'No se pudo actualizar el estado del ticket.' };
+    }
+
+    // 2. Insert two records: system event pill + reason alert
+    const { error: msgError } = await supabase.from('ticket_messages').insert([
+        {
+            ticket_id: ticketId,
+            sender_id: user.id,
+            mensaje: 'Estado cambiado a Pendiente.',
+            es_sistema: true,
+            es_interno: false,
+        },
+        {
+            ticket_id: ticketId,
+            sender_id: user.id,
+            mensaje: `TICKET PENDIENTE: ${motivo.trim()}`,
+            es_sistema: false,
+            es_interno: false,
+        },
+    ]);
+
+    if (msgError) {
+        console.error('setPendingWithReasonAction message error:', msgError);
+        // State already updated — return success but log the message failure
+    }
+
+    revalidatePath(`/dashboard/ticket/${ticketId}`);
+    revalidatePath('/dashboard/agente');
+    return { success: true };
+}
+
 export async function assignTicketToMeAction(ticketId: string) {
     const supabase = await createClient();
 
@@ -687,7 +740,8 @@ export async function closeTicketWithActaAction(
     firmaTecnico: string,
     receptorNombre: string,
     latitud: number,
-    longitud: number
+    longitud: number,
+    ayudantes: string[] = []
 ) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -703,7 +757,8 @@ export async function closeTicketWithActaAction(
             receptor_nombre: receptorNombre,
             latitud_cierre: latitud,
             longitud_cierre: longitud,
-            fecha_resolucion: new Date().toISOString()
+            fecha_resolucion: new Date().toISOString(),
+            ayudantes,
         }).eq('id', ticketId).select().single();
 
         if (ticketError || !updatedTicket) {
@@ -724,6 +779,12 @@ export async function closeTicketWithActaAction(
         // @ts-ignore
         const restaurante = Array.isArray(ticketData?.restaurantes) ? ticketData?.restaurantes[0] : ticketData?.restaurantes;
         const bodegaId = restaurante?.bodega_id;
+
+        // Capturar materiales de mochila ANTES de que la logística limpie ticket_id
+        const { data: mochilaSnapshot } = await supabase
+            .from('inventario')
+            .select('modelo, familia, cantidad')
+            .eq('ticket_id', ticketId);
 
         // 2. Actualización Logística (Inventario + Movimientos)
         if (bodegaId) {
@@ -816,15 +877,117 @@ export async function closeTicketWithActaAction(
             throw new Error(`Error insertando mensaje en el historial: ${msgError.message}`);
         }
 
-        // 4. Send Transactional Email
-        const { data: fetchTicketInfo } = await supabase.from('tickets').select('numero_ticket, titulo').eq('id', ticketId).single();
-        if (fetchTicketInfo) {
-            const adminEmail = process.env.ADMIN_EMAIL || 'no-reply@loopdeskapp.com';
-            sendTicketResolvedEmail(ticketId, fetchTicketInfo.numero_ticket, fetchTicketInfo.titulo, adminEmail)
-                .catch(err => console.error('Fallo disparando email de resolución:', err));
+        // 4. Generar PDF del Acta de Cierre (independiente — fallo no afecta el cierre)
+        let pdfBuffer: Buffer | undefined;
+        let ticketFull: any = null;
+        try {
+            // Datos completos del ticket para el PDF
+            const { data: ticketFullData } = await supabase
+                .from('tickets')
+                .select(`
+                    numero_ticket, titulo, receptor_nombre, latitud_cierre, longitud_cierre,
+                    restaurantes ( razon_social, nombre_restaurante ),
+                    catalogo_servicios:ticket_tipos_servicio ( nombre )
+                `)
+                .eq('id', ticketId)
+                .single();
+            ticketFull = ticketFullData;
+
+            // Materiales de solicitudes aprobadas para este ticket
+            // Incluye join a catalogo_equipos para la nueva arquitectura de BD
+            const { data: solicitudesConItems } = await supabase
+                .from('solicitudes_materiales')
+                .select(`
+                    solicitud_items (
+                        cantidad,
+                        inventario:inventario_id (
+                            modelo,
+                            familia,
+                            catalogo_equipos ( modelo, familias_hardware ( nombre ) )
+                        )
+                    )
+                `)
+                .eq('ticket_id', ticketId)
+                .eq('estado', 'aprobada');
+
+            // Combinar ambas fuentes: solicitudes de bodega + snapshot de mochila (capturado antes de que logística limpie ticket_id)
+            const materiales = [
+                ...(solicitudesConItems ?? []).flatMap((s: any) =>
+                    (s.solicitud_items ?? []).map((item: any) => ({
+                        cantidad: item.cantidad,
+                        modelo:  item.inventario?.catalogo_equipos?.modelo
+                              ?? item.inventario?.modelo
+                              ?? '—',
+                        familia: item.inventario?.catalogo_equipos?.familias_hardware?.nombre
+                              ?? item.inventario?.familia
+                              ?? '—',
+                    }))
+                ),
+                ...(mochilaSnapshot ?? []).map((item: any) => ({
+                    cantidad: item.cantidad,
+                    modelo:  item.modelo ?? '—',
+                    familia: item.familia ?? '—',
+                })),
+            ];
+
+            // Nombre del técnico que cierra
+            const { data: agentProfile } = await supabase
+                .from('profiles')
+                .select('full_name')
+                .eq('id', user.id)
+                .single();
+
+            // Nombres de los ayudantes (los IDs vienen como parámetro)
+            let ayudantesNombres: string[] = [];
+            if (ayudantes.length > 0) {
+                const { data: ayudantePerfiles } = await supabase
+                    .from('profiles')
+                    .select('full_name')
+                    .in('id', ayudantes);
+                ayudantesNombres = (ayudantePerfiles ?? [])
+                    .map((p: any) => p.full_name ?? '')
+                    .filter(Boolean);
+            }
+
+            const { generateActaCierrePDF } = await import('@/lib/generateActaPDF.server');
+            pdfBuffer = await generateActaCierrePDF({
+                ticket: ticketFull,
+                materiales,
+                notas,
+                firmaClienteUrl: firmaCliente,
+                firmaTecnicoUrl: firmaTecnico,
+                agenteNombre: agentProfile?.full_name ?? 'Técnico Autorizado',
+                ayudantesNombres,
+            });
+            console.log(`✅ PDF Acta de Cierre NC-${ticketFull?.numero_ticket} generado (${pdfBuffer.byteLength} bytes)`);
+        } catch (pdfError: any) {
+            console.error('⚠️ Error generando PDF del Acta (ticket igual cerrado):', pdfError?.message ?? pdfError);
         }
 
-        // 5. Revalidación
+        // 5. Enviar email con adjunto (independiente — fallo no afecta el cierre)
+        // Reutilizamos ticketFull (ya cargado en el paso 4); si falló, hacemos fetch mínimo
+        const emailTicket = ticketFull ?? (await supabase
+            .from('tickets')
+            .select('numero_ticket, titulo, restaurantes(razon_social, nombre_restaurante)')
+            .eq('id', ticketId)
+            .single()
+        ).data;
+        if (emailTicket) {
+            const adminEmail = process.env.ADMIN_EMAIL || 'no-reply@loopdeskapp.com';
+            const clientName = (emailTicket.restaurantes as any)?.razon_social ?? undefined;
+            const localName  = (emailTicket.restaurantes as any)?.nombre_restaurante ?? undefined;
+            sendTicketResolvedEmail(
+                ticketId,
+                emailTicket.numero_ticket,
+                emailTicket.titulo,
+                adminEmail,
+                pdfBuffer,
+                clientName,
+                localName,
+            ).catch(err => console.error('Fallo disparando email de resolución:', err));
+        }
+
+        // 6. Revalidación
         revalidatePath(`/dashboard/ticket/${ticketId}`);
         return { success: true };
 
@@ -1538,11 +1701,12 @@ export async function getCatalogoInventarioCentralAction() {
             return { error: 'Permisos insuficientes.', data: [] };
         }
 
-        // 3. Obtener IDs de bodegas tipo CENTRAL
+        // 3. Obtener IDs de bodegas tipo INTERNA activas (son las bodegas centrales del sistema)
         const { data: bodegas, error: bodegaError } = await supabase
             .from('bodegas')
             .select('id')
-            .ilike('tipo', 'CENTRAL');
+            .ilike('tipo', 'INTERNA')
+            .eq('activo', true);
 
         if (bodegaError) throw new Error(`Error buscando bodegas: ${bodegaError.message}`);
         if (!bodegas || bodegas.length === 0) return { data: [] };

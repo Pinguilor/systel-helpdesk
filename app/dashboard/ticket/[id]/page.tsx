@@ -95,7 +95,8 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
     let agents: any[] = [];
     let inventarioCentral: any[] = [];
 
-    if (isAdmin) {
+    // Agents needed by CloseTicketModal (técnico que cierra) y TicketSidebar (admin asigna)
+    if (isAdmin || isAgent) {
         const { data: agentsData } = await supabase.from('profiles').select('id, full_name').eq('rol', 'tecnico');
         if (agentsData) agents = agentsData;
 
@@ -131,6 +132,17 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
             .eq('ticket_id', ticketId)
             .order('fecha_movimiento', { ascending: false });
         packingList = packingListRaw || [];
+    }
+
+    // Fetch nombres de técnicos ayudantes si el ticket los tiene
+    let ayudantesInfo: { id: string; full_name: string }[] = [];
+    const ayudantesIds: string[] = (ticket as any).ayudantes ?? [];
+    if (ayudantesIds.length > 0) {
+        const { data: ayudantesData } = await supabase
+            .from('profiles')
+            .select('id, full_name')
+            .in('id', ayudantesIds);
+        ayudantesInfo = ayudantesData ?? [];
     }
 
     // Fetch child tickets
@@ -183,6 +195,7 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
                             isAdmin={isAdmin}
                             packingList={packingList}
                             inventarioTicket={inventarioTicket}
+                            ayudantesNombres={ayudantesInfo.map(a => a.full_name)}
                         />
                     </div>
 
@@ -193,7 +206,9 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
                             isAgent={isAgent}
                             isAdmin={isAdmin}
                             userRole={userRole}
+                            currentUserId={user.id}
                             agents={agents}
+                            ayudantesInfo={ayudantesInfo}
                             inventarioCentral={inventarioCentral}
                             packingList={packingList}
                             inventarioTicket={inventarioTicket}

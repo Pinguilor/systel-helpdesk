@@ -102,9 +102,12 @@ interface Props {
   firmaClienteUrl: string;
   firmaTecnicoUrl: string;
   agenteNombre: string;
+  ayudantesNombres?: string[];
+  /** Ruta absoluta o URL del logo. Permite server-side rendering sin acceso al filesystem de Next.js */
+  logoUrl?: string;
 }
 
-export const ActaCierrePDF = ({ ticket, materiales = [], notas, firmaClienteUrl, firmaTecnicoUrl, agenteNombre }: Props) => {
+export const ActaCierrePDF = ({ ticket, materiales = [], notas, firmaClienteUrl, firmaTecnicoUrl, agenteNombre, ayudantesNombres = [], logoUrl }: Props) => {
   return (
     <Document>
       <Page size="A4" style={styles.page}>
@@ -112,14 +115,15 @@ export const ActaCierrePDF = ({ ticket, materiales = [], notas, firmaClienteUrl,
         <View style={styles.header}>
             <View>
                 {/* Company Logo */}
-                <Image src="/systelcom.png" style={styles.companyLogo} />
+                <Image src={logoUrl ?? '/systelcom.png'} style={styles.companyLogo} />
                 <Text style={{ fontSize: 9, color: '#666', fontWeight: 'bold' }}>Soluciones Tecnológicas</Text>
                 <Text style={{ fontSize: 8, color: '#666', marginTop: 2 }}>www.systelltda.cl</Text>
             </View>
             <View style={{ textAlign: 'right', paddingTop: 10 }}>
                 <Text style={styles.title}>ORDEN DE SERVICIO</Text>
                 <Text style={{ fontSize: 9, color: '#333', marginBottom: 2 }}>Nº: {ticket?.numero_ticket}</Text>
-                <Text style={{ fontSize: 9, color: '#333' }}>Fecha: {new Date().toLocaleDateString()}</Text>
+                <Text style={{ fontSize: 9, color: '#333', marginBottom: 2 }}>Fecha: {new Date().toLocaleDateString('es-CL')}</Text>
+                <Text style={{ fontSize: 9, color: '#333' }}>Hora: {new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })} hrs</Text>
             </View>
         </View>
 
@@ -178,12 +182,32 @@ export const ActaCierrePDF = ({ ticket, materiales = [], notas, firmaClienteUrl,
             <View style={styles.table}>
                 <View style={styles.tableHeader}>
                     <Text style={{ flex: 2 }}>Nombre Técnico</Text>
+                    <Text style={{ flex: 1, textAlign: 'center' }}>Rol</Text>
                     <Text style={{ flex: 1, textAlign: 'center' }}>Fecha de Ejecución</Text>
                 </View>
+                {/* Técnico responsable */}
                 <View style={styles.tableRow}>
-                    <Text style={{ flex: 2 }}>{agenteNombre || 'Técnico Autorizado'}</Text>
-                    <Text style={{ flex: 1, textAlign: 'center' }}>{new Date().toLocaleDateString()}</Text>
+                    <Text style={{ flex: 2, fontWeight: 'bold' }}>{agenteNombre || 'Técnico Autorizado'}</Text>
+                    <Text style={{ flex: 1, textAlign: 'center' }}>Responsable</Text>
+                    <Text style={{ flex: 1, textAlign: 'center' }}>{new Date().toLocaleDateString('es-CL')}</Text>
                 </View>
+                {/* Técnicos ayudantes */}
+                {ayudantesNombres.length > 0
+                    ? ayudantesNombres.map((nombre, i) => (
+                        <View key={i} style={[styles.tableRow, { backgroundColor: i % 2 === 0 ? '#fafafa' : '#ffffff' }]}>
+                            <Text style={{ flex: 2 }}>{nombre}</Text>
+                            <Text style={{ flex: 1, textAlign: 'center', color: '#6b7280' }}>Ayudante</Text>
+                            <Text style={{ flex: 1, textAlign: 'center' }}>{new Date().toLocaleDateString('es-CL')}</Text>
+                        </View>
+                    ))
+                    : (
+                        <View style={[styles.tableRow, { backgroundColor: '#fafafa' }]}>
+                            <Text style={{ flex: 2, color: '#9ca3af', fontStyle: 'italic' }}>Sin técnicos ayudantes registrados</Text>
+                            <Text style={{ flex: 1 }} />
+                            <Text style={{ flex: 1 }} />
+                        </View>
+                    )
+                }
             </View>
         </View>
 
@@ -208,7 +232,7 @@ export const ActaCierrePDF = ({ ticket, materiales = [], notas, firmaClienteUrl,
 
         {/* Disclaimer */}
         <View style={{ marginTop: 20, fontSize: 8, color: '#666', textAlign: 'justify' }}>
-            <Text>Al firmar la presente Orden de Servicio, el trabajo se entiende recepcionado a plena conformidad, por lo que el cliente en ningún caso podrá retener, compensar, aplazar, suspender o de cualquier otro modo alterar el pago de cargos u otras obligaciones correspondientes al trabajo realizado.</Text>
+            <Text>Al firmar la presente Orden de Servicio, el cliente declara que el trabajo ha sido recepcionado a plena conformidad, certificando que las tareas descritas han sido finalizadas exitosamente y que los equipos o sistemas se encuentran operando según los requerimientos solicitados.</Text>
             {ticket?.latitud_cierre && ticket?.longitud_cierre && (
                 <Text style={{ marginTop: 5, color: '#888' }}>
                     Auditoría de Cierre: Documento firmado y geolocalizado en coordenadas {ticket.latitud_cierre}, {ticket.longitud_cierre}

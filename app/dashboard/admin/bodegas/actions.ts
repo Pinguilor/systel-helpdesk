@@ -1,132 +1,111 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { revalidatePath } from 'next/cache';
 
-export async function addStockAction(formData: FormData) {
+async function requireBodegaRole() {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+    const { data: profile } = await supabase
+        .from('profiles').select('rol').eq('id', user.id).single();
+    const rol = profile?.rol?.toUpperCase();
+    if (rol !== 'ADMIN' && rol !== 'ADMIN_BODEGA') return null;
+    return user;
+}
 
-    if (!user) return { error: 'No autorizado' };
+export async function addStockAction(formData: FormData) {
+    const user = await requireBodegaRole();
+    if (!user) return { error: 'No autorizado.' };
 
-    const { data: profile } = await supabase.from('profiles').select('rol').eq('id', user.id).single();
-    if (profile?.rol?.toUpperCase() !== 'ADMIN' && profile?.rol?.toUpperCase() !== 'ADMIN_BODEGA') {
-        return { error: 'Permisos insuficientes' };
+    const db = createAdminClient();
+
+    const bodegaId    = formData.get('bodega_id') as string;
+    const modelo      = (formData.get('modelo') as string)?.trim();
+    const familia     = (formData.get('familia') as string)?.trim();
+    const esSerial    = formData.get('es_serializado') === 'true';
+    const serialesRaw = formData.get('seriales') as string | null;
+    const cantidadRaw = parseInt(formData.get('cantidad') as string, 10);
+
+    if (!bodegaId || !modelo || !familia) return { error: 'Datos incompletos.' };
+
+    // Validate bodega is INTERNA
+    const { data: bodega } = await db
+        .from('bodegas').select('tipo').eq('id', bodegaId).maybeSingle();
+    if (!bodega || bodega.tipo?.toUpperCase() !== 'INTERNA') {
+        return { error: 'Bodega de destino inválida o no permitida.' };
     }
 
-    const bodegaId = formData.get('bodega_id') as string;
-    const mode = formData.get('mode') as string; // 'existing' | 'new'
+    if (esSerial) {
+        const seriales: string[] = serialesRaw ? JSON.parse(serialesRaw) : [];
+        if (seriales.length === 0) return { error: 'Debes ingresar al menos un número de serie.' };
 
-    if (!bodegaId) {
-        return { error: 'Falta la bodega de destino.' };
-    }
+        // Check for duplicates globally
+        const { data: existingSerials } = await db
+            .from('inventario')
+            .select('numero_serie')
+            .in('numero_serie', seriales);
 
-    try {
-        // Validar que la bodega elegida de hecho pertenezca a Central o Dañados
-        const { data: bodegaDestino } = await supabase.from('bodegas').select('tipo').eq('id', bodegaId).maybeSingle();
-        if (!bodegaDestino || !['CENTRAL', 'DAÑADOS'].includes(bodegaDestino.tipo?.toUpperCase() || '')) {
-            return { error: 'Bodega de destino inválida o no permitida.' };
+        const duplicados = (existingSerials ?? []).map((r: any) => r.numero_serie);
+        if (duplicados.length > 0) {
+            return { error: `Serie(s) ya registrada(s): ${duplicados.join(', ')}` };
         }
 
-        if (mode === 'existing') {
-            const inventarioId = formData.get('inventario_id') as string;
-            
-            if (!inventarioId) {
-                return { error: 'Debe seleccionar un equipo existente.' };
-            }
+        const rows = seriales.map(serie => ({
+            bodega_id: bodegaId,
+            modelo,
+            familia,
+            es_serializado: true,
+            numero_serie: serie,
+            cantidad: 1,
+            estado: 'Disponible',
+        }));
 
-            // Fetch current equipment details
-            const { data: existingStock, error: errStock } = await supabase
-                .from('inventario')
-                .select('id, cantidad, es_serializado, modelo, familia')
-                .eq('id', inventarioId)
-                .maybeSingle();
-            
-            if (errStock || !existingStock) throw new Error('Equipo no encontrado en inventario');
-            
-            if (existingStock.es_serializado) {
-                const nuevoSerieBruto = formData.get('nuevo_numero_serie') as string;
-                if (!nuevoSerieBruto) {
-                    return { error: 'El número de serie es obligatorio para ingresar un nuevo equipo serializado.' };
-                }
-                const serieLimpia = nuevoSerieBruto.trim();
-                
-                if (serieLimpia.length < 5) {
-                    return { error: 'El número de serie debe tener al menos 5 caracteres.' };
-                }
-
-                // Insertar nueva fila en lugar de updatear
-                const { error: insertErr } = await supabase
-                    .from('inventario')
-                    .insert({
-                        bodega_id: bodegaId,
-                        modelo: existingStock.modelo,
-                        familia: existingStock.familia,
-                        cantidad: 1,
-                        es_serializado: true,
-                        numero_serie: serieLimpia,
-                        estado: 'Disponible'
-                    });
-                
-                if (insertErr) throw insertErr;
-            } else {
-                const cantidadToAdd = Number(formData.get('cantidad'));
-                if (isNaN(cantidadToAdd) || cantidadToAdd <= 0) {
-                    return { error: 'Debe especificar una cantidad válida a sumar.' };
-                }
-
-                const { error: updateErr } = await supabase
-                    .from('inventario')
-                    .update({ cantidad: existingStock.cantidad + cantidadToAdd })
-                    .eq('id', inventarioId);
-                
-                if (updateErr) throw updateErr;
-            }
-
-        } else if (mode === 'new') {
-            const cantidad = Number(formData.get('cantidad'));
-            const numeroSerie = formData.get('numero_serie') as string | null;
-            let esSerializado = formData.get('es_serializado') === 'true';
-            const modelo = formData.get('modelo') as string;
-            const familia = formData.get('familia') as string;
-
-            if (isNaN(cantidad) || cantidad <= 0 || !modelo || !familia) {
-                return { error: 'Faltan campos obligatorios para el nuevo equipo (modelo, familia, cantidad).' };
-            }
-
-            // Validaciones Seriales
-            let serieLimpiaNuevo = numeroSerie ? numeroSerie.trim() : null;
-
-            if (esSerializado) {
-                if (!serieLimpiaNuevo) {
-                    return { error: 'El número de serie es obligatorio para equipos serializados.' };
-                }
-                if (serieLimpiaNuevo.length < 5) {
-                    return { error: 'El número de serie debe tener al menos 5 caracteres.' };
-                }
-                if (cantidad > 1) {
-                    return { error: 'Los equipos serializados deben ingresarse de a 1 indicando su respectivo número de serie.' };
-                }
-            }
-
-            const { error: insertErr } = await supabase
-                .from('inventario')
-                .insert({
-                    bodega_id: bodegaId,
-                    modelo,
-                    familia,
-                    cantidad: esSerializado ? 1 : cantidad,
-                    es_serializado: esSerializado,
-                    numero_serie: serieLimpiaNuevo,
-                    estado: 'Disponible'
-                });
-            
-            if (insertErr) throw insertErr;
+        const { error } = await db.from('inventario').insert(rows);
+        if (error) {
+            console.error('[addStockAction] serial insert:', error.message);
+            return { error: 'No se pudieron registrar los equipos.' };
         }
+    } else {
+        if (isNaN(cantidadRaw) || cantidadRaw < 1) return { error: 'La cantidad debe ser al menos 1.' };
 
-        revalidatePath('/dashboard/admin/bodegas');
-        return { success: true };
-    } catch (err: any) {
-        return { error: err.message };
+        // Try to sum to existing row in same bodega
+        const { data: existing } = await db
+            .from('inventario')
+            .select('id, cantidad')
+            .eq('bodega_id', bodegaId)
+            .eq('modelo', modelo)
+            .eq('es_serializado', false)
+            .is('ticket_id', null)
+            .neq('estado', 'Inactivo')
+            .maybeSingle();
+
+        if (existing) {
+            const { error } = await db
+                .from('inventario')
+                .update({ cantidad: (existing as any).cantidad + cantidadRaw })
+                .eq('id', (existing as any).id);
+            if (error) {
+                console.error('[addStockAction] update:', error.message);
+                return { error: 'No se pudo actualizar el stock.' };
+            }
+        } else {
+            const { error } = await db.from('inventario').insert({
+                bodega_id: bodegaId,
+                modelo,
+                familia,
+                es_serializado: false,
+                cantidad: cantidadRaw,
+                estado: 'Disponible',
+            });
+            if (error) {
+                console.error('[addStockAction] insert:', error.message);
+                return { error: 'No se pudo registrar el equipo.' };
+            }
+        }
     }
+
+    revalidatePath('/dashboard/admin/bodegas');
+    return { success: true };
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useTransition, useRef } from 'react';
+import React, { useState, useTransition, useRef, useEffect, useCallback } from 'react';
 import {
     CheckCircle2, XCircle, Clock, PackageCheck, Hash, Layers,
     Loader2, AlertCircle, ChevronRight, Warehouse, User,
@@ -11,7 +11,8 @@ import dynamic from 'next/dynamic';
 import {
     aprobarSolicitudAction, rechazarSolicitudAction,
     aprobarDevolucionAction, rechazarDevolucionAction,
-    type ItemContexto,
+    getStockEnBodegaAction,
+    type ItemContexto, type StockCheckResult,
 } from './actions';
 import { CustomSelect } from '@/app/dashboard/components/CustomSelect';
 import { useRouter } from 'next/navigation';
@@ -232,6 +233,34 @@ function ModalAprobar({
     const sigRef = useRef<any>(null);
     const [renderTrigger, setRenderTrigger] = useState(0);
 
+    // ── Stock en tiempo real ──────────────────────────────────────────────────
+    const [stockPorItem, setStockPorItem] = useState<Record<string, StockCheckResult>>({});
+    const [isCheckingStock, setIsCheckingStock] = useState(false);
+
+    const checkStock = useCallback(async (bId: string) => {
+        if (!bId || solicitud.solicitud_items.length === 0) return;
+        setIsCheckingStock(true);
+        const items = solicitud.solicitud_items.map(i => ({
+            solicitudItemId: i.id,
+            modelo:          i.inventario?.modelo ?? null,
+            familia:         i.inventario?.familia ?? null,
+            esSerializado:   i.inventario?.es_serializado ?? false,
+            cantidad:        i.cantidad,
+        }));
+        const res = await getStockEnBodegaAction(bId, items);
+        if (res.data) {
+            const map: Record<string, StockCheckResult> = {};
+            for (const r of res.data) map[r.solicitudItemId] = r;
+            setStockPorItem(map);
+        }
+        setIsCheckingStock(false);
+    }, [solicitud.solicitud_items]);
+
+    // Verificar al montar y cada vez que cambie la bodega
+    useEffect(() => { checkStock(bodegaId); }, [bodegaId, checkStock]);
+
+    // ─────────────────────────────────────────────────────────────────────────
+
     const isFirmaVacia = !sigRef.current || sigRef.current.isEmpty();
 
     const toggleItem = (id: string) => {
@@ -249,20 +278,28 @@ function ModalAprobar({
         .filter(i => itemsAprobados.has(i.id))
         .reduce((s, i) => s + i.cantidad, 0);
 
+    // Hay stock insuficiente si algún ítem aprobado no tiene stock suficiente
+    const itemsConStockInsuficiente = solicitud.solicitud_items.filter(i =>
+        itemsAprobados.has(i.id) &&
+        stockPorItem[i.id] !== undefined &&
+        !stockPorItem[i.id].suficiente
+    );
+    const hayStockInsuficiente = itemsConStockInsuficiente.length > 0;
+
     const handleConfirm = () => {
-        if (!bodegaId) { setError('Debes seleccionar una bodega central.'); return; }
+        if (!bodegaId) { setError('Debes seleccionar una bodega de origen.'); return; }
         if (aprobadosCount === 0) { setError('Debes aprobar al menos un ítem.'); return; }
+        if (hayStockInsuficiente) { setError('Hay ítems sin stock suficiente en la bodega seleccionada.'); return; }
         if (!sigRef.current || sigRef.current.isEmpty()) { setError('La firma del técnico es obligatoria.'); return; }
         setError('');
         const firmaBase64 = sigRef.current.getTrimmedCanvas().toDataURL('image/png');
-        // Preparar contexto de items para la trazabilidad (solo los aprobados)
         const itemsContexto = solicitud.solicitud_items
             .filter(i => itemsAprobados.has(i.id))
             .map(i => ({
-                cantidad:      i.cantidad,
-                modelo:        i.inventario?.modelo ?? null,
+                cantidad:       i.cantidad,
+                modelo:         i.inventario?.modelo ?? null,
                 es_serializado: i.inventario?.es_serializado ?? false,
-                numero_serie:  i.inventario?.numero_serie ?? null,
+                numero_serie:   i.inventario?.numero_serie ?? null,
             }));
         startTransition(async () => {
             const res = await aprobarSolicitudAction(
@@ -304,6 +341,7 @@ function ModalAprobar({
                         </div>
                     )}
 
+                    {/* ── Lista de ítems con indicador de stock ── */}
                     <div>
                         <div className="flex items-center justify-between mb-2">
                             <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Ítems a despachar</span>
@@ -312,8 +350,14 @@ function ModalAprobar({
                         <div className="bg-slate-50 rounded-xl border border-slate-200 divide-y divide-slate-100 overflow-hidden">
                             {solicitud.solicitud_items.map(item => {
                                 const checked = itemsAprobados.has(item.id);
+                                const stock = stockPorItem[item.id];
+                                const sinStock = checked && stock && !stock.suficiente;
+
                                 return (
-                                    <label key={item.id} className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors ${checked ? 'bg-emerald-50/60' : 'bg-white opacity-60'}`}>
+                                    <label key={item.id} className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors ${
+                                        sinStock    ? 'bg-red-50/60' :
+                                        checked     ? 'bg-emerald-50/60' : 'bg-white opacity-60'
+                                    }`}>
                                         <input type="checkbox" checked={checked} onChange={() => toggleItem(item.id)}
                                             className="w-4 h-4 rounded border-slate-300 text-emerald-600 accent-emerald-600 shrink-0" />
                                         <div className="flex flex-col min-w-0 flex-1">
@@ -325,6 +369,20 @@ function ModalAprobar({
                                                 <span className="font-mono text-[10px] bg-indigo-50 border border-indigo-100 text-indigo-600 px-1.5 py-0.5 rounded">#{item.inventario.numero_serie}</span>
                                             )}
                                             <span className="text-sm font-black text-slate-800">x{item.cantidad}</span>
+                                            {/* Indicador de stock en tiempo real */}
+                                            {isCheckingStock ? (
+                                                <Loader2 className="w-3.5 h-3.5 text-slate-300 animate-spin" />
+                                            ) : stock ? (
+                                                stock.suficiente ? (
+                                                    <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
+                                                        {stock.disponible} disp.
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-[10px] font-black text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded">
+                                                        {stock.disponible} disp.
+                                                    </span>
+                                                )
+                                            ) : null}
                                         </div>
                                     </label>
                                 );
@@ -332,7 +390,27 @@ function ModalAprobar({
                         </div>
                     </div>
 
-                    <BodegaSelector bodegasCentrales={bodegasCentrales} value={bodegaId} onChange={setBodegaId} label="Descontar desde Bodega Central" />
+                    {/* ── Selector de bodega con aviso de stock insuficiente ── */}
+                    <div>
+                        <BodegaSelector
+                            bodegasCentrales={bodegasCentrales}
+                            value={bodegaId}
+                            onChange={(v) => { setBodegaId(v); setError(''); }}
+                            label="Descontar desde Bodega"
+                        />
+                        {hayStockInsuficiente && !isCheckingStock && (
+                            <div className="mt-2 flex items-start gap-2 bg-amber-50 border border-amber-300 rounded-xl px-3 py-2.5 text-amber-800 text-xs font-semibold">
+                                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-500" />
+                                <span>
+                                    Stock insuficiente en la bodega seleccionada para cubrir{' '}
+                                    {itemsConStockInsuficiente.length === 1
+                                        ? `"${itemsConStockInsuficiente[0].inventario?.modelo ?? 'un ítem'}"`
+                                        : `${itemsConStockInsuficiente.length} ítems`}.
+                                    Cambia la bodega de origen o desactiva los ítems sin stock.
+                                </span>
+                            </div>
+                        )}
+                    </div>
 
                     <div>
                         <label className="block text-xs font-black text-slate-700 uppercase tracking-widest mb-2">
@@ -343,7 +421,7 @@ function ModalAprobar({
                             rows={3} className="w-full border-2 border-slate-200 rounded-xl p-3 text-sm font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all resize-none" />
                     </div>
 
-                    {/* ── Firma del Técnico ─────────────────────────────────── */}
+                    {/* ── Firma del Técnico ── */}
                     <div>
                         <div className="flex items-center justify-between mb-2">
                             <label className="flex items-center gap-2 text-xs font-black text-slate-700 uppercase tracking-widest">
@@ -383,10 +461,24 @@ function ModalAprobar({
                         className="flex-1 px-4 py-2.5 text-sm font-bold text-slate-600 border border-slate-300 rounded-xl hover:bg-slate-50 transition-colors disabled:opacity-50">
                         Cancelar
                     </button>
-                    <button onClick={handleConfirm} disabled={isPending || !bodegaId || aprobadosCount === 0 || isFirmaVacia}
-                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 text-white text-sm font-black rounded-xl hover:bg-emerald-700 transition-all shadow-md active:scale-95 disabled:opacity-40 disabled:shadow-none">
-                        {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                        {isPending ? 'Procesando…' : esAprobacionParcial ? `Aprobar ${aprobadosCount} ítem${aprobadosCount !== 1 ? 's' : ''}` : 'Aprobar Todo'}
+                    <button
+                        onClick={handleConfirm}
+                        disabled={isPending || isCheckingStock || !bodegaId || aprobadosCount === 0 || isFirmaVacia || hayStockInsuficiente}
+                        className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-black rounded-xl transition-all shadow-md active:scale-95 disabled:opacity-40 disabled:shadow-none ${
+                            hayStockInsuficiente
+                                ? 'bg-amber-500 text-white hover:bg-amber-600'
+                                : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                        }`}>
+                        {isPending || isCheckingStock
+                            ? <Loader2 className="w-4 h-4 animate-spin" />
+                            : hayStockInsuficiente
+                                ? <AlertTriangle className="w-4 h-4" />
+                                : <CheckCircle2 className="w-4 h-4" />}
+                        {isPending ? 'Procesando…' :
+                         isCheckingStock ? 'Verificando stock…' :
+                         hayStockInsuficiente ? 'Stock insuficiente' :
+                         esAprobacionParcial ? `Aprobar ${aprobadosCount} ítem${aprobadosCount !== 1 ? 's' : ''}` :
+                         'Aprobar Todo'}
                     </button>
                 </div>
             </div>

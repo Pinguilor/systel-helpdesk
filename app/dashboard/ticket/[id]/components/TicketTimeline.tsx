@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { addTicketMessageAction, approveResolutionAction, rejectResolutionAction, scheduleVisitAction, updateChildTicketDescription } from '../actions';
-import { User as UserIcon, Paperclip, FileText, Image as ImageIcon, FileSpreadsheet, File, CheckCircle2, XCircle, Star, ChevronDown, MessageSquare, ChevronsRight, Calendar, AlertTriangle, Pencil, Link2, ClipboardPen, Lock, ShieldCheck, Banknote } from 'lucide-react';
+import { User as UserIcon, Paperclip, FileText, Image as ImageIcon, FileSpreadsheet, File, CheckCircle2, XCircle, Star, ChevronDown, MessageSquare, ChevronsRight, Calendar, AlertTriangle, Pencil, Link2, ClipboardPen, Lock, ShieldCheck, Banknote, Clock } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { SmartCloseModal } from './SmartCloseModal';
 import { ActaCierrePDF } from './ActaCierrePDF';
@@ -51,9 +51,10 @@ interface Props {
     packingList?: any[];
     inventarioTicket?: any[];
     parentTicket?: { id: string; numero_ticket: number; titulo: string } | null;
+    ayudantesNombres?: string[];
 }
 
-export default function TicketTimeline({ ticket, messages, currentUserId, isAgent, isAdmin, packingList = [], inventarioTicket = [], parentTicket = null }: Props) {
+export default function TicketTimeline({ ticket, messages, currentUserId, isAgent, isAdmin, packingList = [], inventarioTicket = [], parentTicket = null, ayudantesNombres = [] }: Props) {
     const router = useRouter();
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const [newMessage, setNewMessage] = useState('');
@@ -407,7 +408,7 @@ export default function TicketTimeline({ ticket, messages, currentUserId, isAgen
                                     </div>
                                     <PDFDownloadLink
                                         key={ticket.estado + (ticket.receptor_nombre || '') + (inventarioTicket?.length || 0)}
-                                        document={<ActaCierrePDF ticket={ticket} materiales={inventarioTicket} notas={ticket.notas_cierre || ''} firmaClienteUrl={ticket.firma_cliente} firmaTecnicoUrl={ticket.firma_tecnico || ''} agenteNombre={ticket.agente?.full_name || 'Técnico'} />}
+                                        document={<ActaCierrePDF ticket={ticket} materiales={inventarioTicket} notas={ticket.notas_cierre || ''} firmaClienteUrl={ticket.firma_cliente} firmaTecnicoUrl={ticket.firma_tecnico || ''} agenteNombre={ticket.agente?.full_name || 'Técnico'} ayudantesNombres={ayudantesNombres} />}
                                         fileName={`Acta_Servicio_NC-${ticket.numero_ticket}.pdf`}
                                         className="inline-flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-lg shadow-sm transition-colors"
                                     >
@@ -704,6 +705,26 @@ export default function TicketTimeline({ ticket, messages, currentUserId, isAgen
                                         <div key={msg.id} className="flex justify-center my-4 w-full">
                                             <div className="bg-slate-100 text-slate-500 px-4 py-1.5 rounded-full text-xs font-medium italic border border-slate-200">
                                                 {msg.mensaje}
+                                            </div>
+                                        </div>
+                                    );
+                                }
+
+                                if (!msg.es_sistema && msg.mensaje?.match(/^TICKET PENDIENTE:/i)) {
+                                    const motivo = msg.mensaje.replace(/^TICKET PENDIENTE:\s*/i, '').trim();
+                                    return (
+                                        <div key={msg.id} className="w-full my-4 px-2 sm:px-0">
+                                            <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-md shadow-sm w-full">
+                                                <div className="flex items-start gap-3">
+                                                    <Clock className="w-4 h-4 text-yellow-500 mt-0.5 shrink-0" />
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-yellow-800 font-bold text-sm">Ticket Pausado</p>
+                                                        <p className="text-yellow-700 text-sm mt-1">{motivo}</p>
+                                                        <p className="text-yellow-500 text-xs mt-2 font-medium">
+                                                            {formatDateAudit(msg.creado_en)} · {msg.profiles?.full_name || 'Agente'}
+                                                        </p>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                     );
