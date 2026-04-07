@@ -13,10 +13,10 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Loop",
+  title: "Systel Ltda",
   description: "Gestión para Empresas",
   icons: {
-    icon: '/looplogo.png',
+    icon: '/favicon.ico',
   },
 };
 

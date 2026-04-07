@@ -9,9 +9,9 @@ export default function LoginPage() {
 
             <div className="relative z-10 w-full max-w-4xl bg-slate-50/95 backdrop-blur-xl rounded-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row min-h-[500px] border border-white/40">
 
-                {/* Left Side (Logo & Bienvenido) */}
+                {/* center Side (Logo & Bienvenido) */}
                 {/* 👇 FIX: Quitamos el min-h-[500px] fijo y lo dejamos solo para PC (md:min-h-[500px]). Redujimos el padding en celular (p-6) */}
-                <div className="w-full md:w-1/2 p-6 md:p-10 flex flex-col relative md:min-h-[500px]">
+                <div className="w-full md:w-1/2 p-6 md:p-10 flex items-center justify-center flex flex-col relative md:min-h-[500px]">
                     {/* Capa de luz sutil */}
                     <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-30 pointer-events-none"></div>
 
@@ -52,7 +52,7 @@ export default function LoginPage() {
             </div>
 
             <div className="absolute bottom-4 text-xs text-white/50 font-medium z-10 w-full text-center">
-                &copy; {new Date().getFullYear()} Mesa de Ayuda Corporativa.
+                &copy; {new Date().getFullYear()} Creado por Loop - desarrollo de software y soluciones a medida.
             </div>
         </div>
     )
