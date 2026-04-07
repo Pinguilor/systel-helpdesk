@@ -20,7 +20,8 @@ interface StockItem {
     cantidad: number;
     cantidadDisponible: number;
     ticket_id: string | null;
-    consumido: boolean;
+    estado: string;
+    consumido: boolean; // true solo si está En Tránsito para ESTE ticket
 }
 
 interface AssignMaterialModalProps {
@@ -30,15 +31,20 @@ interface AssignMaterialModalProps {
 
 // ─── Stepper ─────────────────────────────────────────────────────────────────
 function Stepper({
-    value, max, onChange, bloqueado, consumido,
+    value, max, onChange, bloqueado, consumido, cantidadConsumida,
 }: {
-    value: number; max: number; onChange: (n: number) => void; bloqueado: boolean; consumido?: boolean;
+    value: number; max: number; onChange: (n: number) => void; bloqueado: boolean; consumido?: boolean; cantidadConsumida?: number;
 }) {
     if (consumido) {
         return (
-            <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-1 rounded-lg whitespace-nowrap">
-                Asignado
-            </span>
+            <div className="flex items-center gap-1.5 shrink-0">
+                <span className="text-sm font-black text-emerald-700 tabular-nums">
+                    ×{cantidadConsumida ?? 1}
+                </span>
+                <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-1 rounded-lg whitespace-nowrap">
+                    Asignado
+                </span>
+            </div>
         );
     }
     if (bloqueado) {
@@ -134,7 +140,7 @@ function ItemRow({ item, value, onChange }: { item: StockItem; value: number; on
             </div>
 
             {/* Right: stepper o badge bloqueado/consumido */}
-            <Stepper value={value} max={max} onChange={onChange} bloqueado={bloqueado} consumido={consumido} />
+            <Stepper value={value} max={max} onChange={onChange} bloqueado={bloqueado} consumido={consumido} cantidadConsumida={item.cantidad} />
         </div>
     );
 }
@@ -191,7 +197,7 @@ export function AssignMaterialModal({ ticketId, onClose }: AssignMaterialModalPr
                 //    inventario mantiene modelo/familia como columnas directas
                 const { data: inventory, error: errInv } = await supabase
                     .from('inventario')
-                    .select('id, modelo, familia, es_serializado, numero_serie, cantidad, ticket_id')
+                    .select('id, modelo, familia, es_serializado, numero_serie, cantidad, ticket_id, estado')
                     .eq('bodega_id', miMochila.id)
                     .gt('cantidad', 0);
 
@@ -212,8 +218,14 @@ export function AssignMaterialModal({ ticketId, onClose }: AssignMaterialModalPr
                 }
 
                 // 5. Enriquecer los datos
+                // "consumido" = el técnico ya confirmó este ítem para el ticket
+                //   → lo delata el estado 'En Tránsito' (assignMaterialsBatchAction lo pone así)
+                // "disponible" = llegó aprobado del bodeguero (estado 'Disponible') aunque tenga ticket_id
+                const TRANSITO = ['En Tránsito', 'en_transito', 'En Transito'];
                 const enriched: StockItem[] = (inventory as any[]).map(item => {
-                    const yaConsumido = item.ticket_id === ticketId;
+                    const yaConsumido =
+                        item.ticket_id === ticketId &&
+                        TRANSITO.includes(item.estado ?? '');
                     return {
                         id: item.id,
                         modelo:  item.modelo  ?? '—',
@@ -221,6 +233,7 @@ export function AssignMaterialModal({ ticketId, onClose }: AssignMaterialModalPr
                         es_serializado: item.es_serializado,
                         numero_serie: item.numero_serie || null,
                         cantidad: item.cantidad,
+                        estado: item.estado ?? '',
                         cantidadDisponible: yaConsumido
                             ? 0
                             : Math.max(0, item.cantidad - (blockedMap[item.id] || 0)),
@@ -243,9 +256,10 @@ export function AssignMaterialModal({ ticketId, onClose }: AssignMaterialModalPr
         fetchMochilaStock();
     }, []);
 
-    // Split into two sections
-    const itemsDeEsteTicket = stockMochila.filter(i => i.ticket_id === ticketId);
-    const itemsOtros        = stockMochila.filter(i => i.ticket_id !== ticketId);
+    // Sección A: ya confirmados como consumidos para este ticket (En Tránsito)
+    const itemsConsumidos  = stockMochila.filter(i => i.consumido);
+    // Sección B: disponibles en la mochila (no En Tránsito, con stock real > 0)
+    const itemsDisponibles = stockMochila.filter(i => !i.consumido && i.cantidadDisponible > 0);
 
     const setItemConsumo = (id: string, n: number) => {
         setConsumo(prev => {
@@ -340,16 +354,37 @@ export function AssignMaterialModal({ ticketId, onClose }: AssignMaterialModalPr
                 ) : (
                     <div className="flex-1 overflow-y-auto custom-scrollbar">
 
-                        {/* Section: Asignados a este ticket */}
-                        {itemsDeEsteTicket.length > 0 && (
+                        {/* ── Sección A: Consumos ya confirmados (informativo) ── */}
+                        {itemsConsumidos.length > 0 && (
                             <div>
                                 <SectionHeader
-                                    icon={<Ticket className="w-3.5 h-3.5 text-indigo-500" />}
-                                    label="Asignados a este Ticket"
-                                    count={itemsDeEsteTicket.length}
+                                    icon={<Ticket className="w-3.5 h-3.5 text-emerald-500" />}
+                                    label="Consumido en este Ticket"
+                                    count={itemsConsumidos.length}
                                 />
                                 <div className="divide-y divide-slate-100">
-                                    {itemsDeEsteTicket.map(item => (
+                                    {itemsConsumidos.map(item => (
+                                        <ItemRow
+                                            key={item.id}
+                                            item={item}
+                                            value={0}
+                                            onChange={() => {}}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ── Sección B: Stock disponible en mochila (interactivo) ── */}
+                        {itemsDisponibles.length > 0 && (
+                            <div>
+                                <SectionHeader
+                                    icon={<Package className="w-3.5 h-3.5 text-slate-400" />}
+                                    label="Disponible en Mochila"
+                                    count={itemsDisponibles.length}
+                                />
+                                <div className="divide-y divide-slate-100">
+                                    {itemsDisponibles.map(item => (
                                         <ItemRow
                                             key={item.id}
                                             item={item}
@@ -361,23 +396,17 @@ export function AssignMaterialModal({ ticketId, onClose }: AssignMaterialModalPr
                             </div>
                         )}
 
-                        {/* Section: Stock general / Otros */}
-                        {itemsOtros.length > 0 && (
-                            <div>
-                                <SectionHeader
-                                    icon={<Package className="w-3.5 h-3.5 text-slate-400" />}
-                                    label={itemsDeEsteTicket.length > 0 ? 'Stock General / Otros' : 'Stock en Mochila'}
-                                    count={itemsOtros.length}
-                                />
-                                <div className="divide-y divide-slate-100">
-                                    {itemsOtros.map(item => (
-                                        <ItemRow
-                                            key={item.id}
-                                            item={item}
-                                            value={consumo[item.id] || 0}
-                                            onChange={n => setItemConsumo(item.id, n)}
-                                        />
-                                    ))}
+                        {/* Empty state: mochila sin stock disponible */}
+                        {itemsDisponibles.length === 0 && itemsConsumidos.length === 0 && (
+                            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center gap-4">
+                                <div className="p-5 bg-slate-100 rounded-full">
+                                    <PackageSearch className="w-8 h-8 text-slate-400" />
+                                </div>
+                                <div>
+                                    <h4 className="text-base font-black text-slate-900 mb-1">Sin stock disponible</h4>
+                                    <p className="text-sm text-slate-500 font-medium">
+                                        No tienes materiales disponibles en tu mochila. Solicita despacho al bodeguero.
+                                    </p>
                                 </div>
                             </div>
                         )}

@@ -27,7 +27,7 @@ export default async function tecnicoDashboard() {
         .from('tickets')
         .select(`
             *,
-            profiles:creado_por(full_name, clientes:cliente_id(nombre_fantasia)),
+            profiles:creado_por(full_name, clientes:cliente_id(nombre_fantasia, razon_social)),
             restaurantes(nombre_restaurante),
             catalogo_servicios(categoria, subcategoria, elemento),
             padre:ticket_padre_id(numero_ticket)

@@ -2,12 +2,12 @@ import { Resend } from 'resend';
 
 // Inicializamos Resend con la variable de entorno o directamente con la clave
 const resend = new Resend(process.env.RESEND_API_KEY || 're_KSz9zcdA_3BL7XTgX6dcg5BkrcJbUvbde');
-const fromEmail = 'no-reply@loopdeskapp.com';
+const fromEmail = 'no-reply@systelltda-helpdesk.cl';
 
 export async function sendTicketCreatedEmail(ticketId: string, ticketNumber: number, title: string, priority: string, creatorName: string, recipientEmail: string) {
     try {
         const { data, error } = await resend.emails.send({
-            from: `Loop Desk <${fromEmail}>`,
+            from: `Systel Helpdesk <${fromEmail}>`,
             to: [recipientEmail],
             subject: `[Nuevo Ticket NC-${ticketNumber}] ${title}`,
             html: `
@@ -50,7 +50,7 @@ export async function sendTicketResolvedEmail(
 
     try {
         const payload: Parameters<typeof resend.emails.send>[0] = {
-            from: `Loop Desk <${fromEmail}>`,
+            from: `Systel Helpdesk <${fromEmail}>`,
             to: [recipientEmail],
             subject: `[Cerrado] Acta de Resolución - NC-${ticketNumber}: ${title}`,
             html: `<!DOCTYPE html>

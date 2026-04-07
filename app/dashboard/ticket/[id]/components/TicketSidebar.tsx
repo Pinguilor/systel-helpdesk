@@ -12,6 +12,13 @@ import { AsignarViaticoModal } from './AsignarViaticoModal';
 import { PendingReasonModal } from './PendingReasonModal';
 import { closeTicketWithActaAction } from '../actions';
 
+interface PackingItem {
+    modelo: string;
+    familia: string;
+    solicitado: number;
+    utilizado: number;
+}
+
 interface Props {
     ticket: any;
     isAgent: boolean;
@@ -21,7 +28,7 @@ interface Props {
     agents?: any[];
     ayudantesInfo?: { id: string; full_name: string }[];
     inventarioCentral?: any[];
-    packingList?: any[];
+    packingList?: PackingItem[];
     inventarioTicket?: any[];
     childTickets?: any[];
 }
@@ -52,8 +59,8 @@ export default function TicketSidebar({ ticket, isAgent, isAdmin, userRole = 'us
         { id: 'pendiente', label: 'Pendiente', color: 'bg-orange-100 text-orange-700 border-orange-200', icon: Clock },
         { id: 'programado', label: 'Programado', color: 'bg-purple-100 text-purple-700 border-purple-200', icon: Calendar },
         { id: 'en_progreso', label: 'En Progreso', color: 'bg-indigo-100 text-indigo-700 border-indigo-200', icon: Activity },
-        { id: 'resuelto', label: 'Resuelto', color: 'bg-emerald-100 text-emerald-700 border-emerald-200', icon: CheckCircle2 },
-        { id: 'cerrado', label: 'Cerrado', color: 'bg-gray-100 text-gray-700 border-gray-200', icon: XCircle },
+        { id: 'resuelto', label: 'Resuelto', color: 'bg-blue-100 text-blue-700 border-blue-200', icon: CheckCircle2 },
+        { id: 'cerrado', label: 'Cerrado', color: 'bg-green-100 text-green-800 border-green-200', icon: CheckCircle2 },
         { id: 'anulado', label: 'Anulado', color: 'bg-red-100 text-red-700 border-red-200 shadow-sm ring-1 ring-red-300', icon: XCircle }
     ];
 
@@ -352,24 +359,58 @@ export default function TicketSidebar({ ticket, isAgent, isAdmin, userRole = 'us
 
                         <div className={`grid transition-all duration-300 ease-in-out ${packingOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
                             <div className="overflow-hidden">
-                                <div className="px-5 pb-5 space-y-2">
-                                    {packingList.map((mov) => {
-                                        const inv = mov.inventario;
-                                        if (!inv) return null;
+                                <div className="px-4 pb-5 space-y-2">
+                                    {/* Encabezado de columnas */}
+                                    <div className="flex items-center justify-between px-2 mb-1">
+                                        <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Producto</span>
+                                        <div className="flex gap-3">
+                                            <span className="text-[9px] font-black uppercase tracking-widest text-amber-500 w-16 text-center">Solicitado</span>
+                                            <span className="text-[9px] font-black uppercase tracking-widest text-emerald-600 w-16 text-center">Utilizado</span>
+                                        </div>
+                                    </div>
+
+                                    {packingList.map((item, i) => {
+                                        const delta = item.utilizado - item.solicitado;
                                         return (
-                                            <div key={mov.id} className="flex justify-between items-start p-3 bg-indigo-50/30 border border-indigo-100/50 rounded-xl shadow-sm hover:bg-white hover:border-indigo-200 transition-colors group">
-                                                <div className="flex flex-col gap-0.5">
-                                                    <span className="text-sm font-bold text-slate-800">{inv.modelo}</span>
-                                                    <span className="text-[10px] font-bold text-slate-400 capitalize">{inv.familia}</span>
-                                                    {inv.es_serializado && (
-                                                        <span className="text-[10px] font-black text-indigo-600 bg-indigo-100/50 py-0.5 px-1.5 rounded uppercase mt-1 inline-block w-max">
-                                                            SN: {inv.numero_serie || 'N/A'}
-                                                        </span>
-                                                    )}
+                                            <div key={i} className="flex items-center justify-between gap-2 px-3 py-2.5 bg-white border border-slate-100 rounded-xl shadow-sm hover:border-indigo-200 hover:bg-indigo-50/20 transition-colors">
+                                                {/* Producto */}
+                                                <div className="flex flex-col min-w-0 flex-1">
+                                                    <span className="text-[13px] font-bold text-slate-800 truncate leading-tight">{item.modelo}</span>
+                                                    <span className="text-[10px] font-semibold text-slate-400 capitalize leading-tight">{item.familia}</span>
                                                 </div>
-                                                <div className="bg-indigo-600 text-white rounded-lg px-2 py-1 flex flex-col items-center justify-center shadow-sm">
-                                                    <span className="text-[10px] uppercase font-bold opacity-80 leading-tight">CANT</span>
-                                                    <span className="text-sm font-black leading-tight">{mov.cantidad}</span>
+
+                                                {/* Métricas */}
+                                                <div className="flex items-center gap-2 shrink-0">
+                                                    {/* Solicitado */}
+                                                    <div className="flex flex-col items-center w-14 bg-amber-50 border border-amber-100 rounded-lg py-1 px-1.5">
+                                                        <span className="text-[8px] font-black uppercase text-amber-500 leading-none tracking-wide">Solicit.</span>
+                                                        <span className="text-base font-black text-amber-700 leading-tight">{item.solicitado}</span>
+                                                    </div>
+
+                                                    {/* Utilizado */}
+                                                    <div className={`flex flex-col items-center w-14 rounded-lg py-1 px-1.5 border ${
+                                                        item.utilizado === 0
+                                                            ? 'bg-slate-50 border-slate-200'
+                                                            : item.utilizado < item.solicitado
+                                                            ? 'bg-emerald-50 border-emerald-200'
+                                                            : 'bg-emerald-100 border-emerald-300'
+                                                    }`}>
+                                                        <span className={`text-[8px] font-black uppercase leading-none tracking-wide ${item.utilizado === 0 ? 'text-slate-400' : 'text-emerald-600'}`}>Utiliz.</span>
+                                                        <span className={`text-base font-black leading-tight ${item.utilizado === 0 ? 'text-slate-400' : 'text-emerald-700'}`}>{item.utilizado}</span>
+                                                    </div>
+
+                                                    {/* Delta badge */}
+                                                    {item.solicitado > 0 && (
+                                                        <div className={`text-[9px] font-black w-8 text-center rounded-md py-1 leading-tight ${
+                                                            delta === 0 && item.utilizado > 0
+                                                                ? 'bg-emerald-100 text-emerald-700'
+                                                                : delta < 0
+                                                                ? 'bg-orange-50 text-orange-600'
+                                                                : 'bg-slate-100 text-slate-400'
+                                                        }`}>
+                                                            {delta === 0 && item.utilizado > 0 ? '✓' : delta < 0 ? `${delta}` : '—'}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                         );
@@ -449,6 +490,11 @@ export default function TicketSidebar({ ticket, isAgent, isAdmin, userRole = 'us
                                 <span className="text-[15px] font-bold text-slate-900">
                                     {ticket.restaurantes.sigla} - {ticket.restaurantes.nombre_restaurante}
                                 </span>
+                                {ticket.restaurantes.razon_social && (
+                                    <span className="text-sm text-muted-foreground text-slate-400 font-medium">
+                                        {ticket.restaurantes.razon_social}
+                                    </span>
+                                )}
                             </div>
 
 

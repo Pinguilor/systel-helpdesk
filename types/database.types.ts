@@ -152,7 +152,8 @@ export interface Inventario {
     numero_serie?: string | null; // opcional para cables, etc.
     estado: 'Disponible' | 'En Tránsito' | 'Dañado' | 'Instalado';
     cantidad: number; // 1 para serializado, N para cables
-    
+    fecha_limite_devolucion?: string | null; // ISO timestamp: cierre de ticket + 72 hrs
+
     // Virtual relations for joins
     bodegas?: Bodega;
 }

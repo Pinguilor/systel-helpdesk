@@ -44,7 +44,7 @@ export default async function MochilasPage() {
     const { data: inventario } = mochilaIds.length > 0
         ? await supabase
             .from('inventario')
-            .select('id, bodega_id, modelo, familia, es_serializado, numero_serie, cantidad, estado')
+            .select('id, bodega_id, modelo, familia, es_serializado, numero_serie, cantidad, estado, fecha_limite_devolucion')
             .in('bodega_id', mochilaIds)
             .gt('cantidad', 0)
         : { data: [] };
@@ -65,6 +65,11 @@ export default async function MochilasPage() {
         const items       = bodega ? (inventarioMap.get(bodega.id) ?? []) : [];
         const totalUnidades = items.reduce((s, i) => s + (i.cantidad ?? 0), 0);
 
+        const ahora = new Date().toISOString();
+        const tiene_mora = items.some(
+            (i: any) => i.fecha_limite_devolucion && i.fecha_limite_devolucion < ahora
+        );
+
         return {
             tecnico_id:    t.id,
             tecnico_nombre: t.full_name,
@@ -74,6 +79,7 @@ export default async function MochilasPage() {
             items,
             total_items:   items.length,
             total_unidades: totalUnidades,
+            tiene_mora,
         };
     });
 

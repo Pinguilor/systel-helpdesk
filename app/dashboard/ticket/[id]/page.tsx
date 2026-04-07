@@ -120,18 +120,53 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
         new Date(a.creado_en).getTime() - new Date(b.creado_en).getTime()
     );
 
-    // Fetch packing list — solo para personal Systel (no clientes externos)
-    let packingList: any[] = [];
+    // Fetch packing list agrupada — solo para personal Systel (no clientes externos)
+    // Muestra Solicitado a Bodega vs Insumido/Utilizado por producto.
+    let packingList: { modelo: string; familia: string; solicitado: number; utilizado: number }[] = [];
     if (isSystemelStaff) {
-        const { data: packingListRaw } = await supabase
-            .from('movimientos_inventario')
-            .select(`
-                *,
-                inventario (*)
-            `)
+        // 1. Ítems de solicitudes APROBADAS (intención)
+        const { data: solicitudesRaw } = await supabase
+            .from('solicitudes_materiales')
+            .select('id')
             .eq('ticket_id', ticketId)
-            .order('fecha_movimiento', { ascending: false });
-        packingList = packingListRaw || [];
+            .eq('estado', 'aprobada');
+
+        const solicitudIds = (solicitudesRaw ?? []).map((s: any) => s.id);
+
+        let solicitudItems: any[] = [];
+        if (solicitudIds.length > 0) {
+            const { data: siRaw } = await supabase
+                .from('solicitud_items')
+                .select('cantidad, inventario:inventario_id(modelo, familia)')
+                .in('solicitud_id', solicitudIds);
+            solicitudItems = siRaw ?? [];
+        }
+
+        // 2. Ítems realmente consumidos por el técnico desde la mochila (realidad)
+        const { data: consumidos } = await supabase
+            .from('inventario')
+            .select('modelo, familia, cantidad')
+            .eq('ticket_id', ticketId)
+            .in('estado', ['En Tránsito', 'en_transito', 'En Transito']);
+
+        // 3. Agrupar por producto
+        const map: Record<string, { modelo: string; familia: string; solicitado: number; utilizado: number }> = {};
+
+        for (const si of solicitudItems) {
+            const inv = (si as any).inventario;
+            if (!inv) continue;
+            const key = `${inv.modelo}|${inv.familia}`;
+            if (!map[key]) map[key] = { modelo: inv.modelo, familia: inv.familia, solicitado: 0, utilizado: 0 };
+            map[key].solicitado += (si as any).cantidad ?? 0;
+        }
+
+        for (const c of (consumidos ?? [])) {
+            const key = `${(c as any).modelo}|${(c as any).familia}`;
+            if (!map[key]) map[key] = { modelo: (c as any).modelo, familia: (c as any).familia, solicitado: 0, utilizado: 0 };
+            map[key].utilizado += (c as any).cantidad ?? 0;
+        }
+
+        packingList = Object.values(map).sort((a, b) => a.modelo.localeCompare(b.modelo));
     }
 
     // Fetch nombres de técnicos ayudantes si el ticket los tiene
@@ -165,16 +200,18 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
         parentTicket = pt || null;
     }
 
-    // Fetch materiales asignados directamente (para PDF de cierre)
+    // Fetch SOLO los materiales confirmados como consumidos (estado En Tránsito) — para preview del Acta de Cierre.
+    // Los ítems aprobados pero no consumidos (sobrantes, estado Disponible) NO aparecen aquí.
     const { data: inventarioTicketRaw, error: invTicketErr } = await supabase
         .from('inventario')
         .select('*')
-        .eq('ticket_id', ticketId);
-    
+        .eq('ticket_id', ticketId)
+        .in('estado', ['En Tránsito', 'en_transito', 'En Transito']);
+
     if (invTicketErr) {
         console.error('ERROR AL OBTENER INVENTARIO TICKET:', invTicketErr);
     }
-    
+
     const inventarioTicket = inventarioTicketRaw || [];
 
     return (

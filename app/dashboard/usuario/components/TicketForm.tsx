@@ -79,6 +79,7 @@ export function TicketForm({ onClose }: Props) {
     const [files, setFiles] = useState<File[]>([]);
     const [descripcion, setDescripcion] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const isSubmittingRef = useRef(false);
     const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
     // Restaurant Autocomplete State
@@ -308,19 +309,27 @@ export function TicketForm({ onClose }: Props) {
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
 
+        // Synchronous guard — prevents race condition where fast clicks fire
+        // before React re-renders with isSubmitting=true (state updates are async)
+        if (isSubmittingRef.current) return;
+        isSubmittingRef.current = true;
+
         // Ensure Quill isn't empty (or just containing empty HTML tags)
         const strippedDesc = descripcion.replace(/(<([^>]+)>)/gi, "").trim();
         if (!strippedDesc) {
+            isSubmittingRef.current = false;
             setMessage({ type: 'error', text: 'La descripción no puede estar vacía.' });
             return;
         }
 
         if (!selectedRestaurant) {
+            isSubmittingRef.current = false;
             setMessage({ type: 'error', text: 'Por favor, selecciona un restaurante válido de la lista.' });
             return;
         }
 
         if (!selectedTipoServicioId || !selectedCategoriaId || !selectedSubcategoriaId || !selectedAccionId) {
+            isSubmittingRef.current = false;
             setMessage({ type: 'error', text: 'Por favor, completa todas las selecciones de clasificación.' });
             return;
         }
@@ -362,6 +371,7 @@ export function TicketForm({ onClose }: Props) {
         } catch (err) {
             setMessage({ type: 'error', text: 'Ocurrió un error inesperado al crear el ticket.' });
         } finally {
+            isSubmittingRef.current = false;
             setIsSubmitting(false);
         }
     };

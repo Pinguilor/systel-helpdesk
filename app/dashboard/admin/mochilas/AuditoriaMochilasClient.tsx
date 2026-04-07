@@ -4,9 +4,9 @@ import { useState, useTransition } from 'react';
 import {
     Backpack, User, Package, Hash, Layers, ChevronDown, ChevronRight,
     Loader2, AlertTriangle, PackagePlus, X, CheckCircle2, Search,
-    RefreshCw, Inbox, Shield
+    RefreshCw, Inbox, Shield, Unlock,
 } from 'lucide-react';
-import { inicializarMochilaAction } from './actions';
+import { inicializarMochilaAction, forzarDesbloqueoAction } from './actions';
 import { useRouter } from 'next/navigation';
 
 // ── Tipos ─────────────────────────────────────────────────────
@@ -29,6 +29,7 @@ interface MochilaTecnico {
     items: InventarioItem[];
     total_items: number;
     total_unidades: number;
+    tiene_mora: boolean;
 }
 
 // ── Modal: Confirmar Inicializar Mochila ──────────────────────
@@ -98,8 +99,72 @@ function ModalInicializar({
     );
 }
 
+// ── Modal: Confirmar Forzar Desbloqueo ────────────────────────
+function ModalForzarDesbloqueo({
+    tecnico,
+    onClose,
+    onSuccess,
+}: {
+    tecnico: MochilaTecnico;
+    onClose: () => void;
+    onSuccess: () => void;
+}) {
+    const [isPending, startTransition] = useTransition();
+    const [error, setError] = useState('');
+
+    const handleConfirm = () => {
+        setError('');
+        startTransition(async () => {
+            const res = await forzarDesbloqueoAction(tecnico.tecnico_id);
+            if (res.error) setError(res.error);
+            else { onSuccess(); onClose(); }
+        });
+    };
+
+    return (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+            <div className="fixed inset-0" onClick={onClose} />
+            <div className="relative bg-white rounded-2xl w-full max-w-sm shadow-2xl animate-in fade-in zoom-in-95 duration-200 overflow-hidden z-10">
+                <div className="bg-orange-500 px-6 py-4 flex items-center gap-3">
+                    <div className="p-2 bg-white/20 rounded-xl"><Unlock className="w-5 h-5 text-white" /></div>
+                    <div>
+                        <h3 className="text-base font-black text-white">Forzar Desbloqueo</h3>
+                        <p className="text-xs text-orange-100 font-medium">Limpiar mora de materiales vencidos</p>
+                    </div>
+                    <button onClick={onClose} disabled={isPending} title="Cerrar" className="ml-auto p-1.5 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                        <X className="w-4 h-4" />
+                    </button>
+                </div>
+                <div className="p-6 space-y-4">
+                    <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
+                        <p className="text-sm font-medium text-orange-800">
+                            Se eliminará el plazo de devolución vencido de{' '}
+                            <span className="font-black">{tecnico.tecnico_nombre}</span>,
+                            permitiéndole solicitar nuevos materiales. Esta acción queda registrada en auditoría.
+                        </p>
+                    </div>
+                    {error && (
+                        <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5 text-red-600 text-sm font-medium">
+                            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />{error}
+                        </div>
+                    )}
+                    <div className="flex gap-3 pt-1">
+                        <button onClick={onClose} disabled={isPending} className="flex-1 px-4 py-2.5 text-sm font-bold text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">
+                            Cancelar
+                        </button>
+                        <button onClick={handleConfirm} disabled={isPending} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-orange-500 text-white text-sm font-black rounded-xl hover:bg-orange-600 transition-all shadow-md active:scale-95 disabled:opacity-40">
+                            {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Unlock className="w-4 h-4" />}
+                            {isPending ? 'Desbloqueando…' : 'Forzar Desbloqueo'}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 // ── Fila de Técnico ───────────────────────────────────────────
-function TecnicoRow({ mochila, onInicializar }: { mochila: MochilaTecnico; onInicializar: () => void }) {
+function TecnicoRow({ mochila, onInicializar, onForzarDesbloqueo }: { mochila: MochilaTecnico; onInicializar: () => void; onForzarDesbloqueo: () => void }) {
     const [expanded, setExpanded] = useState(false);
     const tieneMochila = mochila.mochila_id !== null;
     const initials = (mochila.tecnico_nombre ?? '?').charAt(0).toUpperCase();
@@ -122,15 +187,22 @@ function TecnicoRow({ mochila, onInicializar }: { mochila: MochilaTecnico; onIni
 
                 {/* Estado Mochila */}
                 <td className="px-6 py-4">
-                    {tieneMochila ? (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-700 border-emerald-200">
-                            <Backpack className="w-3 h-3" /> Asignada
-                        </span>
-                    ) : (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-black uppercase tracking-wider bg-slate-100 text-slate-500 border-slate-200">
-                            Sin mochila
-                        </span>
-                    )}
+                    <div className="flex flex-col gap-1.5">
+                        {tieneMochila ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-700 border-emerald-200">
+                                <Backpack className="w-3 h-3" /> Asignada
+                            </span>
+                        ) : (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-black uppercase tracking-wider bg-slate-100 text-slate-500 border-slate-200">
+                                Sin mochila
+                            </span>
+                        )}
+                        {mochila.tiene_mora && (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-black uppercase tracking-wider bg-red-100 text-red-700 border-red-200">
+                                <AlertTriangle className="w-3 h-3" /> Mora vencida
+                            </span>
+                        )}
+                    </div>
                 </td>
 
                 {/* Totales */}
@@ -150,27 +222,38 @@ function TecnicoRow({ mochila, onInicializar }: { mochila: MochilaTecnico; onIni
 
                 {/* Acciones */}
                 <td className="px-6 py-4 text-right">
-                    {tieneMochila ? (
-                        <button
-                            onClick={() => setExpanded(v => !v)}
-                            className={`flex items-center gap-1.5 ml-auto px-3 py-1.5 text-xs font-bold rounded-xl border transition-all ${
-                                expanded
-                                    ? 'bg-indigo-600 text-white border-indigo-600'
-                                    : 'text-indigo-600 border-indigo-200 hover:bg-indigo-50'
-                            }`}
-                        >
-                            {expanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
-                            {expanded ? 'Ocultar' : 'Ver detalle'}
-                        </button>
-                    ) : (
-                        <button
-                            onClick={onInicializar}
-                            className="flex items-center gap-1.5 ml-auto px-3 py-1.5 text-xs font-bold text-indigo-600 border border-indigo-200 rounded-xl hover:bg-indigo-50 transition-all"
-                        >
-                            <PackagePlus className="w-3.5 h-3.5" />
-                            Inicializar
-                        </button>
-                    )}
+                    <div className="flex flex-col items-end gap-2">
+                        {tieneMochila ? (
+                            <button
+                                onClick={() => setExpanded(v => !v)}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl border transition-all ${
+                                    expanded
+                                        ? 'bg-indigo-600 text-white border-indigo-600'
+                                        : 'text-indigo-600 border-indigo-200 hover:bg-indigo-50'
+                                }`}
+                            >
+                                {expanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                                {expanded ? 'Ocultar' : 'Ver detalle'}
+                            </button>
+                        ) : (
+                            <button
+                                onClick={onInicializar}
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-indigo-600 border border-indigo-200 rounded-xl hover:bg-indigo-50 transition-all"
+                            >
+                                <PackagePlus className="w-3.5 h-3.5" />
+                                Inicializar
+                            </button>
+                        )}
+                        {mochila.tiene_mora && (
+                            <button
+                                onClick={onForzarDesbloqueo}
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-orange-600 border border-orange-200 rounded-xl hover:bg-orange-50 transition-all"
+                            >
+                                <Unlock className="w-3.5 h-3.5" />
+                                Forzar Desbloqueo
+                            </button>
+                        )}
+                    </div>
                 </td>
             </tr>
 
@@ -241,6 +324,7 @@ export function AuditoriaMochilasClient({ mochilas }: { mochilas: MochilaTecnico
     const [search, setSearch] = useState('');
     const [filtro, setFiltro] = useState<'todos' | 'con' | 'sin'>('todos');
     const [modalInicializar, setModalInicializar] = useState<MochilaTecnico | null>(null);
+    const [modalDesbloqueo, setModalDesbloqueo] = useState<MochilaTecnico | null>(null);
 
     const handleRefresh = () => router.refresh();
 
@@ -351,6 +435,7 @@ export function AuditoriaMochilasClient({ mochilas }: { mochilas: MochilaTecnico
                                         key={m.tecnico_id}
                                         mochila={m}
                                         onInicializar={() => setModalInicializar(m)}
+                                        onForzarDesbloqueo={() => setModalDesbloqueo(m)}
                                     />
                                 ))
                             )}
@@ -372,11 +457,20 @@ export function AuditoriaMochilasClient({ mochilas }: { mochilas: MochilaTecnico
                 )}
             </div>
 
-            {/* Modal */}
+            {/* Modal Inicializar */}
             {modalInicializar && (
                 <ModalInicializar
                     tecnico={modalInicializar}
                     onClose={() => setModalInicializar(null)}
+                    onSuccess={handleRefresh}
+                />
+            )}
+
+            {/* Modal Forzar Desbloqueo */}
+            {modalDesbloqueo && (
+                <ModalForzarDesbloqueo
+                    tecnico={modalDesbloqueo}
+                    onClose={() => setModalDesbloqueo(null)}
                     onSuccess={handleRefresh}
                 />
             )}

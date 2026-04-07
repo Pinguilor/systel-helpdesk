@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Bell, User, LogOut, Search, LayoutDashboard, Plus, X, PieChart, Settings, Briefcase, CheckCheck, Ticket, MessageSquare, Calendar, XCircle, UserPlus, CheckCircle2, ScanLine } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter, usePathname } from 'next/navigation';
@@ -25,6 +25,8 @@ export default function TopNav({ userFullName, userRole }: TopNavProps) {
     const [notifications, setNotifications] = useState<any[]>([]);
     const [hasMore, setHasMore]             = useState(false);
     const [loadingMore, setLoadingMore]     = useState(false);
+    const [isLoadingNotifs, setIsLoadingNotifs] = useState(false);
+    const lastFetchRef = useRef<number>(0);
 
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState<{ id: string, numero_ticket: number, titulo: string }[]>([]);
@@ -38,8 +40,32 @@ export default function TopNav({ userFullName, userRole }: TopNavProps) {
     const pathname = usePathname();
     const supabase = createClient();
 
-    const isGlobalViewer = userRole === 'admin' || userRole === 'coordinador';
     const NOTIF_PAGE_SIZE = 20;
+
+    // ─── Fetch principal — siempre fresco, sin caché ──────────────────────────
+    const fetchNotifications = useCallback(async (opts?: { silent?: boolean }) => {
+        if (!opts?.silent) setIsLoadingNotifs(true);
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+
+            let query = supabase
+                .from('notifications')
+                .select('*, tickets(numero_ticket)')
+                .eq('user_id', user.id)
+                .order('creado_en', { ascending: false })
+                .limit(NOTIF_PAGE_SIZE);
+
+            const { data } = await query;
+            if (data) {
+                setNotifications(data);
+                setHasMore(data.length === NOTIF_PAGE_SIZE);
+                lastFetchRef.current = Date.now();
+            }
+        } finally {
+            setIsLoadingNotifs(false);
+        }
+    }, [supabase]);
 
     const fetchMoreNotifications = async () => {
         setLoadingMore(true);
@@ -49,10 +75,9 @@ export default function TopNav({ userFullName, userRole }: TopNavProps) {
         let query = supabase
             .from('notifications')
             .select('*, tickets(numero_ticket)')
+            .eq('user_id', user.id)
             .order('creado_en', { ascending: false })
             .range(notifications.length, notifications.length + NOTIF_PAGE_SIZE - 1);
-
-        if (!isGlobalViewer) query = query.eq('user_id', user.id);
 
         const { data } = await query;
         if (data) {
@@ -62,33 +87,42 @@ export default function TopNav({ userFullName, userRole }: TopNavProps) {
         setLoadingMore(false);
     };
 
+    // ─── Carga inicial ────────────────────────────────────────────────────────
     useEffect(() => {
-        let userId: string | null = null;
+        fetchNotifications();
+    }, [fetchNotifications]);
 
-        const fetchNotifications = async () => {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return;
-            userId = user.id;
+    // ─── Re-fetch al abrir el dropdown (datos siempre frescos) ────────────────
+    useEffect(() => {
+        if (isNotifOpen) {
+            fetchNotifications();
+        }
+    }, [isNotifOpen, fetchNotifications]);
 
-            let query = supabase
-                .from('notifications')
-                .select('*, tickets(numero_ticket)')
-                .order('creado_en', { ascending: false })
-                .limit(NOTIF_PAGE_SIZE);
+    // ─── Refresco silencioso cada 60s + al recuperar foco de pestaña ──────────
+    useEffect(() => {
+        const interval = setInterval(() => {
+            fetchNotifications({ silent: true });
+        }, 60_000);
 
-            if (!isGlobalViewer) {
-                query = query.eq('user_id', user.id);
-            }
-
-            const { data } = await query;
-            if (data) {
-                setNotifications(data);
-                setHasMore(data.length === NOTIF_PAGE_SIZE);
+        const onVisibility = () => {
+            if (document.visibilityState === 'visible') {
+                // Solo re-fetch si han pasado más de 30s desde el último fetch
+                if (Date.now() - lastFetchRef.current > 30_000) {
+                    fetchNotifications({ silent: true });
+                }
             }
         };
 
-        fetchNotifications();
+        document.addEventListener('visibilitychange', onVisibility);
+        return () => {
+            clearInterval(interval);
+            document.removeEventListener('visibilitychange', onVisibility);
+        };
+    }, [fetchNotifications]);
 
+    // ─── Realtime: captura inserts sin esperar el intervalo ───────────────────
+    useEffect(() => {
         const setupChannel = async () => {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
@@ -97,30 +131,19 @@ export default function TopNav({ userFullName, userRole }: TopNavProps) {
                 setNotifications(prev => [payload.new, ...prev.slice(0, 49)]);
             };
 
-            let channel;
-            if (isGlobalViewer) {
-                // Admin/coordinador escuchan todos los inserts sin filtro
-                channel = supabase
-                    .channel('realtime-notifications')
-                    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, onInsert)
-                    .subscribe();
-            } else {
-                // Técnicos y usuarios solo reciben sus propias notificaciones
-                channel = supabase
-                    .channel('realtime-notifications')
-                    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` }, onInsert)
-                    .subscribe();
-            }
+            const channel = supabase
+                .channel('realtime-notifications')
+                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` }, onInsert)
+                .subscribe();
 
             return channel;
         };
 
         const channelPromise = setupChannel();
-
         return () => {
             channelPromise.then(ch => { if (ch) supabase.removeChannel(ch); });
         };
-    }, []);
+    }, [supabase]);
 
     const handleSignOut = async () => {
         await supabase.auth.signOut();
@@ -450,7 +473,12 @@ export default function TopNav({ userFullName, userRole }: TopNavProps) {
 
                                     {/* Lista */}
                                     <div className="max-h-[460px] overflow-y-auto divide-y divide-slate-50/80">
-                                        {notifications.length === 0 ? (
+                                        {isLoadingNotifs ? (
+                                            <div className="flex flex-col items-center justify-center py-14 gap-3">
+                                                <div className="w-8 h-8 border-[3px] border-indigo-200 border-t-indigo-500 rounded-full animate-spin" />
+                                                <p className="text-sm font-medium text-slate-400">Actualizando notificaciones...</p>
+                                            </div>
+                                        ) : notifications.length === 0 ? (
                                             <div className="flex flex-col items-center justify-center py-14 gap-3">
                                                 <div className="w-11 h-11 rounded-full bg-slate-100 flex items-center justify-center">
                                                     <Bell className="w-5 h-5 text-slate-300" />

@@ -13,6 +13,7 @@ export interface ItemMochila {
     numero_serie: string | null;
     cantidad: number;
     tiene_devolucion_pendiente: boolean;
+    fecha_limite_devolucion: string | null; // ISO timestamp; null = sin plazo activo
 }
 
 export interface GrupoTicket {
@@ -50,14 +51,40 @@ export async function updateTicketStatusAction(
     }
 
     // Update the status
-    const { error: updateError } = await supabase
+    const { data: updatedTicket, error: updateError } = await supabase
         .from('tickets')
         .update(updatePayload)
-        .eq('id', ticketId);
+        .eq('id', ticketId)
+        .select('numero_ticket, creado_por')
+        .single();
 
     if (updateError) {
         console.error('Error actualizando estado:', updateError);
         return { error: `Error al actualizar: ${updateError.message}` };
+    }
+
+    // Notificar al creador por cambio de estado (excluir cerrado — tiene su propio evento)
+    if (
+        updatedTicket &&
+        !['cerrado', 'esperando_agente'].includes(newStatus) &&
+        updatedTicket.creado_por &&
+        updatedTicket.creado_por !== user.id
+    ) {
+        const ESTADO_LABELS: Record<string, string> = {
+            abierto:     'Abierto',
+            pendiente:   'Pendiente',
+            en_progreso: 'En Progreso',
+            resuelto:    'Resuelto',
+            programado:  'Programado',
+            anulado:     'Anulado',
+        };
+        const estadoLabel = ESTADO_LABELS[newStatus] ?? newStatus.replace(/_/g, ' ');
+        const { sendInternalNotification } = await import('@/lib/notifications');
+        await sendInternalNotification(
+            updatedTicket.creado_por,
+            `🔄 Actualización de estado: Tu ticket NC-${updatedTicket.numero_ticket} ahora se encuentra en estado "${estadoLabel}".`,
+            ticketId
+        );
     }
 
     // Refresh the UI
@@ -89,7 +116,7 @@ export async function getTechnicianMochilaGroupedAction(): Promise<
         // Leer ticket_id directamente desde el row de inventario (fuente primaria post-patch)
         const { data: inventario, error: invError } = await supabase
             .from('inventario')
-            .select('id, modelo, familia, es_serializado, numero_serie, cantidad, ticket_id')
+            .select('id, modelo, familia, es_serializado, numero_serie, cantidad, ticket_id, fecha_limite_devolucion')
             .eq('bodega_id', mochila.id)
             .gt('cantidad', 0);
 
@@ -203,6 +230,7 @@ export async function getTechnicianMochilaGroupedAction(): Promise<
                 numero_serie:               item.numero_serie ?? null,
                 cantidad:                   item.cantidad,
                 tiene_devolucion_pendiente: pendingSet.has(item.id),
+                fecha_limite_devolucion:    (item as any).fecha_limite_devolucion ?? null,
             });
         }
 
@@ -274,6 +302,50 @@ export async function solicitarDevolucionAction(
         return { success: true };
     } catch (e: any) {
         return { error: e.message || 'Error al solicitar la devolución.' };
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Verificar si el técnico tiene mora vencida (bloqueo para nuevas solicitudes)
+// ─────────────────────────────────────────────────────────────────────────────
+export async function checkTecnicoBlockedAction(): Promise<
+    { blocked: false } | { blocked: true; motivo: string }
+> {
+    try {
+        const supabase = await createClient();
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError || !user) return { blocked: false };
+
+        const { data: mochila } = await supabase
+            .from('bodegas')
+            .select('id')
+            .eq('tecnico_id', user.id)
+            .ilike('tipo', 'MOCHILA')
+            .maybeSingle();
+
+        if (!mochila) return { blocked: false };
+
+        const ahora = new Date().toISOString();
+        const { data: vencidos } = await supabase
+            .from('inventario')
+            .select('id')
+            .eq('bodega_id', mochila.id)
+            .not('fecha_limite_devolucion', 'is', null)
+            .lt('fecha_limite_devolucion', ahora)
+            .gt('cantidad', 0)
+            // Excluir ítems ya consumidos (En Tránsito) — no son sobrantes
+            .not('estado', 'in', '("En Tránsito","en_transito","En Transito")')
+            .limit(1);
+
+        if (vencidos && vencidos.length > 0) {
+            return {
+                blocked: true,
+                motivo: 'Tienes materiales sobrantes con más de 72 horas sin devolver. Por favor, regulariza tu mochila o contacta a bodega.',
+            };
+        }
+        return { blocked: false };
+    } catch {
+        return { blocked: false };
     }
 }
 

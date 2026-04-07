@@ -77,7 +77,7 @@ export function AdminTicketList({ initialTickets, currentAgentId, agentName }: P
             case 'abierto': return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] sm:text-[11px] uppercase tracking-wider font-bold bg-sky-100 text-sky-700 border border-sky-200 shadow-sm whitespace-nowrap">Abierto</span>;
             case 'en_progreso': return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] sm:text-[11px] uppercase tracking-wider font-bold bg-indigo-100 text-indigo-700 border border-indigo-200 shadow-sm whitespace-nowrap">En Progreso</span>;
             case 'resuelto': return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] sm:text-[11px] uppercase tracking-wider font-bold bg-emerald-100 text-emerald-700 border border-emerald-200 shadow-sm whitespace-nowrap">Resuelto</span>;
-            case 'cerrado': return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] sm:text-[11px] uppercase tracking-wider font-bold bg-gray-100 text-gray-600 border border-gray-200 shadow-sm whitespace-nowrap">Cerrado</span>;
+            case 'cerrado': return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] sm:text-[11px] uppercase tracking-wider font-bold bg-green-100 text-green-800 border border-green-200 shadow-sm whitespace-nowrap">Cerrado</span>;
             case 'anulado': return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] sm:text-[11px] uppercase tracking-wider font-bold bg-red-100 text-red-700 border border-red-200 shadow-sm whitespace-nowrap ring-1 ring-red-300">Anulado</span>;
             case 'pendiente': return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] sm:text-[11px] uppercase tracking-wider font-bold bg-orange-100 text-orange-700 border border-orange-200 shadow-sm whitespace-nowrap">Pendiente</span>;
             case 'programado': return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] sm:text-[11px] uppercase tracking-wider font-bold bg-purple-100 text-purple-700 border border-purple-200 shadow-sm whitespace-nowrap">Programado</span>;
@@ -225,10 +225,17 @@ export function AdminTicketList({ initialTickets, currentAgentId, agentName }: P
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         {(ticket.profiles as any)?.clientes?.nombre_fantasia ? (
                                             <div className="flex items-center gap-2">
-                                                <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                                <span className="text-sm font-medium text-slate-700 truncate max-w-[160px]" title={(ticket.profiles as any)?.clientes?.nombre_fantasia}>
-                                                    {(ticket.profiles as any)?.clientes?.nombre_fantasia?.replace(/\s*\[.*?\]/g, '').trim()}
-                                                </span>
+                                                <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
+                                                <div className="flex flex-col min-w-0">
+                                                    <span className="text-sm font-medium text-slate-700 truncate max-w-[160px]" title={(ticket.profiles as any)?.clientes?.nombre_fantasia}>
+                                                        {(ticket.profiles as any)?.clientes?.nombre_fantasia?.replace(/\s*\[.*?\]/g, '').trim()}
+                                                    </span>
+                                                    {(ticket.profiles as any)?.clientes?.razon_social && (
+                                                        <span className="text-xs text-slate-400 truncate max-w-[160px]" title={(ticket.profiles as any)?.clientes?.razon_social}>
+                                                            {(ticket.profiles as any)?.clientes?.razon_social}
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </div>
                                         ) : (
                                             <span className="text-xs text-slate-300 font-medium">—</span>

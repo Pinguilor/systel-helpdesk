@@ -123,61 +123,45 @@ export async function addTicketMessageAction(formData: FormData) {
     }
 
     // --- NOTIFICATION LOGIC ---
-    // Usamos admin client para bypasear RLS al insertar notificaciones con user_id ajeno.
-    const { createClient: createAdminClient } = await import('@supabase/supabase-js');
-    const adminSupabase = createAdminClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
+    // Condición crítica: mensajes internos (es_interno = true) NUNCA notifican al cliente.
+    if (!esInterno) {
+        const { sendInternalNotification, sendInternalNotificationBatch } = await import('@/lib/notifications');
 
-    if (isStaff) {
-        // Staff (agente/admin) comenta → notificar al creador del ticket si es distinto
-        if (ticket.creado_por !== user.id) {
-            const { error: ne } = await adminSupabase.from('notifications').insert({
-                user_id:   ticket.creado_por,
-                ticket_id: ticketId,
-                mensaje:   `El agente ha respondido a tu solicitud NC-${ticket.numero_ticket}`,
-                leida:     false,
-                tipo:      'mensaje',
-            });
-            if (ne) console.error('Error notif staff→creator:', ne.message);
-        }
-    } else {
-        // Cliente comenta → notificar a admins y coordinadores con el nombre del cliente
-        const { data: senderProfile } = await supabase
-            .from('profiles')
-            .select('full_name')
-            .eq('id', user.id)
-            .maybeSingle();
-        const senderName = senderProfile?.full_name || 'El cliente';
+        if (isStaff) {
+            // Staff comenta públicamente → notificar al creador del ticket
+            // Regla de oro: no autonotificar si el staff es el propio creador
+            if (ticket.creado_por && ticket.creado_por !== user.id) {
+                await sendInternalNotification(
+                    ticket.creado_por,
+                    `💬 Nuevo mensaje: Tienes una nueva actualización en tu ticket NC-${ticket.numero_ticket}. Ingresa para revisar los detalles.`,
+                    ticketId
+                );
+            }
+        } else {
+            // Cliente comenta → notificar a admins y coordinadores
+            const { data: senderFullProfile } = await supabase
+                .from('profiles').select('full_name').eq('id', user.id).maybeSingle();
+            const senderName = senderFullProfile?.full_name || 'El cliente';
 
-        const { data: staffProfiles } = await supabase
-            .from('profiles')
-            .select('id')
-            .in('rol', ['admin', 'coordinador']);
+            const { data: staffProfiles } = await supabase
+                .from('profiles').select('id').in('rol', ['admin', 'coordinador']);
+            const staffIds = (staffProfiles ?? []).map((p: any) => p.id);
+            if (staffIds.length > 0) {
+                await sendInternalNotificationBatch(
+                    staffIds,
+                    `💬 Nuevo mensaje: ${senderName} ha comentado en la solicitud NC-${ticket.numero_ticket}. Ingresa para revisar los detalles.`,
+                    ticketId
+                );
+            }
 
-        if (staffProfiles && staffProfiles.length > 0) {
-            const staffNotifs = staffProfiles.map(p => ({
-                user_id:   p.id,
-                ticket_id: ticketId,
-                mensaje:   `${senderName} ha comentado en la solicitud NC-${ticket.numero_ticket}`,
-                leida:     false,
-                tipo:      'mensaje',
-            }));
-            const { error: ne } = await adminSupabase.from('notifications').insert(staffNotifs);
-            if (ne) console.error('Error notif client→staff:', ne.message);
-        }
-
-        // Si hay un compañero de empresa como creador distinto, notificarlo también
-        if (ticket.creado_por !== user.id && mismaEmpresa) {
-            const { error: ne } = await adminSupabase.from('notifications').insert({
-                user_id:   ticket.creado_por,
-                ticket_id: ticketId,
-                mensaje:   `Un compañero de tu empresa ha comentado en la solicitud NC-${ticket.numero_ticket}`,
-                leida:     false,
-                tipo:      'mensaje',
-            });
-            if (ne) console.error('Error notif client→peer:', ne.message);
+            // Compañero de empresa distinto al comentador (misma empresa, distinto user)
+            if (ticket.creado_por && ticket.creado_por !== user.id && mismaEmpresa) {
+                await sendInternalNotification(
+                    ticket.creado_por,
+                    `💬 Nuevo mensaje: Un compañero de tu empresa ha comentado en la solicitud NC-${ticket.numero_ticket}. Ingresa para revisar los detalles.`,
+                    ticketId
+                );
+            }
         }
     }
     // -------------------------
@@ -230,6 +214,23 @@ export async function updateTicketPropertiesAction(ticketId: string, updates: { 
         const { data: assignedAgent } = await supabase.from('profiles').select('full_name').eq('id', updates.agente_asignado_id).single();
         if (assignedAgent) {
             systemMessage = `Se ha asignado el agente: ${assignedAgent.full_name}`;
+            const { sendInternalNotification } = await import('@/lib/notifications');
+            const tecnicoNombre = assignedAgent.full_name;
+
+            // Técnico: recibe la asignación
+            await sendInternalNotification(
+                updates.agente_asignado_id,
+                `👨‍🔧 Asignación: Se te ha asignado el ticket NC-${updatedTicket.numero_ticket}.`,
+                ticketId
+            );
+            // Creador: saber quién le atiende (regla de oro: no autonotificar)
+            if (updatedTicket.creado_por && updatedTicket.creado_por !== user.id) {
+                await sendInternalNotification(
+                    updatedTicket.creado_por,
+                    `👨‍🔧 Técnico en camino: El técnico asignado para tu ticket NC-${updatedTicket.numero_ticket} es ${tecnicoNombre}.`,
+                    ticketId
+                );
+            }
         }
     } else if (updates.estado) {
         const estadoLabel = updates.estado.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
@@ -246,6 +247,32 @@ export async function updateTicketPropertiesAction(ticketId: string, updates: { 
             mensaje: systemMessage,
             es_sistema: true
         });
+    }
+
+    // Evento 2: notificar al creador por cambio de estado
+    // Excluir 'cerrado' (tiene su propia notificación en closeTicketWithActaAction)
+    // y 'esperando_agente' (evento interno de reasignación, no relevante para el cliente)
+    if (
+        updates.estado &&
+        !['cerrado', 'esperando_agente'].includes(updates.estado) &&
+        updatedTicket.creado_por &&
+        updatedTicket.creado_por !== user.id
+    ) {
+        const ESTADO_LABELS: Record<string, string> = {
+            abierto:        'Abierto',
+            pendiente:      'Pendiente',
+            en_progreso:    'En Progreso',
+            resuelto:       'Resuelto',
+            programado:     'Programado',
+            anulado:        'Anulado',
+        };
+        const estadoLabel = ESTADO_LABELS[updates.estado] ?? updates.estado.replace(/_/g, ' ');
+        const { sendInternalNotification } = await import('@/lib/notifications');
+        await sendInternalNotification(
+            updatedTicket.creado_por,
+            `🔄 Actualización de estado: Tu ticket NC-${updatedTicket.numero_ticket} ahora se encuentra en estado "${estadoLabel}".`,
+            ticketId
+        );
     }
 
     revalidatePath(`/dashboard/ticket/${ticketId}`);
@@ -336,13 +363,37 @@ export async function assignTicketToMeAction(ticketId: string) {
         return { error: 'Fallo al intentar asignarte el ticket.' };
     }
 
-    // Record Audit Trail Message
+    // Registro de auditoría en timeline
+    const { data: ticketInfo } = await supabase
+        .from('tickets').select('numero_ticket, creado_por').eq('id', ticketId).maybeSingle();
+
     await supabase.from('ticket_messages').insert({
         ticket_id: ticketId,
         sender_id: user.id,
         mensaje: `El agente ${profile.full_name || 'Desconocido'} se ha asignado este ticket.`,
         es_sistema: true
     });
+
+    if (ticketInfo) {
+        const { sendInternalNotification } = await import('@/lib/notifications');
+        const tecnicoNombre = profile.full_name || 'el técnico asignado';
+
+        // Técnico: confirmación de autoasignación
+        await sendInternalNotification(
+            user.id,
+            `👨‍🔧 Asignación: Se te ha asignado el ticket NC-${ticketInfo.numero_ticket}.`,
+            ticketId
+        );
+
+        // Creador del ticket: saber quién le atiende (regla de oro: no autonotificar)
+        if (ticketInfo.creado_por && ticketInfo.creado_por !== user.id) {
+            await sendInternalNotification(
+                ticketInfo.creado_por,
+                `👨‍🔧 Técnico en camino: El técnico asignado para tu ticket NC-${ticketInfo.numero_ticket} es ${tecnicoNombre}.`,
+                ticketId
+            );
+        }
+    }
 
     revalidatePath(`/dashboard/ticket/${ticketId}`);
     revalidatePath('/dashboard/agente');
@@ -653,8 +704,9 @@ export async function assignMaterialsBatchAction(
         let newInventarioId = originalItem.id;
 
         if (originalItem.es_serializado || originalItem.cantidad === cantidad) {
+            // Al consumir el ítem completo, limpiar mora pendiente (si la hay) — el reloj muere con el stock.
             const { error: moveError } = await supabase.from('inventario')
-                .update({ estado: 'En Tránsito', ticket_id: ticketId })
+                .update({ estado: 'En Tránsito', ticket_id: ticketId, fecha_limite_devolucion: null } as any)
                 .eq('id', originalItem.id).select().single();
             if (moveError) return { error: `Error moviendo "${originalItem.modelo}": ${moveError.message}` };
         } else {
@@ -750,7 +802,7 @@ export async function closeTicketWithActaAction(
     try {
         // 1. Actualización Principal (Tickets)
         const { error: ticketError, data: updatedTicket } = await supabase.from('tickets').update({
-            estado: 'resuelto',
+            estado: 'cerrado',
             notas_cierre: notas,
             firma_cliente: firmaCliente,
             firma_tecnico: firmaTecnico,
@@ -780,11 +832,14 @@ export async function closeTicketWithActaAction(
         const restaurante = Array.isArray(ticketData?.restaurantes) ? ticketData?.restaurantes[0] : ticketData?.restaurantes;
         const bodegaId = restaurante?.bodega_id;
 
-        // Capturar materiales de mochila ANTES de que la logística limpie ticket_id
+        // Capturar SOLO los materiales consumidos (En Tránsito) ANTES de que la logística limpie ticket_id.
+        // Los sobrantes (Disponible) quedan en mochila y NO deben aparecer en el Acta.
+        const ESTADOS_CONSUMIDO = ['En Tránsito', 'en_transito', 'En Transito'];
         const { data: mochilaSnapshot } = await supabase
             .from('inventario')
-            .select('modelo, familia, cantidad')
-            .eq('ticket_id', ticketId);
+            .select('modelo, familia, cantidad, es_serializado, numero_serie')
+            .eq('ticket_id', ticketId)
+            .in('estado', ESTADOS_CONSUMIDO);
 
         // 2. Actualización Logística (Inventario + Movimientos)
         if (bodegaId) {
@@ -865,6 +920,40 @@ export async function closeTicketWithActaAction(
             console.log(`--- FIN LOGÍSTICA ---`);
         }
 
+        // 2b. Reloj de 72 horas: si quedan ítems en la mochila del técnico, marcarlos
+        try {
+            const { data: mochilaTecnico } = await supabase
+                .from('bodegas')
+                .select('id')
+                .eq('tecnico_id', user.id)
+                .ilike('tipo', 'MOCHILA')
+                .maybeSingle();
+
+            if (mochilaTecnico) {
+                const fechaLimite = new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString();
+                // ⚠️ Filtrar SOLO los sobrantes de ESTE ticket (ticket_id = ticketId).
+                // Nunca tocar ítems de otros tickets que ya tengan su propio plazo.
+                const { data: sobrantes } = await supabase
+                    .from('inventario')
+                    .select('id')
+                    .eq('bodega_id', mochilaTecnico.id)
+                    .eq('ticket_id', ticketId)
+                    .gt('cantidad', 0);
+
+                if (sobrantes && sobrantes.length > 0) {
+                    await supabase
+                        .from('inventario')
+                        .update({ fecha_limite_devolucion: fechaLimite } as any)
+                        .in('id', sobrantes.map((s: any) => s.id));
+                    console.log(`⏰ Reloj 72hr activado para ${sobrantes.length} sobrante(s) del ticket ${ticketId}.`);
+                } else {
+                    console.log(`⏰ Sin sobrantes para el ticket ${ticketId} — reloj 72hr no aplicado.`);
+                }
+            }
+        } catch (relojErr: any) {
+            console.warn('⚠️ No se pudo activar reloj 72hr (no bloquea el cierre):', relojErr?.message);
+        }
+
         // 3. Historial (Timeline)
         const { error: msgError } = await supabase.from('ticket_messages').insert({
             ticket_id: ticketId,
@@ -875,6 +964,16 @@ export async function closeTicketWithActaAction(
 
         if (msgError) {
             throw new Error(`Error insertando mensaje en el historial: ${msgError.message}`);
+        }
+
+        // Evento C: notificar al usuario creador del ticket
+        if (updatedTicket.creado_por && updatedTicket.numero_ticket) {
+            const { sendInternalNotification } = await import('@/lib/notifications');
+            await sendInternalNotification(
+                updatedTicket.creado_por,
+                `✅ Ticket Cerrado: El ticket NC-${updatedTicket.numero_ticket} ha sido cerrado. Revisa el acta de cierre adjunta en tu correo.`,
+                ticketId
+            );
         }
 
         // 4. Generar PDF del Acta de Cierre (independiente — fallo no afecta el cierre)
@@ -893,42 +992,17 @@ export async function closeTicketWithActaAction(
                 .single();
             ticketFull = ticketFullData;
 
-            // Materiales de solicitudes aprobadas para este ticket
-            // Incluye join a catalogo_equipos para la nueva arquitectura de BD
-            const { data: solicitudesConItems } = await supabase
-                .from('solicitudes_materiales')
-                .select(`
-                    solicitud_items (
-                        cantidad,
-                        inventario:inventario_id (
-                            modelo,
-                            familia,
-                            catalogo_equipos ( modelo, familias_hardware ( nombre ) )
-                        )
-                    )
-                `)
-                .eq('ticket_id', ticketId)
-                .eq('estado', 'aprobada');
-
-            // Combinar ambas fuentes: solicitudes de bodega + snapshot de mochila (capturado antes de que logística limpie ticket_id)
-            const materiales = [
-                ...(solicitudesConItems ?? []).flatMap((s: any) =>
-                    (s.solicitud_items ?? []).map((item: any) => ({
-                        cantidad: item.cantidad,
-                        modelo:  item.inventario?.catalogo_equipos?.modelo
-                              ?? item.inventario?.modelo
-                              ?? '—',
-                        familia: item.inventario?.catalogo_equipos?.familias_hardware?.nombre
-                              ?? item.inventario?.familia
-                              ?? '—',
-                    }))
-                ),
-                ...(mochilaSnapshot ?? []).map((item: any) => ({
-                    cantidad: item.cantidad,
-                    modelo:  item.modelo ?? '—',
-                    familia: item.familia ?? '—',
-                })),
-            ];
+            // Fuente única: solo los ítems que el técnico realmente consumió (estado = En Tránsito),
+            // capturados en mochilaSnapshot justo antes de que la logística limpie ticket_id.
+            // Los ítems aprobados por bodega pero no asignados desde la mochila son sobrantes,
+            // NO aparecen en el Acta de Cierre.
+            const materiales = (mochilaSnapshot ?? []).map((item: any) => ({
+                cantidad:      item.cantidad,
+                modelo:        item.modelo ?? '—',
+                familia:       item.familia ?? '—',
+                es_serializado: item.es_serializado ?? false,
+                numero_serie:  item.numero_serie ?? null,
+            }));
 
             // Nombre del técnico que cierra
             const { data: agentProfile } = await supabase
@@ -973,7 +1047,7 @@ export async function closeTicketWithActaAction(
             .single()
         ).data;
         if (emailTicket) {
-            const adminEmail = process.env.ADMIN_EMAIL || 'no-reply@loopdeskapp.com';
+            const adminEmail = process.env.ADMIN_EMAIL || 'no-reply@systelltda-helpdesk.cl';
             const clientName = (emailTicket.restaurantes as any)?.razon_social ?? undefined;
             const localName  = (emailTicket.restaurantes as any)?.nombre_restaurante ?? undefined;
             sendTicketResolvedEmail(
@@ -1558,6 +1632,32 @@ export async function crearSolicitudMaterialAction(
 
         if (profile?.rol?.toUpperCase() !== 'TECNICO') {
             return { error: 'Solo los técnicos pueden enviar solicitudes de materiales.' };
+        }
+
+        // 2b. Bloqueo 72hr: verificar si el técnico tiene mora vencida
+        {
+            const { data: mochilaTecnico } = await supabase
+                .from('bodegas')
+                .select('id')
+                .eq('tecnico_id', user.id)
+                .ilike('tipo', 'MOCHILA')
+                .maybeSingle();
+
+            if (mochilaTecnico) {
+                const ahora = new Date().toISOString();
+                const { data: vencidos } = await supabase
+                    .from('inventario')
+                    .select('id')
+                    .eq('bodega_id', mochilaTecnico.id)
+                    .not('fecha_limite_devolucion', 'is', null)
+                    .lt('fecha_limite_devolucion', ahora)
+                    .gt('cantidad', 0)
+                    .limit(1);
+
+                if (vencidos && vencidos.length > 0) {
+                    return { error: 'Tienes materiales sobrantes con más de 72 horas sin devolver. Por favor, regulariza tu mochila o contacta a bodega.' };
+                }
+            }
         }
 
         // 3. Validar que el carrito no esté vacío

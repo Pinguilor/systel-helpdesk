@@ -112,7 +112,7 @@ export async function createTicketAction(formData: FormData) {
         return { error: `Error creando ticket: ${insertError.message}` };
     }
 
-    // --- NOTIFY ADMINS & COORDINADORES (técnicos solo se notifican al asignarles) ---
+    // --- NOTIFICACIONES + EMAIL post-creación ---
     const [{ data: newTicket }, { data: profile }] = await Promise.all([
         supabase.from('tickets').select('numero_ticket').eq('id', ticketId).single(),
         supabase.from('profiles').select('full_name').eq('id', user.id).maybeSingle(),
@@ -120,34 +120,24 @@ export async function createTicketAction(formData: FormData) {
     const creatorName = profile?.full_name || 'Usuario del Sistema';
 
     if (newTicket) {
+        // Evento A: notificar a todos los ADMIN y COORDINADORES
         const { data: adminProfiles } = await supabase
             .from('profiles')
             .select('id')
             .in('rol', ['admin', 'coordinador']);
 
-        if (adminProfiles && adminProfiles.length > 0) {
-            // Usamos el cliente admin (service role) para bypasear RLS,
-            // ya que el usuario autenticado no puede insertar notifs con user_id ajeno.
-            const { createClient: createAdminClient } = await import('@supabase/supabase-js');
-            const adminSupabase = createAdminClient(
-                process.env.NEXT_PUBLIC_SUPABASE_URL!,
-                process.env.SUPABASE_SERVICE_ROLE_KEY!
+        const adminIds = [...new Set((adminProfiles ?? []).map((p: any) => p.id))];
+        if (adminIds.length > 0) {
+            const { sendInternalNotificationBatch } = await import('@/lib/notifications');
+            await sendInternalNotificationBatch(
+                adminIds,
+                `🎟️ Nuevo Ticket: Se ha generado el ticket NC-${newTicket.numero_ticket}. Prioridad: ${prioridad}.`,
+                ticketId
             );
-            const notifications = adminProfiles.map(p => ({
-                user_id:   p.id,
-                ticket_id: ticketId,
-                mensaje:   `Nueva solicitud ingresada por ${creatorName}: NC-${newTicket.numero_ticket}`,
-                leida:     false,
-                tipo:      'nuevo_ticket',
-            }));
-            const { error: notifError } = await adminSupabase.from('notifications').insert(notifications);
-            if (notifError) console.error('Error insertando notificaciones de nuevo ticket:', notifError.message);
         }
 
-        // --- ENVIAR CORREO TRANSACCIONAL ---
-        const adminEmail = process.env.ADMIN_EMAIL || 'no-reply@loopdeskapp.com';
-
-        // Disparamos el correo sin bloquear (fire and forget)
+        // Correo transaccional (fire and forget)
+        const adminEmail = process.env.ADMIN_EMAIL || 'no-reply@systelltda-helpdesk.cl';
         sendTicketCreatedEmail(ticketId, newTicket.numero_ticket, titulo, prioridad, creatorName, adminEmail)
             .catch(err => console.error('Fallo disparando email de creación:', err));
     }

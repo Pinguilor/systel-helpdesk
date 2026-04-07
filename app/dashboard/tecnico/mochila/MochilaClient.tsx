@@ -1,12 +1,32 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useEffect } from 'react';
 import {
     PackageOpen, Hash, Layers, Undo2, Loader2, X, Clock,
-    Ticket, Package, ChevronDown, ChevronUp,
+    Ticket, Package, ChevronDown, ChevronUp, AlertTriangle,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { solicitarDevolucionAction, type GrupoTicket, type ItemMochila } from '../actions';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Helper: calcular texto del countdown dado un ISO timestamp de vencimiento
+// ─────────────────────────────────────────────────────────────────────────────
+function useCuentaRegresiva(fechaLimite: string | null): { texto: string; vencido: boolean } | null {
+    const [now, setNow] = useState(() => Date.now());
+
+    useEffect(() => {
+        if (!fechaLimite) return;
+        const id = setInterval(() => setNow(Date.now()), 60_000); // actualiza cada minuto
+        return () => clearInterval(id);
+    }, [fechaLimite]);
+
+    if (!fechaLimite) return null;
+    const diff = new Date(fechaLimite).getTime() - now;
+    if (diff <= 0) return { texto: 'VENCIDO', vencido: true };
+    const horas = Math.floor(diff / 3_600_000);
+    const mins  = Math.floor((diff % 3_600_000) / 60_000);
+    return { texto: horas > 0 ? `${horas}h ${mins}m restantes` : `${mins}m restantes`, vencido: false };
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Modal Solicitar Devolución
@@ -157,8 +177,10 @@ interface ItemRowProps {
 }
 
 function ItemRow({ item, ticketId, onDevolver }: ItemRowProps) {
+    const countdown = useCuentaRegresiva(item.fecha_limite_devolucion);
+
     return (
-        <div className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-slate-50/60 transition-colors">
+        <div className={`flex items-center justify-between gap-3 px-4 py-3 transition-colors ${countdown?.vencido ? 'bg-red-50/60' : 'hover:bg-slate-50/60'}`}>
             <div className="flex items-center gap-3 min-w-0">
                 <div className={`p-1.5 rounded-lg shrink-0 ${item.es_serializado ? 'bg-indigo-50 text-indigo-500' : 'bg-amber-50 text-amber-500'}`}>
                     {item.es_serializado
@@ -178,6 +200,16 @@ function ItemRow({ item, ticketId, onDevolver }: ItemRowProps) {
                         {!item.es_serializado && (
                             <span className="text-xs font-bold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
                                 {item.cantidad} ud.
+                            </span>
+                        )}
+                        {countdown && (
+                            <span className={`inline-flex items-center gap-1 text-[10px] font-black px-1.5 py-0.5 rounded border ${
+                                countdown.vencido
+                                    ? 'bg-red-100 text-red-700 border-red-200'
+                                    : 'bg-orange-50 text-orange-600 border-orange-200'
+                            }`}>
+                                <Clock className="w-2.5 h-2.5" />
+                                {countdown.vencido ? 'VENCIDO' : `Quedan ${countdown.texto}`}
                             </span>
                         )}
                     </div>
@@ -298,6 +330,12 @@ export function MochilaClient({ grupos, mochilaNombre }: MochilaClientProps) {
     const totalItems = grupos.reduce((acc, g) => acc + g.items.length, 0);
     const totalPendientes = grupos.reduce((acc, g) => acc + g.items.filter(i => i.tiene_devolucion_pendiente).length, 0);
 
+    const ahora = Date.now();
+    const itemsVencidos = grupos
+        .flatMap(g => g.items)
+        .filter(i => i.fecha_limite_devolucion && new Date(i.fecha_limite_devolucion).getTime() < ahora);
+    const tieneBloqueo = itemsVencidos.length > 0;
+
     const handleSuccess = () => {
         router.refresh();
     };
@@ -334,6 +372,19 @@ export function MochilaClient({ grupos, mochilaNombre }: MochilaClientProps) {
                         )}
                     </div>
                 </div>
+
+                {/* Banner bloqueo 72hr */}
+                {tieneBloqueo && (
+                    <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-2xl">
+                        <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+                        <div className="min-w-0">
+                            <p className="text-sm font-black text-red-800">Tienes {itemsVencidos.length} material(es) vencido(s)</p>
+                            <p className="text-xs font-medium text-red-600 mt-0.5">
+                                Tienes materiales sobrantes con más de 72 horas sin devolver. Por favor, regulariza tu mochila o contacta a bodega. No podrás solicitar nuevos materiales hasta regularizar.
+                            </p>
+                        </div>
+                    </div>
+                )}
 
                 {/* Content */}
                 {grupos.length === 0 ? (
