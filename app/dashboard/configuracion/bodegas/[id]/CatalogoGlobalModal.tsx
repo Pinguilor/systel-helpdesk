@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useTransition } from 'react';
+import React, { useState, useTransition, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
     BookOpen, Plus, Pencil, X,
     Loader2, AlertTriangle, CheckCircle2, Check, Package, Trash2, ChevronRight,
@@ -23,6 +24,40 @@ interface Props {
     modelosPorFamilia: Record<string, ModeloCatalogo[]>;
     bodegaId: string;
     bodegaNombre: string;
+}
+
+// ── ModeloTooltip: tooltip via portal (escapa overflow-hidden del modal) ──
+function ModeloTooltip({ text, children }: { text: string; children: React.ReactNode }) {
+    const [coords, setCoords] = useState<{ x: number; y: number } | null>(null);
+    const ref = useRef<HTMLDivElement>(null);
+
+    return (
+        <>
+            <div
+                ref={ref}
+                className="flex-1 min-w-0"
+                onMouseEnter={() => {
+                    if (ref.current) {
+                        const r = ref.current.getBoundingClientRect();
+                        setCoords({ x: r.left + r.width / 2, y: r.top });
+                    }
+                }}
+                onMouseLeave={() => setCoords(null)}
+            >
+                {children}
+            </div>
+            {coords && createPortal(
+                <span
+                    style={{ position: 'fixed', top: coords.y - 8, left: coords.x, transform: 'translate(-50%, -100%)', zIndex: 9999 }}
+                    className="bg-slate-800 text-white text-xs font-semibold rounded-lg py-1.5 px-2.5 whitespace-nowrap pointer-events-none shadow-xl"
+                >
+                    {text}
+                    <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-800" />
+                </span>,
+                document.body
+            )}
+        </>
+    );
 }
 
 function Alert({ type, msg }: { type: 'error' | 'success'; msg: string }) {
@@ -393,7 +428,9 @@ export function CatalogoGlobalModal({ familias, modelosPorFamilia, bodegaId, bod
                                                                     <div className="h-8 w-8 rounded-lg bg-indigo-100 flex items-center justify-center shrink-0">
                                                                         <Package className="w-4 h-4 text-indigo-600" />
                                                                     </div>
-                                                                    <span className="flex-1 min-w-0 text-sm font-bold text-slate-700 truncate">{m.modelo}</span>
+                                                                    <ModeloTooltip text={m.modelo}>
+                                                                        <span className="text-sm font-bold text-slate-700 truncate block">{m.modelo}</span>
+                                                                    </ModeloTooltip>
                                                                     <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full border shrink-0 ${
                                                                         m.es_serializado
                                                                             ? 'bg-amber-50 text-amber-700 border-amber-200'

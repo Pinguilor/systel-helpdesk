@@ -41,16 +41,30 @@ export default async function BodegaDetallePage({
     // Use admin client for inventory reads (bypasses RLS consistently)
     const db = createAdminClient();
 
-    // Fetch real inventory for this bodega (exclude soft-deleted: estado=Inactivo)
-    const { data: inventarioRaw } = await db
-        .from('inventario')
-        .select('id, modelo, familia, es_serializado, cantidad, estado, numero_serie, bodega_id')
-        .eq('bodega_id', id)
-        .is('ticket_id', null)
-        .neq('estado', 'Inactivo')
-        .order('familia', { ascending: true });
+    // Fetch inventory and families in parallel.
+    // Families must load first: their UUIDs scope every catalogo_equipos query.
+    // Root cause of the "0 models" bug: old catalogo_equipos rows have bodega_id=NULL
+    // but DO have familia_id pointing to old global families. New bodega-specific families
+    // have different UUIDs. Filtering by bodega_id on catalogo_equipos returns nothing.
+    // Fix: filter catalogo_equipos by familia_id IN (this bodega's family UUIDs).
+    const [{ data: inventarioRaw }, { data: familiasRaw }] = await Promise.all([
+        db
+            .from('inventario')
+            .select('id, modelo, familia, es_serializado, cantidad, estado, numero_serie, bodega_id')
+            .eq('bodega_id', id)
+            .is('ticket_id', null)
+            .neq('estado', 'Inactivo')
+            .order('familia', { ascending: true }),
+        db
+            .from('familias_hardware')
+            .select('id, nombre')
+            .eq('bodega_id', id)
+            .order('nombre', { ascending: true }),
+    ]);
 
     const inventario = (inventarioRaw ?? []) as StockRow[];
+    const familias: FamiliaHardware[] = familiasRaw ?? [];
+    const familiaIds = familias.map(f => f.id);
 
     // Build grouped view: per (familia, modelo) aggregate
     const groupMap = new Map<string, StockGroup>();
@@ -71,28 +85,41 @@ export default async function BodegaDetallePage({
         g.rows.push(item);
         g.totalUnidades += item.cantidad ?? 0;
     }
-    // grupos is built after supplementing with catalog entries below
+    // grupos built after supplementing with catalog entries below
 
-    // Catalog for AddEquipo combobox:
-    // Primary source → catalogo_equipos scoped to this bodega (includes newly created entries)
-    // Supplement   → inventario of this bodega (items added before catalog isolation)
-    const [{ data: catalogoEquiposRaw }, { data: catalogoInventarioRaw }] = await Promise.all([
-        db
-            .from('catalogo_equipos')
-            .select('modelo, es_serializado, familias_hardware(nombre)')
-            .eq('bodega_id', id)
-            .not('modelo', 'is', null),
+    // All catalog queries use familia_id IN — correct for both old rows (bodega_id=NULL)
+    // and new rows, because the family UUID is the real scope boundary.
+    const emptyResult = { data: [] as any[], error: null };
+    const [catalogoEquiposRes, catalogoInventarioRes, modelosRes] = await Promise.all([
+        familiaIds.length > 0
+            ? db
+                .from('catalogo_equipos')
+                .select('modelo, es_serializado, familias_hardware(nombre)')
+                .in('familia_id', familiaIds)
+                .not('modelo', 'is', null)
+            : Promise.resolve(emptyResult),
         db
             .from('inventario')
             .select('modelo, familia, es_serializado')
             .eq('bodega_id', id)
             .not('modelo', 'is', null)
             .not('familia', 'is', null),
+        familiaIds.length > 0
+            ? db
+                .from('catalogo_equipos')
+                .select('id, familia_id, modelo, es_serializado')
+                .in('familia_id', familiaIds)
+                .order('modelo', { ascending: true })
+            : Promise.resolve(emptyResult),
     ]);
 
+    const catalogoEquiposRaw  = catalogoEquiposRes.data  ?? [];
+    const catalogoInventarioRaw = catalogoInventarioRes.data ?? [];
+    const modelosRaw = modelosRes.data;
+
     const catalogoMap = new Map<string, CatalogoItem>();
-    // 1. Catalog entries (source of truth for this bodega)
-    for (const r of (catalogoEquiposRaw ?? []) as any[]) {
+    // 1. Catalog entries for this bodega's families (source of truth)
+    for (const r of (catalogoEquiposRaw) as any[]) {
         if (!catalogoMap.has(r.modelo)) {
             catalogoMap.set(r.modelo, {
                 modelo: r.modelo,
@@ -101,8 +128,8 @@ export default async function BodegaDetallePage({
             });
         }
     }
-    // 2. Existing inventory of this bodega (backward compatibility)
-    for (const r of catalogoInventarioRaw ?? []) {
+    // 2. Existing inventory of this bodega (backward compatibility — items added before catalog)
+    for (const r of catalogoInventarioRaw) {
         if (!catalogoMap.has(r.modelo)) {
             catalogoMap.set(r.modelo, {
                 modelo: r.modelo,
@@ -112,22 +139,6 @@ export default async function BodegaDetallePage({
         }
     }
     const catalogo: CatalogoItem[] = Array.from(catalogoMap.values());
-
-    // Fetch families scoped to this bodega only
-    const { data: familiasRaw } = await db
-        .from('familias_hardware')
-        .select('id, nombre')
-        .eq('bodega_id', id)
-        .order('nombre', { ascending: true });
-
-    const familias: FamiliaHardware[] = familiasRaw ?? [];
-
-    // Fetch catalogo_equipos scoped to this bodega (graceful if table doesn't exist)
-    const { data: modelosRaw } = await db
-        .from('catalogo_equipos')
-        .select('id, familia_id, modelo, es_serializado')
-        .eq('bodega_id', id)
-        .order('modelo', { ascending: true });
 
     const modelosPorFamilia: Record<string, ModeloCatalogo[]> = {};
     for (const m of (modelosRaw ?? []) as ModeloCatalogo[]) {
