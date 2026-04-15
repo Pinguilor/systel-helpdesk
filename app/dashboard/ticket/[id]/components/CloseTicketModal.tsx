@@ -93,9 +93,19 @@ export function CloseTicketModal({ isOpen, onClose, ticket, materiales = [], age
         setIsLocating(true);
         setGpsError('');
 
-        // GPS DESACTIVADO TEMPORALMENTE PARA DEBUG
         let lat = 0;
         let lng = 0;
+
+        try {
+            const position = await obtenerUbicacion();
+            lat = position.coords.latitude;
+            lng = position.coords.longitude;
+        } catch (err: any) {
+            setGpsError('Ubicación requerida para generar el acta. Activa el GPS o los permisos de ubicación e intenta de nuevo.');
+            setIsSubmitting(false);
+            setIsLocating(false);
+            return;
+        }
 
         setIsLocating(false);
 

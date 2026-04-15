@@ -53,12 +53,30 @@ export function SmartCloseModal({ ticketId, onClose, packingList }: SmartCloseMo
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        
+
         if (sigCanvas.current?.isEmpty()) {
             return alert('La firma digital del recepcionista es obligatoria.');
         }
 
         setIsSubmitting(true);
+
+        // GPS best-effort: 5s timeout, nunca bloquea el flujo
+        let gpsLat: number | null = null;
+        let gpsLng: number | null = null;
+        try {
+            const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+                if (!navigator.geolocation) { reject(new Error('no-geo')); return; }
+                navigator.geolocation.getCurrentPosition(resolve, reject, {
+                    enableHighAccuracy: true,
+                    timeout: 5000,
+                    maximumAge: 0,
+                });
+            });
+            gpsLat = pos.coords.latitude;
+            gpsLng = pos.coords.longitude;
+        } catch {
+            // Sin GPS: el cierre continúa con coordenadas nulas
+        }
 
         const firmaDataUrl = sigCanvas.current?.getTrimmedCanvas().toDataURL('image/png') || '';
 
@@ -89,6 +107,9 @@ export function SmartCloseModal({ ticketId, onClose, packingList }: SmartCloseMo
         adjuntos.forEach(file => {
             formData.append('adjuntos', file);
         });
+
+        if (gpsLat !== null) formData.append('latitud', gpsLat.toString());
+        if (gpsLng !== null) formData.append('longitud', gpsLng.toString());
 
         const res = await smartCloseAction(formData);
         

@@ -1085,6 +1085,11 @@ export async function smartCloseAction(formData: FormData) {
         const equiposDañadosRaw = formData.get('equiposDañados') as string;
         const adjuntos = formData.getAll('adjuntos') as File[];
 
+        const latRaw = formData.get('latitud');
+        const lngRaw = formData.get('longitud');
+        const latitudCierre = latRaw ? parseFloat(latRaw as string) : null;
+        const longitudCierre = lngRaw ? parseFloat(lngRaw as string) : null;
+
         let materialInstaladoIds: string[] = [];
         let equiposDañados: { catalogo_id: string; numero_serie: string }[] = [];
 
@@ -1320,8 +1325,13 @@ export async function smartCloseAction(formData: FormData) {
             es_sistema: false
         });
 
-        // Actualizar Ticket a Resuelto
-        await supabase.from('tickets').update({ estado: 'resuelto', fecha_resolucion: new Date().toISOString() }).eq('id', ticketId);
+        // Actualizar Ticket a Resuelto (+ coordenadas GPS si se capturaron)
+        await supabase.from('tickets').update({
+            estado: 'resuelto',
+            fecha_resolucion: new Date().toISOString(),
+            ...(latitudCierre !== null && { latitud_cierre: latitudCierre }),
+            ...(longitudCierre !== null && { longitud_cierre: longitudCierre }),
+        }).eq('id', ticketId);
 
         // Notify user
         if (ticketData && ticketData.creado_por !== user.id) {
