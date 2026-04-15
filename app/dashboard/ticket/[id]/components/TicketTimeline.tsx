@@ -81,6 +81,17 @@ export default function TicketTimeline({ ticket, messages, currentUserId, isAgen
     const [isSavingDesc, setIsSavingDesc] = useState(false);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const quillEditorRef = useRef<HTMLDivElement>(null);
+
+    // Fix bug de Quill: la clase ql-blank no se remueve inmediatamente en modo controlado.
+    // Este efecto sincroniza el estado de la clase con el valor React en cada cambio.
+    useEffect(() => {
+        if (!quillEditorRef.current) return;
+        const editor = quillEditorRef.current.querySelector<HTMLElement>('.ql-editor');
+        if (!editor) return;
+        const isEmpty = newMessage.replace(/(<([^>]+)>)/gi, '').trim() === '';
+        editor.classList.toggle('ql-blank', isEmpty);
+    }, [newMessage]);
 
     const [showRejectModal, setShowRejectModal] = useState(false);
     const [showApproveModal, setShowApproveModal] = useState(false);
@@ -441,13 +452,16 @@ export default function TicketTimeline({ ticket, messages, currentUserId, isAgen
                             )}
 
                             <div className="border border-slate-300 rounded-2xl overflow-hidden bg-white flex flex-col shadow-sm">
-                                <ReactQuill
-                                    theme="snow"
-                                    value={newMessage}
-                                    onChange={setNewMessage}
-                                    placeholder="Escribe tu mensaje..."
-                                    className="text-slate-900 flex-1 [&_.ql-editor]:min-h-[100px] [&_.ql-container]:!border-0 [&_.ql-toolbar]:!border-0 [&_.ql-toolbar]:!border-b [&_.ql-toolbar]:!border-slate-200 [&_.ql-toolbar]:bg-slate-50/50"
-                                />
+                                {/* ref para medir la altura real de la toolbar de Quill (varía en móvil/desktop) */}
+                                <div className="relative" ref={quillEditorRef}>
+                                    <ReactQuill
+                                        theme="snow"
+                                        value={newMessage}
+                                        onChange={setNewMessage}
+                                        placeholder="Escribe tu mensaje..."
+                                        className="text-slate-900 flex-1 [&_.ql-editor]:min-h-[100px] [&_.ql-container]:!border-0 [&_.ql-toolbar]:!border-0 [&_.ql-toolbar]:!border-b [&_.ql-toolbar]:!border-slate-200 [&_.ql-toolbar]:bg-slate-50/50"
+                                    />
+                                </div>
 
                                 <input
                                     type="file"
@@ -475,27 +489,26 @@ export default function TicketTimeline({ ticket, messages, currentUserId, isAgen
                                 />
 
                                 <div className="bg-slate-50 p-3 sm:p-2 border-t border-slate-200 shrink-0 flex items-end sm:items-center justify-between gap-2">
-                                    <div className="flex items-center">
-                            {/* ── BOTÓN SOLICITAR MATERIALES (TÉCNICO ASIGNADO) ── */}
-                            {isTecnicoAsignado && !isTicketCerrado && (
-                                <button
-                                    type="button"
-                                    onClick={() => setShowSolicitarModal(true)}
-                                    className="flex items-center gap-2 px-3 py-2 text-sm font-bold text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors border border-transparent hover:border-indigo-200 bg-indigo-50/50"
-                                >
-                                    <ClipboardPen className="w-4 h-4" />
-                                    <span className="hidden sm:inline">Solicitar Materiales</span>
-                                </button>
-                            )}
-
-                            <button
-                                type="button"
-                                onClick={() => fileInputRef.current?.click()}
-                                className="flex items-center gap-2 px-3 py-2 text-sm font-bold text-gray-500 hover:text-indigo-600 hover:bg-white rounded-lg transition-colors border border-transparent hover:border-gray-300 bg-gray-100"
-                            >
-                                <Paperclip className="w-4 h-4" />
-                                <span className="hidden sm:inline">Adjuntar</span>
-                            </button>
+                                    <div className="flex items-center gap-1">
+                                        {/* Desktop: botón en la barra inferior del editor */}
+                                        {isTecnicoAsignado && !isTicketCerrado && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowSolicitarModal(true)}
+                                                className="hidden sm:flex items-center gap-2 px-3 py-2 text-sm font-bold text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors border border-transparent hover:border-indigo-200 bg-indigo-50/50"
+                                            >
+                                                <ClipboardPen className="w-4 h-4 shrink-0" />
+                                                Solicitar Materiales
+                                            </button>
+                                        )}
+                                        <button
+                                            type="button"
+                                            onClick={() => fileInputRef.current?.click()}
+                                            className="flex items-center gap-2 px-3 py-2 text-sm font-bold text-gray-500 hover:text-indigo-600 hover:bg-white rounded-lg transition-colors border border-transparent hover:border-gray-300 bg-gray-100"
+                                        >
+                                            <Paperclip className="w-4 h-4" />
+                                            <span className="hidden sm:inline">Adjuntar</span>
+                                        </button>
                                     </div>
 
                                     <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2 sm:gap-4 w-auto">
@@ -571,6 +584,18 @@ export default function TicketTimeline({ ticket, messages, currentUserId, isAgen
                                     </div>
                                 </div>
                             </div>
+
+                            {/* Móvil: botón ancho completo debajo del editor */}
+                            {isTecnicoAsignado && !isTicketCerrado && (
+                                <button
+                                    type="button"
+                                    onClick={() => setShowSolicitarModal(true)}
+                                    className="sm:hidden w-full mt-2 flex items-center justify-center gap-2 py-3 text-sm font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-xl border border-indigo-200 transition-colors"
+                                >
+                                    <ClipboardPen className="w-4 h-4 shrink-0" />
+                                    Solicitar Materiales
+                                </button>
+                            )}
                         </form>
                     )}
                 </div>

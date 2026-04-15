@@ -150,7 +150,7 @@ export interface Inventario {
     familia: string;
     es_serializado: boolean;
     numero_serie?: string | null; // opcional para cables, etc.
-    estado: 'Disponible' | 'En Tránsito' | 'Dañado' | 'Instalado';
+    estado: 'Disponible' | 'Operativo' | 'Dañado' | 'Instalado';
     cantidad: number; // 1 para serializado, N para cables
     fecha_limite_devolucion?: string | null; // ISO timestamp: cierre de ticket + 72 hrs
 

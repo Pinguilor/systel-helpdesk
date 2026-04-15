@@ -50,25 +50,33 @@ const styles = StyleSheet.create({
   value: {
     flex: 1
   },
-  table: {
-    flexDirection: 'column',
-    marginTop: 5,
-    borderWidth: 1,
-    borderColor: '#ccc'
-  },
+  // Tabla: sin borde exterior — cada fila lleva su propio borde para
+  // que los saltos de página automáticos no corten el recuadro a la mitad.
   tableHeader: {
     flexDirection: 'row',
     backgroundColor: '#f0f0f0',
-    borderBottomWidth: 1,
-    borderBottomColor: '#ccc',
+    borderWidth: 1,
+    borderColor: '#ccc',
     padding: 5,
-    fontWeight: 'bold'
+    fontWeight: 'bold',
+    marginTop: 5,
   },
   tableRow: {
     flexDirection: 'row',
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-    padding: 5
+    borderColor: '#ddd',
+    padding: 5,
+  },
+  tableRowAlt: {
+    flexDirection: 'row',
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: '#ddd',
+    padding: 5,
+    backgroundColor: '#fafafa',
   },
   col1: { flex: 3 },
   col2: { flex: 1, textAlign: 'center' },
@@ -153,92 +161,106 @@ export const ActaCierrePDF = ({ ticket, materiales = [], notas, firmaClienteUrl,
             <Text style={{ minHeight: 60, padding: 5 }}>{notas}</Text>
         </View>
 
-        {/* Materiales */}
+        {/* Materiales
+            Cada fila tiene wrap={false} para que nunca se corte a la mitad entre páginas.
+            El header NO usa fixed (eso lo repetiría en TODAS las páginas del documento).
+            Con wrap={false} en filas, el motor de react-pdf inserta el salto ANTES del row
+            que no cabe, garantizando que el corte siempre ocurre entre filas, nunca dentro.
+        */}
         <View style={styles.section}>
             <Text style={styles.sectionTitle}>MATERIALES INSUMIDOS</Text>
-            <View style={styles.table}>
-                <View style={styles.tableHeader}>
-                    <Text style={styles.col1}>Descripción</Text>
-                    <Text style={styles.col2}>Cantidad</Text>
-                </View>
-                {materiales.length === 0 ? (
-                    <View style={styles.tableRow}><Text style={styles.col1}>No se utilizaron materiales adicionales</Text></View>
-                ) : (
-                    materiales.map((item, i) => (
-                        <View key={i} style={styles.tableRow}>
-                            <Text style={styles.col1}>
-                                {item.equipos?.modelo || item.modelo || item.descripcion || '-'}
-                            </Text>
-                            <Text style={styles.col2}>{item.cantidad || 1} UND</Text>
-                        </View>
-                    ))
-                )}
+
+            {/* Cabecera de tabla */}
+            <View style={styles.tableHeader} wrap={false}>
+                <Text style={styles.col1}>Descripción</Text>
+                <Text style={styles.col2}>Cantidad</Text>
             </View>
+
+            {materiales.length === 0 ? (
+                <View style={styles.tableRow} wrap={false}>
+                    <Text style={styles.col1}>No se utilizaron materiales adicionales</Text>
+                </View>
+            ) : (
+                materiales.map((item, i) => (
+                    <View key={i} style={i % 2 === 0 ? styles.tableRow : styles.tableRowAlt} wrap={false}>
+                        <Text style={styles.col1}>
+                            {item.equipos?.modelo || item.modelo || item.descripcion || '-'}
+                        </Text>
+                        <Text style={styles.col2}>{item.cantidad || 1} UND</Text>
+                    </View>
+                ))
+            )}
         </View>
 
         {/* Personal */}
         <View style={styles.section}>
             <Text style={styles.sectionTitle}>PERSONAL TÉCNICO ASIGNADO</Text>
-            <View style={styles.table}>
-                <View style={styles.tableHeader}>
-                    <Text style={{ flex: 2 }}>Nombre Técnico</Text>
-                    <Text style={{ flex: 1, textAlign: 'center' }}>Rol</Text>
-                    <Text style={{ flex: 1, textAlign: 'center' }}>Fecha de Ejecución</Text>
+
+            <View style={styles.tableHeader} wrap={false}>
+                <Text style={{ flex: 2 }}>Nombre Técnico</Text>
+                <Text style={{ flex: 1, textAlign: 'center' }}>Rol</Text>
+                <Text style={{ flex: 1, textAlign: 'center' }}>Fecha de Ejecución</Text>
+            </View>
+
+            {/* Técnico responsable */}
+            <View style={styles.tableRow} wrap={false}>
+                <Text style={{ flex: 2, fontWeight: 'bold' }}>{agenteNombre || 'Técnico Autorizado'}</Text>
+                <Text style={{ flex: 1, textAlign: 'center' }}>Responsable</Text>
+                <Text style={{ flex: 1, textAlign: 'center' }}>{new Date().toLocaleDateString('es-CL')}</Text>
+            </View>
+
+            {/* Técnicos ayudantes */}
+            {ayudantesNombres.length > 0
+                ? ayudantesNombres.map((nombre, i) => (
+                    <View key={i} style={i % 2 === 0 ? styles.tableRowAlt : styles.tableRow} wrap={false}>
+                        <Text style={{ flex: 2 }}>{nombre}</Text>
+                        <Text style={{ flex: 1, textAlign: 'center', color: '#6b7280' }}>Ayudante</Text>
+                        <Text style={{ flex: 1, textAlign: 'center' }}>{new Date().toLocaleDateString('es-CL')}</Text>
+                    </View>
+                ))
+                : (
+                    <View style={[styles.tableRowAlt]} wrap={false}>
+                        <Text style={{ flex: 2, color: '#9ca3af', fontStyle: 'italic' }}>Sin técnicos ayudantes registrados</Text>
+                        <Text style={{ flex: 1 }} />
+                        <Text style={{ flex: 1 }} />
+                    </View>
+                )
+            }
+        </View>
+
+        {/* Estado + Firmas: minPresenceAhead garantiza que si este bloque no cabe entero
+            en la página actual, react-pdf lo mueve completo a la siguiente página.
+            Así las firmas nunca quedan huérfanas sin el estado ni sin la imagen de firma. */}
+        <View minPresenceAhead={160}>
+            <View style={{ alignItems: 'center', marginVertical: 15 }}>
+                <Text style={{ fontSize: 12, fontWeight: 'bold' }}>ESTADO DEL TRABAJO: TERMINADO</Text>
+            </View>
+
+            {/* Firmas */}
+            <View style={styles.signatures}>
+                <View style={styles.signatureBox}>
+                    {firmaClienteUrl ? <Image src={firmaClienteUrl} style={styles.signatureImage} /> : <View style={styles.signatureImage} />}
+                    <View style={styles.signatureLine} />
+                    <Text>Receptor: {ticket?.receptor_nombre || 'Firma del Cliente'}</Text>
                 </View>
-                {/* Técnico responsable */}
-                <View style={styles.tableRow}>
-                    <Text style={{ flex: 2, fontWeight: 'bold' }}>{agenteNombre || 'Técnico Autorizado'}</Text>
-                    <Text style={{ flex: 1, textAlign: 'center' }}>Responsable</Text>
-                    <Text style={{ flex: 1, textAlign: 'center' }}>{new Date().toLocaleDateString('es-CL')}</Text>
+                <View style={styles.signatureBox}>
+                    {firmaTecnicoUrl ? <Image src={firmaTecnicoUrl} style={styles.signatureImage} /> : <View style={styles.signatureImage} />}
+                    <View style={styles.signatureLine} />
+                    <Text>Nombre y Firma del Técnico</Text>
                 </View>
-                {/* Técnicos ayudantes */}
-                {ayudantesNombres.length > 0
-                    ? ayudantesNombres.map((nombre, i) => (
-                        <View key={i} style={[styles.tableRow, { backgroundColor: i % 2 === 0 ? '#fafafa' : '#ffffff' }]}>
-                            <Text style={{ flex: 2 }}>{nombre}</Text>
-                            <Text style={{ flex: 1, textAlign: 'center', color: '#6b7280' }}>Ayudante</Text>
-                            <Text style={{ flex: 1, textAlign: 'center' }}>{new Date().toLocaleDateString('es-CL')}</Text>
-                        </View>
-                    ))
-                    : (
-                        <View style={[styles.tableRow, { backgroundColor: '#fafafa' }]}>
-                            <Text style={{ flex: 2, color: '#9ca3af', fontStyle: 'italic' }}>Sin técnicos ayudantes registrados</Text>
-                            <Text style={{ flex: 1 }} />
-                            <Text style={{ flex: 1 }} />
-                        </View>
-                    )
-                }
+            </View>
+
+            {/* Disclaimer */}
+            <View style={{ marginTop: 20, fontSize: 8, color: '#666', textAlign: 'justify' }}>
+                <Text>Al firmar la presente Orden de Servicio, el cliente declara que el trabajo ha sido recepcionado a plena conformidad, certificando que las tareas descritas han sido finalizadas exitosamente y que los equipos o sistemas se encuentran operando según los requerimientos solicitados.</Text>
+                {ticket?.latitud_cierre && ticket?.longitud_cierre && (
+                    <Text style={{ marginTop: 5, color: '#888' }}>
+                        Auditoría de Cierre: Documento firmado y geolocalizado en coordenadas {ticket.latitud_cierre}, {ticket.longitud_cierre}
+                    </Text>
+                )}
             </View>
         </View>
 
-        {/* Status */}
-        <View style={{ alignItems: 'center', marginVertical: 15 }}>
-            <Text style={{ fontSize: 12, fontWeight: 'bold' }}>ESTADO DEL TRABAJO: TERMINADO</Text>
-        </View>
-
-        {/* Firmas */}
-        <View style={styles.signatures}>
-            <View style={styles.signatureBox}>
-                {firmaClienteUrl ? <Image src={firmaClienteUrl} style={styles.signatureImage} /> : <View style={styles.signatureImage} />}
-                <View style={styles.signatureLine} />
-                <Text>Receptor: {ticket?.receptor_nombre || 'Firma del Cliente'}</Text>
-            </View>
-            <View style={styles.signatureBox}>
-                {firmaTecnicoUrl ? <Image src={firmaTecnicoUrl} style={styles.signatureImage} /> : <View style={styles.signatureImage} />}
-                <View style={styles.signatureLine} />
-                <Text>Nombre y Firma del Técnico</Text>
-            </View>
-        </View>
-
-        {/* Disclaimer */}
-        <View style={{ marginTop: 20, fontSize: 8, color: '#666', textAlign: 'justify' }}>
-            <Text>Al firmar la presente Orden de Servicio, el cliente declara que el trabajo ha sido recepcionado a plena conformidad, certificando que las tareas descritas han sido finalizadas exitosamente y que los equipos o sistemas se encuentran operando según los requerimientos solicitados.</Text>
-            {ticket?.latitud_cierre && ticket?.longitud_cierre && (
-                <Text style={{ marginTop: 5, color: '#888' }}>
-                    Auditoría de Cierre: Documento firmado y geolocalizado en coordenadas {ticket.latitud_cierre}, {ticket.longitud_cierre}
-                </Text>
-            )}
-        </View>
       </Page>
     </Document>
   );

@@ -172,12 +172,12 @@ export function CloseTicketModal({ isOpen, onClose, ticket, materiales = [], age
                         {materiales.length > 0 && (
                             <div className="mt-5 pt-4 border-t border-slate-200">
                                 <span className="block text-[10px] uppercase font-bold text-slate-500 mb-2.5">Materiales Insumidos</span>
-                                <ul className="space-y-1.5">
+                                <ul className="space-y-1.5 max-h-[200px] overflow-y-auto pr-1">
                                     {materiales.map((item: any, i: number) => (
                                         <li key={i} className="text-xs font-medium text-slate-700 flex justify-between bg-white px-3 py-2 rounded-lg border border-slate-100">
                                             <span className="truncate pr-2">
-                                                ➔ {item.es_serializado 
-                                                    ? `1x ${item.modelo || item.descripcion || '-'} (SN: ${item.numero_serie || 'N/A'})` 
+                                                ➔ {item.es_serializado
+                                                    ? `1x ${item.modelo || item.descripcion || '-'} (SN: ${item.numero_serie || 'N/A'})`
                                                     : `${item.cantidad || 1}x ${item.modelo || item.descripcion || '-'} (${item.familia || 'Genérico'})`}
                                             </span>
                                         </li>

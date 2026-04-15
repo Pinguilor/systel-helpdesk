@@ -333,8 +333,8 @@ export async function checkTecnicoBlockedAction(): Promise<
             .not('fecha_limite_devolucion', 'is', null)
             .lt('fecha_limite_devolucion', ahora)
             .gt('cantidad', 0)
-            // Excluir ítems ya consumidos (En Tránsito) — no son sobrantes
-            .not('estado', 'in', '("En Tránsito","en_transito","En Transito")')
+            // Excluir ítems ya consumidos (Operativo + ticket_id) — no son sobrantes devolvibles
+            .neq('estado', 'Operativo')
             .limit(1);
 
         if (vencidos && vencidos.length > 0) {

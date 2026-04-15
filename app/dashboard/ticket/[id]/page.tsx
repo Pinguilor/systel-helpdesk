@@ -142,12 +142,14 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
             solicitudItems = siRaw ?? [];
         }
 
-        // 2. Ítems realmente consumidos por el técnico desde la mochila (realidad)
+        // 2. Ítems realmente consumidos por el técnico desde la mochila.
+        // Estado canónico: 'Operativo' (tanto durante el ticket abierto como después del cierre).
+        // ticket_id se preserva en ambos casos para poder rastrearlos.
         const { data: consumidos } = await supabase
             .from('inventario')
             .select('modelo, familia, cantidad')
             .eq('ticket_id', ticketId)
-            .in('estado', ['En Tránsito', 'en_transito', 'En Transito']);
+            .eq('estado', 'Operativo');
 
         // 3. Agrupar por producto
         const map: Record<string, { modelo: string; familia: string; solicitado: number; utilizado: number }> = {};
@@ -200,13 +202,13 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
         parentTicket = pt || null;
     }
 
-    // Fetch SOLO los materiales confirmados como consumidos (estado En Tránsito) — para preview del Acta de Cierre.
+    // Fetch SOLO los materiales consumidos (estado 'Operativo' + ticket_id) — para preview del Acta de Cierre.
     // Los ítems aprobados pero no consumidos (sobrantes, estado Disponible) NO aparecen aquí.
     const { data: inventarioTicketRaw, error: invTicketErr } = await supabase
         .from('inventario')
         .select('*')
         .eq('ticket_id', ticketId)
-        .in('estado', ['En Tránsito', 'en_transito', 'En Transito']);
+        .eq('estado', 'Operativo');
 
     if (invTicketErr) {
         console.error('ERROR AL OBTENER INVENTARIO TICKET:', invTicketErr);

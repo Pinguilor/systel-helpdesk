@@ -219,13 +219,12 @@ export function AssignMaterialModal({ ticketId, onClose }: AssignMaterialModalPr
 
                 // 5. Enriquecer los datos
                 // "consumido" = el técnico ya confirmó este ítem para el ticket
-                //   → lo delata el estado 'En Tránsito' (assignMaterialsBatchAction lo pone así)
+                //   → lo delata el estado 'Operativo' + ticket_id (assignMaterialsBatchAction lo pone así)
                 // "disponible" = llegó aprobado del bodeguero (estado 'Disponible') aunque tenga ticket_id
-                const TRANSITO = ['En Tránsito', 'en_transito', 'En Transito'];
                 const enriched: StockItem[] = (inventory as any[]).map(item => {
                     const yaConsumido =
                         item.ticket_id === ticketId &&
-                        TRANSITO.includes(item.estado ?? '');
+                        item.estado === 'Operativo';
                     return {
                         id: item.id,
                         modelo:  item.modelo  ?? '—',

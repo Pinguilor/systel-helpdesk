@@ -359,8 +359,8 @@ export default function TicketSidebar({ ticket, isAgent, isAdmin, userRole = 'us
 
                         <div className={`grid transition-all duration-300 ease-in-out ${packingOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
                             <div className="overflow-hidden">
-                                <div className="px-4 pb-5 space-y-2">
-                                    {/* Encabezado de columnas */}
+                                <div className="px-4 pb-5">
+                                    {/* Encabezado de columnas — fijo, fuera del scroll */}
                                     <div className="flex items-center justify-between px-2 mb-1">
                                         <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Producto</span>
                                         <div className="flex gap-3">
@@ -369,6 +369,8 @@ export default function TicketSidebar({ ticket, isAgent, isAdmin, userRole = 'us
                                         </div>
                                     </div>
 
+                                    {/* Contenedor con scroll — soporta 100+ ítems sin romper la página */}
+                                    <div className="max-h-[420px] overflow-y-auto space-y-2 pr-1">
                                     {packingList.map((item, i) => {
                                         const delta = item.utilizado - item.solicitado;
                                         return (
@@ -415,15 +417,16 @@ export default function TicketSidebar({ ticket, isAgent, isAdmin, userRole = 'us
                                             </div>
                                         );
                                     })}
+                                    </div>{/* fin scroll container */}
                                 </div>
                             </div>
                         </div>
                     </div>
                 )}
 
-                {/* VIÁTICOS ASIGNADOS — solo admin/coordinador */}
+                {/* VIÁTICOS ASIGNADOS — admin, coordinador y técnico asignado */}
                 {(() => {
-                    if (!isAdmin) return null;
+                    if (!isAdmin && !isAgent) return null;
                     const viaticos = (ticket.ticket_messages || []).filter((m: any) =>
                         m.es_sistema && /Viático de \$\d+ asignado/.test(m.mensaje || '')
                     );
