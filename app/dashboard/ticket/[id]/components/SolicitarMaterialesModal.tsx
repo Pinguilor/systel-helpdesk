@@ -415,7 +415,7 @@ export function SolicitarMaterialesModal({ ticketId, onClose }: Props) {
                     {/* ════════════════════════════════
                         COLUMNA DERECHA: CARRITO
                     ════════════════════════════════ */}
-                    <div className="w-full lg:w-72 flex flex-col shrink-0 bg-slate-50/70">
+                    <div className="w-full lg:w-72 flex flex-col shrink-0 max-h-[40dvh] lg:max-h-none bg-slate-50/70">
                         {/* Header solicitud */}
                         <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between shrink-0">
                             <div className="flex items-center gap-2">
@@ -432,7 +432,7 @@ export function SolicitarMaterialesModal({ ticketId, onClose }: Props) {
                         </div>
 
                         {/* Ítems del carrito */}
-                        <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-2">
+                        <div className="flex-1 overflow-y-auto min-h-0 custom-scrollbar p-3 space-y-2">
                             {carrito.length === 0 ? (
                                 <div className="py-10 text-center px-4">
                                     <ClipboardList className="w-8 h-8 text-slate-200 mx-auto mb-2" />

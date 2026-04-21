@@ -294,7 +294,7 @@ export function AssignMaterialModal({ ticketId, onClose }: AssignMaterialModalPr
 
     return createPortal(
         <div className="fixed inset-0 z-[9999] flex justify-end bg-slate-900/60 backdrop-blur-sm">
-            <div className="bg-white w-full max-w-md h-full shadow-2xl animate-in slide-in-from-right duration-300 flex flex-col">
+            <div className="bg-white w-full max-w-md h-[100dvh] shadow-2xl animate-in slide-in-from-right duration-300 flex flex-col">
 
                 {/* ── Header ── */}
                 <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 shrink-0">
@@ -351,61 +351,62 @@ export function AssignMaterialModal({ ticketId, onClose }: AssignMaterialModalPr
                     </div>
 
                 ) : (
-                    <div className="flex-1 overflow-y-auto custom-scrollbar">
+                    <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
 
-                        {/* ── Sección A: Consumos ya confirmados (informativo) ── */}
+                        {/* ── TOP: Catálogo — flex-1 con min-h-0 para que el carrito pueda encogerse ── */}
+                        <div className="flex-1 overflow-y-auto custom-scrollbar min-h-0">
+                            {itemsDisponibles.length > 0 ? (
+                                <div>
+                                    <SectionHeader
+                                        icon={<Package className="w-3.5 h-3.5 text-slate-400" />}
+                                        label="Disponible en Mochila"
+                                        count={itemsDisponibles.length}
+                                    />
+                                    <div className="divide-y divide-slate-100">
+                                        {itemsDisponibles.map(item => (
+                                            <ItemRow
+                                                key={item.id}
+                                                item={item}
+                                                value={consumo[item.id] || 0}
+                                                onChange={n => setItemConsumo(item.id, n)}
+                                            />
+                                        ))}
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="h-full flex flex-col items-center justify-center p-8 text-center gap-4">
+                                    <div className="p-5 bg-slate-100 rounded-full">
+                                        <PackageSearch className="w-8 h-8 text-slate-400" />
+                                    </div>
+                                    <div>
+                                        <h4 className="text-base font-black text-slate-900 mb-1">Sin stock disponible</h4>
+                                        <p className="text-sm text-slate-500 font-medium">
+                                            No tienes materiales disponibles en tu mochila. Solicita despacho al bodeguero.
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* ── BOTTOM: Mi Solicitud — capped con dvh, header fijo, ítems con scroll propio ── */}
                         {itemsConsumidos.length > 0 && (
-                            <div>
+                            <div className="shrink-0 flex flex-col max-h-[40dvh] min-h-[150px] bg-white z-10 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
                                 <SectionHeader
                                     icon={<Ticket className="w-3.5 h-3.5 text-emerald-500" />}
                                     label="Consumido en este Ticket"
                                     count={itemsConsumidos.length}
                                 />
-                                <div className="divide-y divide-slate-100">
-                                    {itemsConsumidos.map(item => (
-                                        <ItemRow
-                                            key={item.id}
-                                            item={item}
-                                            value={0}
-                                            onChange={() => {}}
-                                        />
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-
-                        {/* ── Sección B: Stock disponible en mochila (interactivo) ── */}
-                        {itemsDisponibles.length > 0 && (
-                            <div>
-                                <SectionHeader
-                                    icon={<Package className="w-3.5 h-3.5 text-slate-400" />}
-                                    label="Disponible en Mochila"
-                                    count={itemsDisponibles.length}
-                                />
-                                <div className="divide-y divide-slate-100">
-                                    {itemsDisponibles.map(item => (
-                                        <ItemRow
-                                            key={item.id}
-                                            item={item}
-                                            value={consumo[item.id] || 0}
-                                            onChange={n => setItemConsumo(item.id, n)}
-                                        />
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Empty state: mochila sin stock disponible */}
-                        {itemsDisponibles.length === 0 && itemsConsumidos.length === 0 && (
-                            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center gap-4">
-                                <div className="p-5 bg-slate-100 rounded-full">
-                                    <PackageSearch className="w-8 h-8 text-slate-400" />
-                                </div>
-                                <div>
-                                    <h4 className="text-base font-black text-slate-900 mb-1">Sin stock disponible</h4>
-                                    <p className="text-sm text-slate-500 font-medium">
-                                        No tienes materiales disponibles en tu mochila. Solicita despacho al bodeguero.
-                                    </p>
+                                <div className="flex-1 overflow-y-auto min-h-0 custom-scrollbar">
+                                    <div className="divide-y divide-slate-100">
+                                        {itemsConsumidos.map(item => (
+                                            <ItemRow
+                                                key={item.id}
+                                                item={item}
+                                                value={0}
+                                                onChange={() => {}}
+                                            />
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
                         )}
