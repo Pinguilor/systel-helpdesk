@@ -2,7 +2,7 @@
 
 interface Props {
     greeting?: React.ReactNode;
-    kpis: React.ReactNode;
+    kpis?: React.ReactNode;
     dataTable: React.ReactNode;
     charts?: React.ReactNode;
 }
@@ -14,10 +14,8 @@ export default function TicketDashboardLayout({ greeting, kpis, dataTable, chart
             {/* Greeting */}
             {greeting && <div>{greeting}</div>}
 
-            {/* Row 1: KPI Cards */}
-            <div>
-                {kpis}
-            </div>
+            {/* Row 1: KPI Cards (optional) */}
+            {kpis && <div>{kpis}</div>}
 
             {/* Row 2: Ticket Data Table */}
             <div>

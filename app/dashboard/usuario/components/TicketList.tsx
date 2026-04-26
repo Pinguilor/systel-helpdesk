@@ -44,7 +44,7 @@ export default function TicketList({ limit }: { limit?: number }) {
                     .select(`
                         *,
                         restaurantes(nombre_restaurante, sigla),
-                        catalogo_servicios(categoria, subcategoria, elemento),
+                        catalogo_servicios!catalogo_servicio_id(categoria, subcategoria, elemento),
                         padre:ticket_padre_id(numero_ticket)
                     `)
                     .eq('creado_por', user.id)
@@ -72,7 +72,7 @@ export default function TicketList({ limit }: { limit?: number }) {
                         .select(`
                             *,
                             restaurantes(nombre_restaurante, sigla),
-                            catalogo_servicios(categoria, subcategoria, elemento),
+                            catalogo_servicios!catalogo_servicio_id(categoria, subcategoria, elemento),
                             padre:ticket_padre_id(numero_ticket),
                             profiles:creado_por(full_name)
                         `)
@@ -101,7 +101,7 @@ export default function TicketList({ limit }: { limit?: number }) {
                     .select(`
                         *,
                         restaurantes(nombre_restaurante, sigla),
-                        catalogo_servicios(categoria, subcategoria, elemento),
+                        catalogo_servicios!catalogo_servicio_id(categoria, subcategoria, elemento),
                         padre:ticket_padre_id(numero_ticket),
                         profiles:creado_por(full_name)
                     `)

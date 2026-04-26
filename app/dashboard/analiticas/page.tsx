@@ -23,7 +23,8 @@ export default async function AnaliticasPage() {
         *,
         agente:agente_asignado_id(full_name),
         restaurantes(nombre_restaurante, sigla),
-        catalogo_servicios(categoria, subcategoria, elemento)
+        categoria:ticket_categorias!categoria_id(nombre),
+        tipo_servicio:ticket_tipos_servicio!tipo_servicio_id(nombre)
     `);
 
     if (userRole === 'USUARIO') {

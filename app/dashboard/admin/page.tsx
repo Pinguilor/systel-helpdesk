@@ -28,7 +28,7 @@ export default async function AdminDashboard() {
             *,
             profiles:creado_por(full_name, clientes:cliente_id(nombre_fantasia, razon_social)),
             restaurantes(nombre_restaurante, sigla),
-            catalogo_servicios(categoria, subcategoria, elemento),
+            catalogo_servicios!catalogo_servicio_id(categoria, subcategoria, elemento),
             padre:ticket_padre_id(numero_ticket)
         `)
         .order('fecha_creacion', { ascending: false });

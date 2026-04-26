@@ -23,7 +23,8 @@ interface EnrichedTicket {
     restaurante_id?: string | null;
     agente?: { full_name: string | null } | null;
     restaurantes?: { nombre_restaurante: string; sigla: string } | null;
-    catalogo_servicios?: { categoria: string; subcategoria: string; elemento: string } | null;
+    categoria?: { nombre: string } | null;
+    tipo_servicio?: { nombre: string } | null;
     [key: string]: any;
 }
 
@@ -161,8 +162,14 @@ export default function AnalyticsCharts({ tickets, isStaff = true }: Props) {
     // ── Top categories ──────────────────────────────────────────────────────────
     const topCategories = useMemo(() => {
         const counts: Record<string, number> = {};
-        tickets.forEach(t => { if (t.catalogo_servicios?.categoria) counts[t.catalogo_servicios.categoria] = (counts[t.catalogo_servicios.categoria] || 0) + 1; });
-        return Object.entries(counts).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 6);
+        tickets.forEach(t => {
+            const cat = t.categoria?.nombre || t.tipo_servicio?.nombre || 'Sin Clasificar';
+            counts[cat] = (counts[cat] || 0) + 1;
+        });
+        return Object.entries(counts)
+            .map(([name, value]) => ({ name, value }))
+            .sort((a, b) => b.value - a.value)
+            .slice(0, 6);
     }, [tickets]);
 
     // ── Agent leaderboard ───────────────────────────────────────────────────────
@@ -364,29 +371,25 @@ export default function AnalyticsCharts({ tickets, isStaff = true }: Props) {
 
                 {/* Top Categories */}
                 <ChartCard title="Top Categorías de Servicio" icon={<Tag className="w-4 h-4 text-violet-600" />} bg="bg-violet-50">
-                    {topCategories.length === 0 ? (
-                        <p className="text-sm text-slate-400 text-center py-8">Sin datos de categorías</p>
-                    ) : (
-                        <div className="flex flex-col gap-4 mt-1">
-                            {topCategories.map((cat, i) => (
-                                <div key={i} className="flex items-center gap-3">
-                                    <span className="text-[10px] font-black text-slate-400 w-4 shrink-0 tabular-nums">{i + 1}</span>
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center justify-between mb-1.5">
-                                            <span className="text-xs font-bold text-slate-700 truncate pr-2">{cat.name}</span>
-                                            <span className="text-xs font-black text-slate-800 shrink-0 tabular-nums">{cat.value}</span>
-                                        </div>
-                                        <div className="bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                                            <div
-                                                className="h-full rounded-full transition-all duration-700"
-                                                style={{ width: `${(cat.value / maxCat) * 100}%`, background: PALETTE[i % PALETTE.length] }}
-                                            />
-                                        </div>
+                    <div className="flex flex-col gap-4 mt-1">
+                        {topCategories.map((cat, i) => (
+                            <div key={i} className="flex items-center gap-3">
+                                <span className="text-[10px] font-black text-slate-400 w-4 shrink-0 tabular-nums">{i + 1}</span>
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center justify-between mb-1.5">
+                                        <span className="text-xs font-bold text-slate-700 truncate pr-2">{cat.name}</span>
+                                        <span className="text-xs font-black text-slate-800 shrink-0 tabular-nums">{cat.value}</span>
+                                    </div>
+                                    <div className="bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                                        <div
+                                            className="h-full rounded-full transition-all duration-700"
+                                            style={{ width: `${(cat.value / maxCat) * 100}%`, background: PALETTE[i % PALETTE.length] }}
+                                        />
                                     </div>
                                 </div>
-                            ))}
-                        </div>
-                    )}
+                            </div>
+                        ))}
+                    </div>
                 </ChartCard>
 
                 {/* Agent Leaderboard */}

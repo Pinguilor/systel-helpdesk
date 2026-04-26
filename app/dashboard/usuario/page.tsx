@@ -1,8 +1,6 @@
 import TicketList from './components/TicketList';
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
-import { DashboardKPIs } from './components/DashboardAnalytics';
-import Link from 'next/link';
 import TicketDashboardLayout from './components/TicketDashboardLayout';
 import { TicketsRealtimeListener } from '../components/TicketsRealtimeListener';
 
@@ -22,13 +20,6 @@ export default async function usuarioDashboard() {
         redirect('/dashboard/tecnico');
     }
 
-    // Fetch all tickets for the analtyics
-    const { data: tickets, error: ticketsError } = await supabase
-        .from('tickets')
-        .select('*')
-        .eq('creado_por', user.id)
-        .order('fecha_creacion', { ascending: false });
-
     const firstName = profile?.full_name?.split(' ')[0] ?? 'Usuario';
 
     return (
@@ -43,7 +34,6 @@ export default async function usuarioDashboard() {
                     </h1>
                 </div>
             }
-            kpis={<DashboardKPIs tickets={tickets || []} />}
             dataTable={<TicketList />}
         />
         </>
