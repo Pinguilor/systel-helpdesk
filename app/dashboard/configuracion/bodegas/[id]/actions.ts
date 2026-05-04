@@ -267,13 +267,19 @@ export async function eliminarModeloCatalogoAction(id: string, bodegaId: string)
 
     if (!modeloRow) return { error: 'Modelo no encontrado.' };
 
-    // Block deletion if physical stock > 0 exists in this bodega
+    // Block deletion only if items are physically present and available in this bodega.
+    // Mirrors the exact same filters used by the UI inventory query (page.tsx):
+    //   - eq('estado','Disponible') → excludes dispatched serials (Operativo, cantidad=1)
+    //   - is('ticket_id', null)     → excludes items reserved to a ticket (hidden in UI)
+    // Without ticket_id filter, serialized models show "Sin ingresos" in UI but the check
+    // still finds Disponible rows with ticket_id set, causing a false-positive block.
     const { data: stockCheck } = await db
         .from('inventario')
         .select('id')
         .eq('bodega_id', bodegaId)
         .eq('modelo', modeloRow.modelo)
-        .neq('estado', 'Inactivo')
+        .eq('estado', 'Disponible')
+        .is('ticket_id', null)
         .gt('cantidad', 0)
         .limit(1);
 
@@ -281,16 +287,30 @@ export async function eliminarModeloCatalogoAction(id: string, bodegaId: string)
         return { error: 'No puedes eliminar un modelo que tiene stock físico en bodega. Ajusta el stock a 0 primero.' };
     }
 
-    // A. Purge zero-stock ghost rows from inventario before removing the catalog entry
+    // A. Best-effort purge of ghost rows only (no usable stock, no active ticket assignment).
+    // Never touch rows with ticket_id set — those are historical dispatched items with FK refs.
+    // This step is non-fatal: inventario uses texto fields for modelo/familia (no FK to
+    // catalogo_equipos), so the catalog entry can be deleted even if ghost rows remain.
     const { error: invError } = await db
         .from('inventario')
         .delete()
         .eq('modelo', modeloRow.modelo)
-        .eq('bodega_id', bodegaId);
+        .eq('bodega_id', bodegaId)
+        .is('ticket_id', null);
 
     if (invError) {
-        console.error('[eliminarModeloCatalogoAction] inventario:', invError.message);
-        return { error: 'No se pudieron limpiar los registros de inventario del modelo.' };
+        if (invError.code === '23503') {
+            // FK reference exists — soft-delete ghost rows instead of hard-delete
+            await db
+                .from('inventario')
+                .update({ cantidad: 0, estado: 'Inactivo' })
+                .eq('modelo', modeloRow.modelo)
+                .eq('bodega_id', bodegaId)
+                .is('ticket_id', null);
+        } else {
+            console.warn('[eliminarModeloCatalogoAction] inventario cleanup non-fatal:', invError.message);
+        }
+        // Always continue — catalog entry delete does not require inventario cleanup
     }
 
     // B. Remove the model from the catalog dictionary

@@ -13,6 +13,7 @@ export interface CatalogoItem {
     modelo: string;
     familia: string;
     es_serializado: boolean;
+    bodega_id: string;
 }
 
 interface Props {
@@ -71,16 +72,29 @@ export function AddStockModal({ bodegas, catalogo, familias }: Props) {
     const esSerializadoFinal = isNew ? esSerializado : (selected?.es_serializado ?? false);
     const serialesParsed = useMemo(() => parseSerials(serialesRaw), [serialesRaw]);
 
-    const uniqueModelos = useMemo(() =>
-        catalogo.filter((item, idx, arr) => arr.findIndex(i => i.modelo === item.modelo) === idx),
-        [catalogo]
-    );
+    // Solo modelos de la bodega seleccionada, deduplicados por nombre
+    const uniqueModelos = useMemo(() => {
+        if (!bodegaId) return [];
+        return catalogo
+            .filter(item => item.bodega_id === bodegaId)
+            .filter((item, idx, arr) => arr.findIndex(i => i.modelo === item.modelo) === idx);
+    }, [catalogo, bodegaId]);
 
     const filtered = query.length === 0
         ? uniqueModelos
         : uniqueModelos.filter(i => i.modelo.toLowerCase().includes(query.toLowerCase()));
 
     const exactMatch = uniqueModelos.some(i => i.modelo.toLowerCase() === query.toLowerCase());
+
+    // Resetear selector de modelo cuando cambia la bodega
+    useEffect(() => {
+        setQuery('');
+        setSelected(null);
+        setIsNew(false);
+        setSerialesRaw('');
+        setCantidad(1);
+        setDropdownOpen(false);
+    }, [bodegaId]);
 
     useEffect(() => {
         function handler(e: MouseEvent) {
@@ -259,6 +273,7 @@ export function AddStockModal({ bodegas, catalogo, familias }: Props) {
                                         ref={comboInputRef}
                                         type="text"
                                         autoComplete="off"
+                                        disabled={!bodegaId}
                                         value={query}
                                         onChange={e => {
                                             setQuery(e.target.value);
@@ -266,11 +281,20 @@ export function AddStockModal({ bodegas, catalogo, familias }: Props) {
                                             openComboDropdown();
                                         }}
                                         onFocus={openComboDropdown}
-                                        placeholder="Buscar o escribir nuevo modelo…"
-                                        className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 pr-9 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
+                                        placeholder={bodegaId ? 'Buscar o escribir nuevo modelo…' : 'Selecciona una bodega primero…'}
+                                        className={`w-full rounded-xl border px-3.5 py-2.5 pr-9 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-colors ${
+                                            !bodegaId
+                                                ? 'bg-slate-50 border-slate-100 text-slate-400 cursor-not-allowed'
+                                                : 'bg-white border-slate-200 text-slate-800'
+                                        }`}
                                     />
                                     <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
                                 </div>
+                                {bodegaId && uniqueModelos.length === 0 && (
+                                    <p className="mt-1 text-xs text-amber-600 font-semibold">
+                                        Esta bodega no tiene modelos registrados en el catálogo. Escribe para crear uno nuevo.
+                                    </p>
+                                )}
 
                                 {dropdownOpen && query.length > 0 && (
                                     <div style={comboDropdownStyle} className="bg-white border border-slate-200 rounded-xl shadow-lg max-h-72 overflow-y-auto">

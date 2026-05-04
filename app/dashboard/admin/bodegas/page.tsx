@@ -55,21 +55,21 @@ export default async function BodegasPage() {
     );
 
     // Catalogo from catalogo_equipos (authoritative) — graceful fallback to inventario
-    let catalogo: { modelo: string; familia: string; es_serializado: boolean }[] = [];
+    let catalogo: { modelo: string; familia: string; es_serializado: boolean; bodega_id: string }[] = [];
 
     const { data: catalogoRaw, error: catalogoErr } = await db
         .from('catalogo_equipos')
-        .select('modelo, es_serializado, familias_hardware(nombre)')
+        .select('modelo, es_serializado, bodega_id, familias_hardware(nombre)')
         .order('modelo', { ascending: true });
 
     if (!catalogoErr && catalogoRaw) {
         const seen = new Set<string>();
         for (const r of catalogoRaw as any[]) {
             const familia = r.familias_hardware?.nombre ?? '';
-            const key = `${r.modelo}|${familia}`;
+            const key = `${r.modelo}|${familia}|${r.bodega_id}`;
             if (!seen.has(key)) {
                 seen.add(key);
-                catalogo.push({ modelo: r.modelo, familia, es_serializado: !!r.es_serializado });
+                catalogo.push({ modelo: r.modelo, familia, es_serializado: !!r.es_serializado, bodega_id: r.bodega_id ?? '' });
             }
         }
     }
@@ -79,12 +79,13 @@ export default async function BodegasPage() {
         const seen = new Map<string, typeof catalogo[0]>();
         for (const item of inventarioGlobal as any[]) {
             if (!item.modelo || !item.familia) continue;
-            const key = `${item.modelo}|${item.familia}`;
+            const key = `${item.modelo}|${item.familia}|${item.bodega_id}`;
             if (!seen.has(key)) {
                 seen.set(key, {
                     modelo: item.modelo,
                     familia: item.familia,
                     es_serializado: !!item.es_serializado,
+                    bodega_id: item.bodega_id ?? '',
                 });
             }
         }
