@@ -19,7 +19,7 @@ export interface CatalogoItem {
 interface Props {
     bodegas: { id: string; nombre: string; tipo: string; activo?: boolean }[];
     catalogo: CatalogoItem[];
-    familias: { id: string; nombre: string }[];
+    familias: { id: string; nombre: string; bodega_id: string }[];
 }
 
 function Alert({ type, msg }: { type: 'error' | 'success'; msg: string }) {
@@ -86,11 +86,23 @@ export function AddStockModal({ bodegas, catalogo, familias }: Props) {
 
     const exactMatch = uniqueModelos.some(i => i.modelo.toLowerCase() === query.toLowerCase());
 
-    // Resetear selector de modelo cuando cambia la bodega
+    // Familias filtradas por bodega seleccionada
+    const familiasFiltradas = useMemo(() => {
+        if (!bodegaId) return [];
+        return familias.filter(f => f.bodega_id === bodegaId);
+    }, [familias, bodegaId]);
+
+    const familiaOptions = useMemo(() => [
+        { value: '', label: 'Selecciona una familia…' },
+        ...familiasFiltradas.map(f => ({ value: f.id, label: f.nombre })),
+    ], [familiasFiltradas]);
+
+    // Resetear modelo Y familia cuando cambia la bodega
     useEffect(() => {
         setQuery('');
         setSelected(null);
         setIsNew(false);
+        setFamiliaId('');
         setSerialesRaw('');
         setCantidad(1);
         setDropdownOpen(false);
@@ -338,17 +350,19 @@ export function AddStockModal({ bodegas, catalogo, familias }: Props) {
                                         <label className="block text-xs font-black text-slate-600 uppercase tracking-widest mb-1.5">
                                             Familia <span className="text-red-500 ml-1">*</span>
                                         </label>
-                                        <select
+                                        <CustomSelect
+                                            id="familia_id_new"
                                             value={familiaId}
-                                            onChange={e => setFamiliaId(e.target.value)}
-                                            autoFocus
-                                            className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
-                                        >
-                                            <option value="" disabled>Selecciona una familia…</option>
-                                            {familias.map(f => (
-                                                <option key={f.id} value={f.id}>{f.nombre}</option>
-                                            ))}
-                                        </select>
+                                            onChange={setFamiliaId}
+                                            options={familiaOptions}
+                                            placeholder="Selecciona una familia…"
+                                            disabled={familiasFiltradas.length === 0}
+                                        />
+                                        {familiasFiltradas.length === 0 && bodegaId && (
+                                            <p className="mt-1 text-xs text-amber-600 font-semibold">
+                                                Esta bodega no tiene familias registradas.
+                                            </p>
+                                        )}
                                     </div>
                                     <div>
                                         <label className="block text-xs font-black text-slate-600 uppercase tracking-widest mb-2">

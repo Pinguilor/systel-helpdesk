@@ -31,10 +31,10 @@ export default async function BodegasPage() {
         .order('nombre', { ascending: true });
     const bodegas = bodegasRaw ?? [];
 
-    // Familias for the modal
+    // Familias for the modal — include bodega_id so the modal can filter per bodega
     const { data: familiasRaw } = await db
         .from('familias_hardware')
-        .select('id, nombre')
+        .select('id, nombre, bodega_id')
         .order('nombre', { ascending: true });
     const familias = familiasRaw ?? [];
 
