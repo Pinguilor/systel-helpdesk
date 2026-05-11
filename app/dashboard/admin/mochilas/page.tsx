@@ -46,6 +46,7 @@ export default async function MochilasPage() {
             .from('inventario')
             .select('id, bodega_id, modelo, familia, es_serializado, numero_serie, cantidad, estado, fecha_limite_devolucion')
             .in('bodega_id', mochilaIds)
+            .neq('estado', 'Operativo')
             .gt('cantidad', 0)
         : { data: [] };
 
