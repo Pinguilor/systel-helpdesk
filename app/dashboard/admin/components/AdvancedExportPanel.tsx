@@ -25,6 +25,7 @@ const COLUMNAS_DEFAULT: ColumnasVisibles = {
     categoria: true,
     falla: true,
     descripcion: true,
+    resolucion: true,
     comentarios: true,
     materiales: true,
     viaticos: true,
@@ -67,8 +68,9 @@ const COLUMNAS_CONFIG: {
     { key: 'tipoServicio', label: 'Tipo de Servicio',   fields: ['Categoría'] },
     { key: 'categoria',    label: 'Categoría / Equipo', fields: ['Subcategoría', 'Elemento'] },
     { key: 'falla',        label: 'Acción / Falla',     fields: ['Acción'] },
-    { key: 'descripcion',  label: 'Descripción',        fields: ['Descripción'] },
-    { key: 'comentarios',  label: 'Comentarios',        fields: ['Último Comentario'] },
+    { key: 'descripcion',  label: 'Descripción',                   fields: ['Descripción'] },
+    { key: 'resolucion',   label: 'Resolución / Trabajo Realizado', fields: ['Resolución / Trabajo Realizado'] },
+    { key: 'comentarios',  label: 'Comentarios',                   fields: ['Último Comentario'] },
     { key: 'materiales',   label: 'Materiales',         fields: ['Materiales Usados'] },
     { key: 'viaticos',     label: 'Viáticos',           fields: ['Viáticos Total', 'Detalle Viáticos'] },
 ];
@@ -89,8 +91,9 @@ const COL_WIDTHS: Record<string, number> = {
     'Acción':            18,
     'Fecha Creación':    14,
     'Fecha Resolución':  14,
-    'Descripción':       40,
-    'Materiales Usados': 28,
+    'Descripción':                   40,
+    'Resolución / Trabajo Realizado': 50,
+    'Materiales Usados':             28,
     'Viáticos Total':    13,
     'Detalle Viáticos':  30,
     'Último Comentario': 40,
@@ -98,7 +101,7 @@ const COL_WIDTHS: Record<string, number> = {
 
 // Campos que tienen texto largo y deben wrap en Excel
 const WRAP_FIELDS = new Set<keyof TicketMaestroRow>([
-    'Descripción', 'Materiales Usados', 'Detalle Viáticos', 'Último Comentario',
+    'Descripción', 'Resolución / Trabajo Realizado', 'Materiales Usados', 'Detalle Viáticos', 'Último Comentario',
 ]);
 
 /** Convierte índice de columna (1-based) a letra(s) Excel: 1→A, 28→AB */

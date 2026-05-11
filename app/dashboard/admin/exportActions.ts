@@ -42,6 +42,7 @@ export interface ColumnasVisibles {
     categoria: boolean;
     falla: boolean;
     descripcion: boolean;
+    resolucion: boolean;
     comentarios: boolean;
     materiales: boolean;
     viaticos: boolean;
@@ -64,6 +65,7 @@ export interface TicketMaestroRow {
     'Fecha Creación': string;
     'Fecha Resolución': string;
     'Descripción': string;
+    'Resolución / Trabajo Realizado': string;
     'Materiales Usados': string;
     'Viáticos Total': string;
     'Detalle Viáticos': string;
@@ -140,6 +142,7 @@ export async function exportTicketsMaestroAction(
             numero_ticket,
             titulo,
             descripcion,
+            notas_cierre,
             estado,
             prioridad,
             fecha_creacion,
@@ -176,23 +179,28 @@ export async function exportTicketsMaestroAction(
         return { error: `Error obteniendo tickets: ${ticketsError?.message ?? 'Sin datos'}` };
     }
 
-    // ── 3. Movimientos de inventario ──────────────────────────────────────────
+    // ── 3. Materiales insumidos (estado Operativo + ticket_id vinculado) ────────
+    // Fuente: inventario con estado='Operativo' y ticket_id vinculado.
+    // Equivale exactamente a lo que aparece en el PDF del Acta de Cierre.
+    // No usa movimientos_inventario para evitar contar material pedido pero devuelto.
     const ticketIds = tickets.map(t => t.id);
 
-    const { data: movimientos } = ticketIds.length > 0
+    const { data: insumidos } = ticketIds.length > 0
         ? await supabase
-            .from('movimientos_inventario')
-            .select(`ticket_id, cantidad, tipo_movimiento, inventario(modelo)`)
+            .from('inventario')
+            .select('ticket_id, modelo, cantidad, es_serializado')
             .in('ticket_id', ticketIds)
-            .eq('tipo_movimiento', 'salida')
+            .eq('estado', 'Operativo')
         : { data: [] };
 
     const movimientosByTicket: Record<string, string[]> = {};
-    for (const mov of movimientos ?? []) {
-        if (!mov.ticket_id) continue;
-        const modelo = (mov.inventario as any)?.modelo ?? 'Hardware s/n';
-        if (!movimientosByTicket[mov.ticket_id]) movimientosByTicket[mov.ticket_id] = [];
-        movimientosByTicket[mov.ticket_id].push(`${mov.cantidad}x ${modelo}`);
+    for (const item of insumidos ?? []) {
+        if (!item.ticket_id) continue;
+        const label = item.es_serializado
+            ? `1x ${item.modelo}`
+            : `${item.cantidad}x ${item.modelo}`;
+        if (!movimientosByTicket[item.ticket_id]) movimientosByTicket[item.ticket_id] = [];
+        movimientosByTicket[item.ticket_id].push(label);
     }
 
     // ── 4. Mapear a filas planas ───────────────────────────────────────────────
@@ -246,6 +254,8 @@ export async function exportTicketsMaestroAction(
                 ? new Date(ticket.fecha_resolucion).toLocaleDateString('es-CL') : '—',
             'Descripción':      ticket.descripcion
                 ? stripHtml(ticket.descripcion).slice(0, 500) : '—',
+            'Resolución / Trabajo Realizado': (ticket as any).notas_cierre
+                ? ((ticket as any).notas_cierre as string).slice(0, 1000) : '—',
             'Materiales Usados': materiales,
             'Viáticos Total':   totalViaticos > 0
                 ? `$${totalViaticos.toLocaleString('es-CL')}` : '$0',
