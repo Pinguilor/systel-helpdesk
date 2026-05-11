@@ -435,7 +435,7 @@ export default function TicketTimeline({ ticket, messages, currentUserId, isAgen
                             )}
                         </div>
                     ) : (
-                        <form onSubmit={(e) => handleSendMessage(e, false)} className="relative flex flex-col gap-2">
+                        <form onSubmit={handleSendMessage} className="relative flex flex-col gap-2">
                             {selectedFiles.length > 0 && (
                                 <div className="flex flex-wrap gap-2 bg-gray-50 p-2 rounded-lg border border-gray-100 mb-1">
                                     {selectedFiles.map((f, i) => (
