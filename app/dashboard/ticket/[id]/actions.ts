@@ -28,7 +28,6 @@ export async function addTicketMessageAction(formData: FormData) {
 
     const ticketId = formData.get('ticketId') as string;
     const message = formData.get('message') as string;
-    const resolveTicket = formData.get('resolveTicket') === 'true';
     const esInterno = formData.get('esInterno') === 'true';
     const rawMessyText = message.replace(/(<([^>]+)>)/gi, "").trim();
     const adjuntos = formData.getAll('adjuntos') as File[];
@@ -111,20 +110,6 @@ export async function addTicketMessageAction(formData: FormData) {
         return { error: 'Error interno al enviar el mensaje.' };
     }
 
-    if (resolveTicket) {
-        const { error: updateError } = await supabase
-            .from('tickets')
-            .update({ estado: 'resuelto', fecha_resolucion: new Date().toISOString() })
-            .eq('id', ticketId)
-            .select()
-            .single();
-
-        if (updateError) {
-            console.error('Error auto-resolving ticket:', updateError);
-            return { error: `Mensaje enviado, pero falló la reasignación de estado a Resuelto: ${updateError.message}` };
-        }
-    }
-
     // --- NOTIFICATION LOGIC ---
     // Condición crítica: mensajes internos (es_interno = true) NUNCA notifican al cliente.
     if (!esInterno) {
@@ -193,6 +178,11 @@ export async function updateTicketPropertiesAction(ticketId: string, updates: { 
     }
 
     if (Object.keys(updates).length === 0) return { success: true };
+
+    // Bloquear cierre rápido: 'resuelto' solo se permite via closeTicketWithActaAction
+    if (updates.estado === 'resuelto') {
+        return { error: 'El estado "Resuelto" fue eliminado. Usa el flujo "Generar Acta y Cierre" para cerrar tickets.' };
+    }
 
     if (updates.estado === 'esperando_agente') {
         updates.agente_asignado_id = null;

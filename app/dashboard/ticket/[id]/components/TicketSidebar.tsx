@@ -59,7 +59,6 @@ export default function TicketSidebar({ ticket, isAgent, isAdmin, userRole = 'us
         { id: 'pendiente', label: 'Pendiente', color: 'bg-orange-100 text-orange-700 border-orange-200', icon: Clock },
         { id: 'programado', label: 'Programado', color: 'bg-purple-100 text-purple-700 border-purple-200', icon: Calendar },
         { id: 'en_progreso', label: 'En Progreso', color: 'bg-indigo-100 text-indigo-700 border-indigo-200', icon: Activity },
-        { id: 'resuelto', label: 'Resuelto', color: 'bg-blue-100 text-blue-700 border-blue-200', icon: CheckCircle2 },
         { id: 'cerrado', label: 'Cerrado', color: 'bg-green-100 text-green-800 border-green-200', icon: CheckCircle2 },
         { id: 'anulado', label: 'Anulado', color: 'bg-red-100 text-red-700 border-red-200 shadow-sm ring-1 ring-red-300', icon: XCircle }
     ];
@@ -296,7 +295,7 @@ export default function TicketSidebar({ ticket, isAgent, isAdmin, userRole = 'us
                                     <div className="absolute z-40 mt-2 w-full bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden py-1.5 ring-1 ring-black/5 animate-in fade-in zoom-in-95 duration-100">
                                         {statuses.filter(s => {
                                             if (s.id === 'cerrado') return false;
-                                            if (isAgent && !isAdmin && ['anulado', 'esperando_agente', 'programado', 'resuelto'].includes(s.id)) return false;
+                                            if (isAgent && !isAdmin && ['anulado', 'esperando_agente', 'programado'].includes(s.id)) return false;
                                             return true;
                                         }).map(s => {
                                             const Icon = s.icon;

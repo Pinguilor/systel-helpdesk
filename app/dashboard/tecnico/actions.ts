@@ -113,11 +113,15 @@ export async function getTechnicianMochilaGroupedAction(): Promise<
         if (mochilaError) throw new Error(mochilaError.message);
         if (!mochila) return { error: 'NO_MOCHILA' };
 
-        // Leer ticket_id directamente desde el row de inventario (fuente primaria post-patch)
+        // Leer ticket_id directamente desde el row de inventario (fuente primaria post-patch).
+        // Excluir 'Operativo': items instalados en terreno (ticket cerrado via Acta) cuyo
+        // bodega_id no se actualizó al local del cliente — son datos inconsistentes que
+        // no deben aparecer en la gestión activa de la mochila.
         const { data: inventario, error: invError } = await supabase
             .from('inventario')
             .select('id, modelo, familia, es_serializado, numero_serie, cantidad, ticket_id, fecha_limite_devolucion')
             .eq('bodega_id', mochila.id)
+            .neq('estado', 'Operativo')
             .gt('cantidad', 0);
 
         if (invError) throw new Error(invError.message);

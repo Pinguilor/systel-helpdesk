@@ -99,7 +99,7 @@ export default function TicketTimeline({ ticket, messages, currentUserId, isAgen
     const [rating, setRating] = useState(0);
     const [feedback, setFeedback] = useState('');
 
-    const handleSendMessage = async (e: React.FormEvent, resolveTicket: boolean = false) => {
+    const handleSendMessage = async (e: React.FormEvent) => {
         e.preventDefault();
         const rawText = newMessage.replace(/(<([^>]+)>)/gi, "").trim();
         if ((!rawText && selectedFiles.length === 0) || isSubmitting) return;
@@ -110,7 +110,6 @@ export default function TicketTimeline({ ticket, messages, currentUserId, isAgen
             const formData = new FormData();
             formData.append('ticketId', ticket.id);
             formData.append('message', newMessage);
-            formData.append('resolveTicket', resolveTicket ? 'true' : 'false');
             formData.append('esInterno', isInternalNote ? 'true' : 'false');
             selectedFiles.forEach(file => {
                 formData.append('adjuntos', file);
