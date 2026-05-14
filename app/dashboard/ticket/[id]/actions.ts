@@ -6,9 +6,10 @@ import { TicketStatus } from '@/types/database.types';
 import { sendTicketResolvedEmail } from '@/lib/sendEmail';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
-// Estado canónico para ítems de inventario en uso/consumidos por un técnico.
-// Reemplaza los fósiles 'En Tránsito', 'en_transito', 'En Transito' del sistema anterior.
-const ESTADO_OPERATIVO = 'Operativo';
+// Estado canónico para ítems instalados en terreno (bodega_id = local del cliente).
+const ESTADO_OPERATIVO  = 'Operativo';
+// Estado para ítems apartados por el técnico para un ticket (aún en su mochila/bodega origen).
+const ESTADO_EN_PROCESO = 'En proceso';
 const ALLOWED_TYPES = [
     'application/pdf',
     'image/jpeg',
@@ -588,7 +589,7 @@ export async function assignMaterialAction(ticketId: string, inventarioId: strin
     if (originalItem.es_serializado || originalItem.cantidad === cantidad) {
         // Mover todo
         const { error: moveError } = await supabase.from('inventario')
-            .update({ estado: ESTADO_OPERATIVO, ticket_id: ticketId })
+            .update({ estado: ESTADO_EN_PROCESO, ticket_id: ticketId })
             .eq('id', originalItem.id)
             .select().single();
 
@@ -607,7 +608,7 @@ export async function assignMaterialAction(ticketId: string, inventarioId: strin
             familia: originalItem.familia,
             es_serializado: false,
             numero_serie: null,
-            estado: ESTADO_OPERATIVO,
+            estado: ESTADO_EN_PROCESO,
             cantidad: cantidad,
             ticket_id: ticketId
         };
@@ -699,7 +700,7 @@ export async function assignMaterialsBatchAction(
         if (originalItem.es_serializado || originalItem.cantidad === cantidad) {
             // Al consumir el ítem completo, limpiar mora pendiente (si la hay) — el reloj muere con el stock.
             const { error: moveError } = await supabase.from('inventario')
-                .update({ estado: ESTADO_OPERATIVO, ticket_id: ticketId, fecha_limite_devolucion: null } as any)
+                .update({ estado: ESTADO_EN_PROCESO, ticket_id: ticketId, fecha_limite_devolucion: null } as any)
                 .eq('id', originalItem.id).select().single();
             if (moveError) return { error: `Error moviendo "${originalItem.modelo}": ${moveError.message}` };
         } else {
@@ -713,7 +714,7 @@ export async function assignMaterialsBatchAction(
                 familia:       originalItem.familia,
                 es_serializado: false,
                 numero_serie:  null,
-                estado:        ESTADO_OPERATIVO,
+                estado:        ESTADO_EN_PROCESO,
                 cantidad,
                 ticket_id:     ticketId,
             };
@@ -825,13 +826,13 @@ export async function closeTicketWithActaAction(
         const restaurante = Array.isArray(ticketData?.restaurantes) ? ticketData?.restaurantes[0] : ticketData?.restaurantes;
         const bodegaId = restaurante?.bodega_id;
 
-        // Capturar SOLO los materiales consumidos (En Tránsito) ANTES de que la logística limpie ticket_id.
-        // Los sobrantes (Disponible) quedan en mochila y NO deben aparecer en el Acta.
+        // Capturar SOLO los materiales apartados (En proceso) ANTES de que la logística los mueva al local.
+        // Los sobrantes (Disponible + ticket_id en mochila) NO deben aparecer en el Acta.
         const { data: mochilaSnapshot } = await supabase
             .from('inventario')
             .select('modelo, familia, cantidad, es_serializado, numero_serie')
             .eq('ticket_id', ticketId)
-            .eq('estado', ESTADO_OPERATIVO);
+            .eq('estado', ESTADO_EN_PROCESO);
 
         // 2. Actualización Logística (Inventario + Movimientos)
         if (bodegaId) {
@@ -857,13 +858,13 @@ export async function closeTicketWithActaAction(
                     .select('id, cantidad, bodega_id')
                     .in('id', inventarioIds);
 
-                // Mover al local y marcar como operativo.
-                // Solo los consumidos (En Tránsito) se mueven; sobrantes quedan en mochila.
+                // Mover al local y marcar como Operativo (instalado).
+                // Solo los apartados (En proceso) se mueven; sobrantes (Disponible) quedan en mochila.
                 // ticket_id se preserva para que la packing list pueda contarlos post-cierre.
                 const { error: invError } = await supabase.from('inventario')
                     .update({ estado: ESTADO_OPERATIVO, bodega_id: bodegaId })
                     .in('id', inventarioIds)
-                    .eq('estado', ESTADO_OPERATIVO);
+                    .eq('estado', ESTADO_EN_PROCESO);
 
                 if (invError) throw new Error(`Error en actualización logística: ${invError.message}`);
 
@@ -886,14 +887,14 @@ export async function closeTicketWithActaAction(
                     }
                 }
             } else {
-                // Fallback: flujo legacy por ticket_id + estado Operativo (consumido)
+                // Fallback: flujo legacy por ticket_id + estado En proceso (apartado por técnico)
                 const { data: equiposLegacy } = await supabase.from('inventario')
                     .select('id, cantidad, bodega_id')
                     .eq('ticket_id', ticketId)
-                    .eq('estado', ESTADO_OPERATIVO);
+                    .eq('estado', ESTADO_EN_PROCESO);
 
                 if (equiposLegacy && equiposLegacy.length > 0) {
-                    // ticket_id se preserva (ya filtrados a Operativo = consumidos).
+                    // ticket_id se preserva (filtrados a En proceso = en terreno, listos para instalar).
                     await supabase.from('inventario')
                         .update({ estado: ESTADO_OPERATIVO, bodega_id: bodegaId })
                         .in('id', equiposLegacy.map(e => e.id));
@@ -1186,12 +1187,12 @@ export async function smartCloseAction(formData: FormData) {
             equiposAInstalar = itemsFromForm || [];
             console.log(`${equiposAInstalar.length} equipos seleccionados por el técnico para instalar.`);
         } else {
-            // Flujo legacy: buscar por ticket_id + estado Operativo (consumido)
+            // Flujo legacy: buscar por ticket_id + estado En proceso (apartado por técnico)
             const { data: enTransito, error: invErr } = await supabase
                 .from('inventario')
                 .select('id, cantidad, bodega_id, estado, ticket_id')
                 .eq('ticket_id', ticketId)
-                .eq('estado', ESTADO_OPERATIVO);
+                .eq('estado', ESTADO_EN_PROCESO);
 
             if (invErr) throw new Error(`Error al buscar inventario en tránsito: ${invErr.message}`);
             equiposAInstalar = enTransito || [];
@@ -1519,12 +1520,14 @@ export async function anularTicketAction(ticketId: string, motivo: string) {
             return { error: `Error BD al actualizar estado a anulado: ${updateError.message}` };
         }
 
-        // 2. Efecto Dominó: liberar inventario reservado (estado 'Operativo' + ticket_id) a 'Disponible'
+        // 2. Efecto Dominó: liberar TODO el inventario amarrado a este ticket.
+        //    - 'En proceso': apartado por el técnico (assignMaterial) pero no instalado.
+        //    - 'Disponible': despachado a mochila (vía RPC) pero nunca asignado al ticket.
         const { data: inventarioTransito, error: invTransitoError } = await supabase
             .from('inventario')
             .select('id, bodega_id, estado, cantidad')
             .eq('ticket_id', ticketId)
-            .eq('estado', ESTADO_OPERATIVO);
+            .in('estado', [ESTADO_EN_PROCESO, 'Disponible']);
 
         if (invTransitoError) {
             console.error('Error detallado buscando inventario en tránsito:', invTransitoError);
@@ -1677,6 +1680,7 @@ export async function crearSolicitudMaterialAction(
                     .not('fecha_limite_devolucion', 'is', null)
                     .lt('fecha_limite_devolucion', ahora)
                     .gt('cantidad', 0)
+                    .neq('estado', 'Operativo')
                     .limit(1);
 
                 if (vencidos && vencidos.length > 0) {
