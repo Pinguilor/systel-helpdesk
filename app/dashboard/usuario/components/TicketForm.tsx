@@ -100,6 +100,7 @@ export function TicketForm({ onClose }: Props) {
     const [acciones, setAcciones] = useState<any[]>([]);
     const [zonas, setZonas] = useState<Zona[]>([]);
     const [isLoadingCatalog, setIsLoadingCatalog] = useState(true);
+    const [isLoadingTipos, setIsLoadingTipos] = useState(false);
 
     // Cascading selection state
     const [selectedTipoServicioId, setSelectedTipoServicioId] = useState<string>('');
@@ -110,7 +111,8 @@ export function TicketForm({ onClose }: Props) {
     // Priority state
     const [prioridad, setPrioridad] = useState<string>('media');
 
-    // Fetch master data on mount (incluye cliente_id para aislamiento multi-tenant)
+    // Fetch master data on mount: solo zonas y cliente_id del usuario.
+    // ticket_tipos_servicio se carga al seleccionar restaurante (filtrado por cliente_id).
     useEffect(() => {
         async function fetchMasterData() {
             setIsLoadingCatalog(true);
@@ -127,15 +129,14 @@ export function TicketForm({ onClose }: Props) {
                     setClienteId((profile as any)?.cliente_id ?? null);
                 }
 
-                const [ts, zs] = await Promise.all([
-                    supabase.from('ticket_tipos_servicio').select('id, nombre').eq('activo', true).order('nombre'),
-                    supabase.from('zonas').select('*').eq('activo', true)
-                ]);
+                const { data: zs } = await supabase
+                    .from('zonas')
+                    .select('*')
+                    .eq('activo', true);
 
-                if (ts.data) setTiposServicio(ts.data);
-                if (zs.data) setZonas(zs.data);
+                if (zs) setZonas(zs);
             } catch (error) {
-                console.error('Error fetching catalog data:', error);
+                console.error('Error fetching master data:', error);
             } finally {
                 setIsLoadingCatalog(false);
             }
@@ -143,6 +144,40 @@ export function TicketForm({ onClose }: Props) {
 
         fetchMasterData();
     }, []);
+
+    // Cuando cambia el restaurante seleccionado, recargar los tipos de servicio
+    // filtrados por el cliente_id del restaurante. Reset completo de la cascada.
+    useEffect(() => {
+        setTiposServicio([]);
+        setCategorias([]);
+        setSubcategorias([]);
+        setAcciones([]);
+        setSelectedTipoServicioId('');
+        setSelectedCategoriaId('');
+        setSelectedSubcategoriaId('');
+        setSelectedAccionId('');
+
+        if (!selectedRestaurant) return;
+
+        const clienteIdRestaurante = (selectedRestaurant as any).cliente_id;
+        if (!clienteIdRestaurante) return;
+
+        async function fetchTiposServicio() {
+            setIsLoadingTipos(true);
+            const supabase = createClient();
+            const { data } = await supabase
+                .from('ticket_tipos_servicio')
+                .select('id, nombre')
+                .eq('cliente_id', clienteIdRestaurante)
+                .eq('activo', true)
+                .order('nombre');
+
+            if (data) setTiposServicio(data);
+            setIsLoadingTipos(false);
+        }
+
+        fetchTiposServicio();
+    }, [selectedRestaurant]);
 
     // Reactive fetch for Categorías based on selected Tipo de Servicio
     useEffect(() => {
@@ -456,21 +491,28 @@ export function TicketForm({ onClose }: Props) {
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
 
-                            {/* A. Tipo de Servicio */}
+                            {/* A. Tipo de Servicio — bloqueado hasta elegir restaurante */}
                             <div>
                                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">Tipo de Servicio</label>
                                 <CustomSelect
                                     id="tipo_servicio_id"
                                     required
+                                    disabled={!selectedRestaurant || isLoadingTipos}
                                     value={selectedTipoServicioId}
                                     onChange={(val) => {
                                         setSelectedTipoServicioId(val);
-                                        setSelectedCategoriaId(''); // Cascada: Nivel 2 Reset
-                                        setSelectedSubcategoriaId(''); // Cascada: Nivel 3 Reset
-                                        setSelectedAccionId(''); // Cascada: Nivel 4 Reset
+                                        setSelectedCategoriaId('');
+                                        setSelectedSubcategoriaId('');
+                                        setSelectedAccionId('');
                                     }}
                                     options={tiposServicio.map(t => ({ value: t.id, label: t.nombre }))}
-                                    placeholder="Seleccione el tipo general..."
+                                    placeholder={
+                                        isLoadingTipos
+                                            ? 'Cargando catálogo...'
+                                            : !selectedRestaurant
+                                                ? 'Primero seleccione un restaurante'
+                                                : 'Seleccione el tipo general...'
+                                    }
                                 />
                             </div>
 
