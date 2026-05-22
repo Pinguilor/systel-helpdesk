@@ -166,16 +166,16 @@ export function AdminTicketList({ initialTickets, currentAgentId, agentName }: P
 
 
             {/* VISTA DE ESCRITORIO (Tabla) */}
-            <div className="hidden md:block overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
+            <div className="hidden md:block overflow-hidden">
+                <table className="w-full table-fixed divide-y divide-gray-200">
                     <thead className="bg-gray-50/50">
                         <tr>
-                            <th scope="col" className="pl-6 pr-3 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">ID / Fecha</th>
-                            <th scope="col" className="pl-3 pr-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Usuario</th>
-                            <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Cliente</th>
+                            <th scope="col" className="pl-6 pr-3 py-4 w-36 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">ID / Fecha</th>
+                            <th scope="col" className="pl-3 pr-6 py-4 w-56 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Usuario</th>
+                            <th scope="col" className="px-6 py-4 w-44 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Cliente</th>
                             <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Asunto</th>
-                            <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Prioridad</th>
-                            <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Estado</th>
+                            <th scope="col" className="px-6 py-4 w-24 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Prioridad</th>
+                            <th scope="col" className="px-6 py-4 w-36 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Estado</th>
                         </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-100">
@@ -224,7 +224,7 @@ export function AdminTicketList({ initialTickets, currentAgentId, agentName }: P
                                                 {ticket.profiles?.full_name?.charAt(0).toUpperCase() || 'U'}
                                             </div>
                                             <div className="ml-3 min-w-0">
-                                                <div className="text-sm font-medium text-gray-900 truncate max-w-[180px]" title={ticket.profiles?.full_name || 'Desconocido'}>
+                                                <div className="text-sm font-medium text-gray-900 truncate" title={ticket.profiles?.full_name || 'Desconocido'}>
                                                     {ticket.profiles?.full_name || 'Desconocido'}
                                                 </div>
                                             </div>
@@ -252,8 +252,8 @@ export function AdminTicketList({ initialTickets, currentAgentId, agentName }: P
                                         )}
                                     </td>
 
-                                    <td className="px-6 py-4 max-w-xs">
-                                        <div className="text-sm font-bold text-gray-900 mb-1.5 truncate group-hover:text-emerald-600 transition-colors">
+                                    <td className="px-6 py-4 overflow-hidden">
+                                        <div className="text-sm font-bold text-gray-900 mb-1.5 truncate group-hover:text-emerald-600 transition-colors" title={ticket.titulo}>
                                             {ticket.titulo}
                                         </div>
                                         <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium whitespace-nowrap overflow-hidden text-ellipsis">

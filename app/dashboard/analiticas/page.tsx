@@ -1,7 +1,8 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import AnalyticsCharts from './components/AnalyticsCharts';
-import { AreaChart, Sparkles } from 'lucide-react';
+import { AreaChart, ChevronLeft, ChevronRight } from 'lucide-react';
+import Link from 'next/link';
 
 export default async function AnaliticasPage() {
     const supabase = await createClient();
@@ -37,19 +38,37 @@ export default async function AnaliticasPage() {
 
     return (
         <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-6">
-            <div className="flex items-center gap-4 pb-4 border-b border-gray-200">
-                <div className="p-3 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-xl shadow-md text-white shrink-0">
-                    <AreaChart className="w-6 h-6" />
-                </div>
-                <div>
-                    <h1 className="text-2xl font-black text-slate-900 flex items-center gap-2 tracking-tight">
-                        Análisis y Reportes <Sparkles className="w-5 h-5 text-amber-400" />
-                    </h1>
-                    <p className="text-sm text-slate-400 font-medium mt-0.5">
-                        {userRole !== 'USUARIO'
-                            ? 'Visión global de todas las solicitudes en la plataforma.'
-                            : 'Métricas y estadísticas sobre tus solicitudes.'}
-                    </p>
+
+            {/* Breadcrumb */}
+            <nav className="flex items-center gap-2 text-sm">
+                <Link
+                    href={userRole === 'USUARIO' ? '/dashboard/usuario' : '/dashboard/admin'}
+                    className="inline-flex items-center gap-1 text-slate-400 hover:text-slate-600 transition-colors font-medium"
+                >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                    Inicio
+                </Link>
+                <ChevronRight className="w-3.5 h-3.5 text-slate-300" />
+                <span className="font-black text-slate-700">Análisis y Reportes</span>
+            </nav>
+
+            {/* Header — mismo patrón que Trazabilidad */}
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+                <div className="flex items-center gap-3">
+                    <div className="p-3 bg-indigo-100 rounded-2xl">
+                        <AreaChart className="w-7 h-7 text-indigo-600" />
+                    </div>
+                    <div>
+                        <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Reportería</p>
+                        <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+                            Análisis y Reportes
+                        </h1>
+                        <p className="text-sm text-slate-500 mt-0.5">
+                            {userRole !== 'USUARIO'
+                                ? 'Visión global de todas las solicitudes en la plataforma.'
+                                : 'Métricas y estadísticas sobre tus solicitudes.'}
+                        </p>
+                    </div>
                 </div>
             </div>
 

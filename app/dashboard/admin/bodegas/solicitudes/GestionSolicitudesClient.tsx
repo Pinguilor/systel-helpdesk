@@ -3,10 +3,11 @@
 import React, { useState, useTransition, useRef, useEffect, useCallback, useMemo } from 'react';
 import {
     CheckCircle2, XCircle, Clock, PackageCheck, Hash, Layers,
-    Loader2, AlertCircle, ChevronRight, Warehouse, User,
+    Loader2, AlertCircle, ChevronRight, ChevronLeft, Warehouse, User,
     TicketIcon, AlertTriangle, Package, Undo2, PenLine,
     ExternalLink, X, ShieldCheck,
 } from 'lucide-react';
+import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import {
     aprobarSolicitudAction, rechazarSolicitudAction,
@@ -1107,18 +1108,31 @@ export function GestionSolicitudesClient({
     return (
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
 
-            {/* ── Page Header ─────────────────────────────────────────────── */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-950 tracking-tight flex items-center gap-3">
-                        <div className="p-2.5 bg-slate-100 text-slate-700 rounded-xl">
-                            <PackageCheck className="w-6 h-6" />
-                        </div>
-                        Gestión de Solicitudes y Devoluciones
-                    </h1>
-                    <p className="text-sm font-medium text-slate-500 mt-1">
-                        Bandeja unificada de entregas y reingresos de materiales
-                    </p>
+            {/* Breadcrumb */}
+            <nav className="flex items-center gap-2 text-sm">
+                <Link href="/dashboard/admin" className="inline-flex items-center gap-1 text-slate-400 hover:text-slate-600 transition-colors font-medium">
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                    Inicio
+                </Link>
+                <ChevronRight className="w-3.5 h-3.5 text-slate-300" />
+                <span className="font-black text-slate-700">Solicitudes</span>
+            </nav>
+
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+                <div className="flex items-center gap-3">
+                    <div className="p-3 bg-emerald-100 rounded-2xl">
+                        <PackageCheck className="w-7 h-7 text-emerald-600" />
+                    </div>
+                    <div>
+                        <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Logística</p>
+                        <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+                            Solicitudes y Devoluciones
+                        </h1>
+                        <p className="text-sm text-slate-500 mt-0.5">
+                            Bandeja unificada de entregas y reingresos de materiales
+                        </p>
+                    </div>
                 </div>
                 <button onClick={handleRefresh}
                     className="self-start sm:self-auto flex items-center gap-2 px-4 py-2 text-xs font-bold text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors bg-white shadow-sm">

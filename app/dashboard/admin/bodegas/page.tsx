@@ -3,7 +3,8 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { redirect } from 'next/navigation';
 import { BodegasTable } from './components/BodegasTable';
 import { AddStockModal } from './components/AddStockModal';
-import { Box } from 'lucide-react';
+import { Box, ChevronLeft, ChevronRight } from 'lucide-react';
+import Link from 'next/link';
 
 export const dynamic = 'force-dynamic';
 
@@ -94,15 +95,32 @@ export default async function BodegasPage() {
 
     return (
         <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-6">
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-                <div>
-                    <h1 className="text-3xl font-black text-slate-900 flex items-center gap-3">
-                        <Box className="w-8 h-8 text-indigo-600" />
-                        Inventario Global
-                    </h1>
-                    <p className="text-slate-500 font-medium mt-1">
-                        Supervisa y administra el inventario de las bodegas internas.
-                    </p>
+
+            {/* Breadcrumb */}
+            <nav className="flex items-center gap-2 text-sm">
+                <Link href="/dashboard/admin" className="inline-flex items-center gap-1 text-slate-400 hover:text-slate-600 transition-colors font-medium">
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                    Inicio
+                </Link>
+                <ChevronRight className="w-3.5 h-3.5 text-slate-300" />
+                <span className="font-black text-slate-700">Bodegas (Inventario)</span>
+            </nav>
+
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+                <div className="flex items-center gap-3">
+                    <div className="p-3 bg-indigo-100 rounded-2xl">
+                        <Box className="w-7 h-7 text-indigo-600" />
+                    </div>
+                    <div>
+                        <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Inventario</p>
+                        <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+                            Inventario Global
+                        </h1>
+                        <p className="text-sm text-slate-500 mt-0.5">
+                            Supervisa y administra el inventario de las bodegas internas.
+                        </p>
+                    </div>
                 </div>
                 <AddStockModal bodegas={bodegas} catalogo={catalogo} familias={familias} />
             </div>

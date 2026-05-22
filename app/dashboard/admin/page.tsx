@@ -2,6 +2,8 @@ import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { AdminTicketList } from '../tecnico/components/AdminTicketList';
 import { TicketsRealtimeListener } from '../components/TicketsRealtimeListener';
+import { LayoutGrid, ChevronLeft, ChevronRight } from 'lucide-react';
+import Link from 'next/link';
 
 export default async function AdminDashboard() {
     const supabase = await createClient();
@@ -39,13 +41,34 @@ export default async function AdminDashboard() {
     }
 
     return (
-        <div className="max-w-7xl mx-auto py-8 sm:px-6 lg:px-8 space-y-8">
-            <div className="px-4 sm:px-0">
-                <p className="text-sm font-semibold text-slate-400 tracking-wide uppercase">Panel de Control</p>
-                <h1 className="text-3xl font-extrabold text-slate-950 tracking-tight">
-                    Hola, {profile?.full_name?.split(' ')[0] ?? 'Administrador'} 👋
-                </h1>
+        <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-6">
+
+            {/* Breadcrumb */}
+            <nav className="flex items-center gap-2 text-sm">
+                <Link href="/dashboard/admin" className="inline-flex items-center gap-1 text-slate-400 hover:text-slate-600 transition-colors font-medium">
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                    Inicio
+                </Link>
+                <ChevronRight className="w-3.5 h-3.5 text-slate-300" />
+                <span className="font-black text-slate-700">Vista General</span>
+            </nav>
+
+            {/* Header */}
+            <div className="flex items-center gap-3">
+                <div className="p-3 bg-indigo-100 rounded-2xl">
+                    <LayoutGrid className="w-7 h-7 text-indigo-600" />
+                </div>
+                <div>
+                    <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Panel de Control</p>
+                    <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+                        Vista General
+                    </h1>
+                    <p className="text-sm text-slate-500 mt-0.5">
+                        Hola, {profile?.full_name?.split(' ')[0] ?? 'Administrador'} — todas las solicitudes activas.
+                    </p>
+                </div>
             </div>
+
             <div className="w-full">
                 <TicketsRealtimeListener />
                 <AdminTicketList initialTickets={tickets || []} currentAgentId={user.id} />

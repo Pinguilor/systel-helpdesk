@@ -35,21 +35,21 @@ interface Props {
 
 // ─── Palettes ──────────────────────────────────────────────────────────────────
 const STATUS_META: Record<string, { label: string; color: string }> = {
-    abierto:          { label: 'Abierto',       color: '#3b82f6' },
-    en_progreso:      { label: 'En Progreso',   color: '#8b5cf6' },
-    pendiente:        { label: 'Pendiente',     color: '#f59e0b' },
-    programado:       { label: 'Programado',    color: '#a855f7' },
-    esperando_agente: { label: 'Sin Asignar',   color: '#94a3b8' },
-    resuelto:         { label: 'Resuelto',      color: '#10b981' },
-    cerrado:          { label: 'Cerrado',       color: '#1e293b' },
-    anulado:          { label: 'Anulado',       color: '#ef4444' },
+    abierto:          { label: 'Abierto',       color: '#3b82f6' },  // blue-500
+    en_progreso:      { label: 'En Progreso',   color: '#8b5cf6' },  // violet-500
+    pendiente:        { label: 'Pendiente',     color: '#fb923c' },  // orange-400
+    programado:       { label: 'Programado',    color: '#a855f7' },  // purple-500
+    esperando_agente: { label: 'Sin Asignar',   color: '#94a3b8' },  // slate-400
+    // 'resuelto' eliminado — ya no existe en el flujo de negocio
+    cerrado:          { label: 'Cerrado',       color: '#10b981' },  // emerald-500 (verde de éxito)
+    anulado:          { label: 'Anulado',       color: '#f43f5e' },  // rose-500
 };
 
 const PRIORITY_META: Record<string, { color: string; label: string }> = {
-    crítica: { color: '#ef4444', label: 'Crítica' },
-    alta:    { color: '#f97316', label: 'Alta'    },
-    media:   { color: '#f59e0b', label: 'Media'   },
-    baja:    { color: '#3b82f6', label: 'Baja'    },
+    crítica: { color: '#f43f5e', label: 'Crítica' },  // rose-500
+    alta:    { color: '#f97316', label: 'Alta'    },  // orange-500
+    media:   { color: '#eab308', label: 'Media'   },  // yellow-500 (más suave)
+    baja:    { color: '#6366f1', label: 'Baja'    },  // indigo-500
 };
 
 const PALETTE = ['#6366f1', '#8b5cf6', '#06b6d4', '#10b981', '#f59e0b', '#ec4899', '#3b82f6', '#a855f7'];
@@ -73,19 +73,19 @@ function DarkTooltip({ active, payload, label }: any) {
 }
 
 // ─── Sub-components ────────────────────────────────────────────────────────────
-function KPICard({ icon, bg, label, value, sub }: {
-    icon: React.ReactNode; bg: string; label: string; value: string | number; sub: string;
+function KPICard({ icon, bg, label, value, sub, valueColor = 'text-slate-900' }: {
+    icon: React.ReactNode; bg: string; label: string; value: string | number; sub: string; valueColor?: string;
 }) {
     return (
-        <div className="bg-white rounded-2xl border border-slate-100 p-5 flex flex-col gap-3 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 duration-200">
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${bg}`}>
+        <div className="bg-white rounded-2xl border border-slate-100 p-5 flex items-start gap-4 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
+            <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${bg}`}>
                 {icon}
             </div>
-            <div>
-                <p className="text-2xl font-black text-slate-900 tracking-tight leading-none">{value}</p>
-                <p className="text-xs font-bold text-slate-600 mt-1.5">{label}</p>
+            <div className="min-w-0">
+                <p className="text-xs font-black text-slate-500 uppercase tracking-widest mb-0.5">{label}</p>
+                <p className={`text-2xl font-black leading-tight truncate ${valueColor}`}>{value}</p>
+                <p className="text-[11px] text-slate-400 font-medium mt-0.5 leading-tight">{sub}</p>
             </div>
-            <p className="text-[11px] text-slate-400 font-medium leading-tight">{sub}</p>
         </div>
     );
 }
@@ -95,13 +95,13 @@ function ChartCard({ title, icon, bg, subtitle, children, className = '' }: {
     subtitle?: string; children: React.ReactNode; className?: string;
 }) {
     return (
-        <div className={`bg-white rounded-2xl border border-slate-100 p-6 shadow-sm hover:shadow-md transition-all duration-200 ${className}`}>
+        <div className={`bg-white rounded-2xl border border-slate-100 p-6 transition-all duration-200 ${className}`}>
             <div className="flex items-start gap-3 mb-5">
                 <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${bg}`}>
                     {icon}
                 </div>
                 <div>
-                    <h3 className="text-sm font-black text-slate-800 leading-tight">{title}</h3>
+                    <h3 className="text-xs font-black text-slate-700 uppercase tracking-widest leading-tight">{title}</h3>
                     {subtitle && <p className="text-[11px] text-slate-400 font-medium mt-0.5">{subtitle}</p>}
                 </div>
             </div>
@@ -127,7 +127,10 @@ export default function AnalyticsCharts({ tickets, isStaff = true }: Props) {
     // ── Status donut ────────────────────────────────────────────────────────────
     const statusData = useMemo(() => {
         const counts: Record<string, number> = {};
-        tickets.forEach(t => { counts[t.estado] = (counts[t.estado] || 0) + 1; });
+        tickets.forEach(t => {
+            if (t.estado === 'resuelto') return; // eliminado del flujo
+            counts[t.estado] = (counts[t.estado] || 0) + 1;
+        });
         return Object.entries(counts)
             .map(([estado, value]) => ({
                 name:  STATUS_META[estado]?.label  ?? estado,
@@ -220,22 +223,22 @@ export default function AnalyticsCharts({ tickets, isStaff = true }: Props) {
             {/* ── ROW 1: KPI CARDS ─────────────────────────────────────────────── */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <KPICard
-                    icon={<TicketIcon className="w-4 h-4 text-indigo-600" />}
+                    icon={<TicketIcon className="w-5 h-5 text-indigo-600" />}
                     bg="bg-indigo-50"
                     label="Total Solicitudes"
                     value={kpis.total}
                     sub="Historial completo"
                 />
                 <KPICard
-                    icon={<Zap className="w-4 h-4 text-amber-600" />}
-                    bg="bg-amber-50"
+                    icon={<Zap className="w-5 h-5 text-blue-600" />}
+                    bg="bg-blue-50"
                     label="En Curso"
                     value={kpis.active}
                     sub="Requieren atención"
                 />
                 <KPICard
-                    icon={<Target className="w-4 h-4 text-emerald-600" />}
-                    bg="bg-emerald-50"
+                    icon={<Target className="w-5 h-5 text-indigo-600" />}
+                    bg="bg-indigo-50"
                     label="Tasa de Resolución"
                     value={`${kpis.rate}%`}
                     sub={`${kpis.resolved} tickets cerrados`}
@@ -246,7 +249,7 @@ export default function AnalyticsCharts({ tickets, isStaff = true }: Props) {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
 
                 {/* Status Donut */}
-                <ChartCard title="Estado de Tickets" icon={<CheckCircle2 className="w-4 h-4 text-emerald-600" />} bg="bg-emerald-50">
+                <ChartCard title="Estado de Tickets" subtitle="Distribución actual por estado" icon={<CheckCircle2 className="w-4 h-4 text-emerald-600" />} bg="bg-emerald-50">
                     <div className="flex items-center gap-6">
                         {/* Donut */}
                         <div className="relative w-44 h-44 shrink-0">
@@ -290,7 +293,7 @@ export default function AnalyticsCharts({ tickets, isStaff = true }: Props) {
                 </ChartCard>
 
                 {/* Priority Bars */}
-                <ChartCard title="Distribución por Prioridad" icon={<AlertCircle className="w-4 h-4 text-rose-500" />} bg="bg-rose-50">
+                <ChartCard title="Distribución por Prioridad" subtitle="Tickets activos e históricos" icon={<AlertCircle className="w-4 h-4 text-rose-500" />} bg="bg-rose-50">
                     <div className="flex flex-col gap-5 mt-1">
                         {Object.entries(PRIORITY_META).map(([key, meta]) => {
                             const count = tickets.filter(t => t.prioridad === key).length;
@@ -370,7 +373,7 @@ export default function AnalyticsCharts({ tickets, isStaff = true }: Props) {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
 
                 {/* Top Categories */}
-                <ChartCard title="Top Categorías de Servicio" icon={<Tag className="w-4 h-4 text-violet-600" />} bg="bg-violet-50">
+                <ChartCard title="Top Categorías de Servicio" subtitle="Por volumen de tickets generados" icon={<Tag className="w-4 h-4 text-violet-600" />} bg="bg-violet-50">
                     <div className="flex flex-col gap-4 mt-1">
                         {topCategories.map((cat, i) => (
                             <div key={i} className="flex items-center gap-3">
@@ -394,7 +397,7 @@ export default function AnalyticsCharts({ tickets, isStaff = true }: Props) {
 
                 {/* Agent Leaderboard */}
                 {isStaff && (
-                    <ChartCard title="Rendimiento por Técnico" icon={<Trophy className="w-4 h-4 text-amber-500" />} bg="bg-amber-50">
+                    <ChartCard title="Rendimiento por Técnico" subtitle="Resueltos vs asignados" icon={<Trophy className="w-4 h-4 text-amber-500" />} bg="bg-amber-50">
                         {agentStats.length === 0 ? (
                             <p className="text-sm text-slate-400 text-center py-8">Sin técnicos asignados</p>
                         ) : (
@@ -427,7 +430,7 @@ export default function AnalyticsCharts({ tickets, isStaff = true }: Props) {
 
                 {/* If not staff, show priority breakdown chart in place of leaderboard */}
                 {!isStaff && topRestaurants.length > 0 && (
-                    <ChartCard title="Mis Locales Más Activos" icon={<Building2 className="w-4 h-4 text-blue-600" />} bg="bg-blue-50">
+                    <ChartCard title="Mis Locales Más Activos" subtitle="Por volumen de tickets" icon={<Building2 className="w-4 h-4 text-blue-600" />} bg="bg-blue-50">
                         <div className="flex flex-col gap-3 mt-1">
                             {topRestaurants.slice(0, 5).map((r, i) => (
                                 <div key={i} className="flex items-center gap-3">

@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Bell, User, LogOut, Search, LayoutDashboard, Plus, X, PieChart, Settings, Briefcase, CheckCheck, Ticket, MessageSquare, Calendar, XCircle, UserPlus, CheckCircle2, ScanLine } from 'lucide-react';
+import { Bell, User, LogOut, Search, LayoutGrid, Plus, X, ChartPie, Settings, Briefcase, CheckCheck, Ticket, MessageSquare, Calendar, XCircle, UserPlus, CheckCircle2, ScanLine } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
@@ -29,7 +29,7 @@ export default function TopNav({ userFullName, userRole }: TopNavProps) {
     const lastFetchRef = useRef<number>(0);
 
     const [searchQuery, setSearchQuery] = useState('');
-    const [searchResults, setSearchResults] = useState<{ id: string, numero_ticket: number, titulo: string }[]>([]);
+    const [searchResults, setSearchResults] = useState<{ id: string, numero_ticket: number, titulo: string, restaurantes: { nombre_restaurante: string } | null }[]>([]);
     const [isSearching, setIsSearching] = useState(false);
     const [showSearchDropdown, setShowSearchDropdown] = useState(false);
 
@@ -164,7 +164,7 @@ export default function TopNav({ userFullName, userRole }: TopNavProps) {
 
             let q = supabase
                 .from('tickets')
-                .select('id, numero_ticket, titulo')
+                .select('id, numero_ticket, titulo, restaurantes(nombre_restaurante)')
                 .limit(5);
 
             if (numVal !== null && !isNaN(numVal)) {
@@ -179,7 +179,7 @@ export default function TopNav({ userFullName, userRole }: TopNavProps) {
                 if (data.length === 0 && query.length > 2 && numVal === null) {
                     const fallback = await supabase
                         .from('tickets')
-                        .select('id, numero_ticket, titulo')
+                        .select('id, numero_ticket, titulo, restaurantes(nombre_restaurante)')
                         .ilike('titulo', `%${query}%`)
                         .limit(5);
                     setSearchResults(fallback.data || []);
@@ -369,8 +369,15 @@ export default function TopNav({ userFullName, userRole }: TopNavProps) {
                                                 onClick={() => handleResultClick(ticket.id)}
                                                 className="w-full text-left px-4 py-2.5 hover:bg-gray-50 transition-colors flex items-center gap-3 border-b border-gray-50 last:border-0"
                                             >
-                                                <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded-md">NC-{ticket.numero_ticket}</span>
-                                                <span className="text-sm font-medium text-slate-700 truncate">{ticket.titulo}</span>
+                                                <span className="text-xs font-semibold bg-gray-900 text-white px-2.5 py-1 rounded-xl shrink-0">NC-{ticket.numero_ticket}</span>
+                                                <div className="flex flex-col min-w-0">
+                                                    <span className="text-sm font-medium text-slate-700 truncate">{ticket.titulo}</span>
+                                                    {(ticket.restaurantes as any)?.nombre_restaurante && (
+                                                        <span className="text-xs text-gray-500 truncate mt-0.5">
+                                                            {(ticket.restaurantes as any).nombre_restaurante}
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </button>
                                         ))
                                     )}
@@ -391,7 +398,7 @@ export default function TopNav({ userFullName, userRole }: TopNavProps) {
                     </div>
 
                     {/* DERECHA: Acciones y Perfil */}
-                    <div className="flex items-center gap-1 sm:gap-4 flex-shrink-0">
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
 
                         {/* BOTÓN CREAR PC: Visible solo en PC y si es usuario */}
                         {userRole === 'usuario' && (
@@ -406,41 +413,41 @@ export default function TopNav({ userFullName, userRole }: TopNavProps) {
 
                         <Link
                             href="/dashboard/analiticas"
-                            className={`hidden sm:flex p-2 rounded-full transition-colors items-center justify-center cursor-pointer ml-1 ${pathname === '/dashboard/analiticas' ? 'bg-white/20 text-white shadow-inner' : 'text-white/90 hover:text-white hover:bg-white/10'}`}
+                            className={`hidden sm:flex w-9 h-9 rounded-full items-center justify-center transition-all text-white ${pathname === '/dashboard/analiticas' ? 'bg-white/25 ring-1 ring-white/20 shadow-inner' : 'bg-white/10 hover:bg-white/20'}`}
                             title="Analíticas"
                         >
-                            <PieChart className="w-5 h-5" />
+                            <ChartPie size={18} strokeWidth={1.75} />
                         </Link>
 
                         {/* Trazabilidad de Materiales — solo para clientes (usuario) */}
                         {userRole === 'usuario' && (
                             <Link
                                 href="/dashboard/trazabilidad-materiales"
-                                className={`hidden sm:flex p-2 rounded-full transition-colors items-center justify-center cursor-pointer ml-1 ${pathname === '/dashboard/trazabilidad-materiales' ? 'bg-white/20 text-white shadow-inner' : 'text-white/90 hover:text-white hover:bg-white/10'}`}
+                                className={`hidden sm:flex w-9 h-9 rounded-full items-center justify-center transition-all text-white ${pathname === '/dashboard/trazabilidad-materiales' ? 'bg-white/25 ring-1 ring-white/20 shadow-inner' : 'bg-white/10 hover:bg-white/20'}`}
                                 title="Materiales Insumidos"
                             >
-                                <ScanLine className="w-5 h-5" />
+                                <ScanLine size={18} strokeWidth={1.75} />
                             </Link>
                         )}
 
                         <Link
                             href={dashboardLink}
-                            className={`hidden sm:flex p-2 rounded-full transition-colors items-center justify-center cursor-pointer ml-1 ${pathname === dashboardLink || pathname?.startsWith('/dashboard/ticket/') ? 'bg-white/20 text-white shadow-inner' : 'text-white/90 hover:text-white hover:bg-white/10'}`}
+                            className={`hidden sm:flex w-9 h-9 rounded-full items-center justify-center transition-all text-white ${pathname === dashboardLink || pathname?.startsWith('/dashboard/ticket/') ? 'bg-white/25 ring-1 ring-white/20 shadow-inner' : 'bg-white/10 hover:bg-white/20'}`}
                             title="Panel de Control"
                         >
-                            <LayoutDashboard className="w-5 h-5" />
+                            <LayoutGrid size={18} strokeWidth={1.75} />
                         </Link>
 
                         {/* Notifications Bell */}
                         <div className="relative" ref={notifRef}>
                             <button
                                 onClick={() => setIsNotifOpen(!isNotifOpen)}
-                                className="relative p-2 text-white/90 hover:text-white hover:bg-white/10 rounded-full transition-colors focus:outline-none"
+                                className={`relative w-9 h-9 rounded-full flex items-center justify-center transition-all text-white focus:outline-none ${isNotifOpen ? 'bg-white/25 ring-1 ring-white/20' : 'bg-white/10 hover:bg-white/20'}`}
                                 title="Notificaciones"
                             >
-                                <Bell className="w-5 h-5" />
+                                <Bell size={18} strokeWidth={1.75} />
                                 {unreadCount > 0 && (
-                                    <span className="absolute top-0.5 right-0.5 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-rose-500 text-[9px] font-black text-white ring-2 ring-[#0e3187] px-1 tabular-nums">
+                                    <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-rose-500 text-[9px] font-black text-white ring-2 ring-[#0e3187] px-1 tabular-nums">
                                         {unreadCount > 9 ? '9+' : unreadCount}
                                     </span>
                                 )}
@@ -554,7 +561,7 @@ export default function TopNav({ userFullName, userRole }: TopNavProps) {
                         </div>
 
                         {/* Divider PC */}
-                        <div className="h-6 w-px bg-white/20 hidden sm:block mx-1"></div>
+                        <div className="h-6 w-px bg-white/20 hidden sm:block mx-2"></div>
 
                         {/* Profile Dropdown */}
                         <div className="relative" ref={dropdownRef}>
