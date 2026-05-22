@@ -182,9 +182,9 @@ export default function TopNav({ userFullName, userRole }: TopNavProps) {
                         .select('id, numero_ticket, titulo, restaurantes(nombre_restaurante)')
                         .ilike('titulo', `%${query}%`)
                         .limit(5);
-                    setSearchResults(fallback.data || []);
+                    setSearchResults((fallback.data || []) as any);
                 } else {
-                    setSearchResults(data);
+                    setSearchResults(data as any);
                 }
             } else {
                 setSearchResults([]);
