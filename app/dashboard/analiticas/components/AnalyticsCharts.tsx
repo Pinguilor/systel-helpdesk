@@ -9,6 +9,7 @@ import {
     Ticket as TicketIcon, TrendingUp, CheckCircle2,
     AlertCircle, Target, Trophy, Building2, Tag, Zap,
 } from 'lucide-react';
+import { ACTIVE_STATES, buildStatusData, countActive, countTerminal, STATUS_META_ORDERED } from '@/lib/ticketAnalytics';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 interface EnrichedTicket {
@@ -34,26 +35,16 @@ interface Props {
 }
 
 // ─── Palettes ──────────────────────────────────────────────────────────────────
-const STATUS_META: Record<string, { label: string; color: string }> = {
-    abierto:          { label: 'Abierto',       color: '#3b82f6' },  // blue-500
-    en_progreso:      { label: 'En Progreso',   color: '#8b5cf6' },  // violet-500
-    pendiente:        { label: 'Pendiente',     color: '#fb923c' },  // orange-400
-    programado:       { label: 'Programado',    color: '#a855f7' },  // purple-500
-    esperando_agente: { label: 'Sin Asignar',   color: '#94a3b8' },  // slate-400
-    // 'resuelto' eliminado — ya no existe en el flujo de negocio
-    cerrado:          { label: 'Cerrado',       color: '#10b981' },  // emerald-500 (verde de éxito)
-    anulado:          { label: 'Anulado',       color: '#f43f5e' },  // rose-500
-};
+// STATUS_META y ACTIVE_STATES vienen de @/lib/ticketAnalytics (fuente única).
 
 const PRIORITY_META: Record<string, { color: string; label: string }> = {
     crítica: { color: '#f43f5e', label: 'Crítica' },  // rose-500
     alta:    { color: '#f97316', label: 'Alta'    },  // orange-500
-    media:   { color: '#eab308', label: 'Media'   },  // yellow-500 (más suave)
+    media:   { color: '#eab308', label: 'Media'   },  // yellow-500
     baja:    { color: '#6366f1', label: 'Baja'    },  // indigo-500
 };
 
 const PALETTE = ['#6366f1', '#8b5cf6', '#06b6d4', '#10b981', '#f59e0b', '#ec4899', '#3b82f6', '#a855f7'];
-const ACTIVE_STATES = ['abierto', 'en_progreso', 'pendiente', 'programado', 'esperando_agente'];
 
 // ─── Custom Tooltip ────────────────────────────────────────────────────────────
 function DarkTooltip({ active, payload, label }: any) {
@@ -115,30 +106,19 @@ export default function AnalyticsCharts({ tickets, isStaff = true }: Props) {
 
     // ── KPIs ────────────────────────────────────────────────────────────────────
     const kpis = useMemo(() => {
-        const total       = tickets.length;
-        const active      = tickets.filter(t => ACTIVE_STATES.includes(t.estado)).length;
-        const resolved    = tickets.filter(t => ['resuelto', 'cerrado'].includes(t.estado)).length;
-        const rate        = total > 0 ? Math.round((resolved / total) * 100) : 0;
-        const criticos    = tickets.filter(t => t.prioridad === 'crítica' && ACTIVE_STATES.includes(t.estado)).length;
+        const total    = tickets.length;
+        const active   = countActive(tickets);
+        const resolved = countTerminal(tickets);
+        const rate     = total > 0 ? Math.round((resolved / total) * 100) : 0;
+        const criticos = tickets.filter(
+            t => t.prioridad === 'crítica' && (ACTIVE_STATES as readonly string[]).includes(t.estado)
+        ).length;
 
         return { total, active, resolved, rate, criticos };
     }, [tickets]);
 
-    // ── Status donut ────────────────────────────────────────────────────────────
-    const statusData = useMemo(() => {
-        const counts: Record<string, number> = {};
-        tickets.forEach(t => {
-            if (t.estado === 'resuelto') return; // eliminado del flujo
-            counts[t.estado] = (counts[t.estado] || 0) + 1;
-        });
-        return Object.entries(counts)
-            .map(([estado, value]) => ({
-                name:  STATUS_META[estado]?.label  ?? estado,
-                value,
-                color: STATUS_META[estado]?.color  ?? '#94a3b8',
-            }))
-            .sort((a, b) => b.value - a.value);
-    }, [tickets]);
+    // ── Status donut — pre-filled con todos los estados en 0 ───────────────────
+    const statusData = useMemo(() => buildStatusData(tickets), [tickets]);
 
     // ── Monthly trend (last 6 months) ───────────────────────────────────────────
     const monthlyData = useMemo(() => {

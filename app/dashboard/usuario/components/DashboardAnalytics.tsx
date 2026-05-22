@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Ticket } from '@/types/database.types';
 import { LayoutDashboard, CheckCircle2, Clock, X, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
+import { countActive, countTerminal } from '@/lib/ticketAnalytics';
 
 interface Props {
     tickets: Ticket[];
@@ -12,9 +13,11 @@ interface Props {
 export function DashboardKPIs({ tickets }: Props) {
     const [activeModal, setActiveModal] = useState<'total' | 'activos' | 'resueltos' | null>(null);
 
-    const totalTickets = tickets;
-    const resolvedTickets = tickets.filter(t => t.estado === 'resuelto' || t.estado === 'cerrado');
-    const openTickets = tickets.filter(t => t.estado !== 'resuelto' && t.estado !== 'cerrado');
+    const totalTickets    = tickets;
+    const activeCount     = countActive(tickets);
+    const resolvedCount   = countTerminal(tickets);
+    const openTickets     = tickets.filter(t => countActive([t]) > 0);
+    const resolvedTickets = tickets.filter(t => countTerminal([t]) > 0);
 
     const getModalData = () => {
         if (activeModal === 'total') return { title: 'Total Solicitudes', data: totalTickets };
@@ -46,7 +49,7 @@ export function DashboardKPIs({ tickets }: Props) {
                     </div>
                     
                     <div className="relative z-10 w-full">
-                        <span className="text-xl sm:text-3xl font-black text-slate-800 group-hover:text-indigo-600 transition-colors tracking-tight block leading-none">{totalTickets.length}</span>
+                        <span className="text-xl sm:text-3xl font-black text-slate-800 group-hover:text-indigo-600 transition-colors tracking-tight block leading-none">{tickets.length}</span>
                     </div>
                 </button>
 
@@ -67,7 +70,7 @@ export function DashboardKPIs({ tickets }: Props) {
                     </div>
                     
                     <div className="relative z-10 w-full">
-                        <span className="text-xl sm:text-3xl font-black text-slate-800 group-hover:text-amber-500 transition-colors tracking-tight block leading-none">{openTickets.length}</span>
+                        <span className="text-xl sm:text-3xl font-black text-slate-800 group-hover:text-amber-500 transition-colors tracking-tight block leading-none">{activeCount}</span>
                     </div>
                 </button>
 
@@ -88,7 +91,7 @@ export function DashboardKPIs({ tickets }: Props) {
                     </div>
                     
                     <div className="relative z-10 w-full">
-                        <span className="text-xl sm:text-3xl font-black text-slate-800 group-hover:text-emerald-500 transition-colors tracking-tight block leading-none">{resolvedTickets.length}</span>
+                        <span className="text-xl sm:text-3xl font-black text-slate-800 group-hover:text-emerald-500 transition-colors tracking-tight block leading-none">{resolvedCount}</span>
                     </div>
                 </button>
             </div>

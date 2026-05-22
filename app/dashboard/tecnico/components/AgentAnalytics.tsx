@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Ticket } from '@/types/database.types';
 import { LayoutDashboard, CheckCircle2, Clock, X, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
+import { countActive, countTerminal } from '@/lib/ticketAnalytics';
 
 interface Props {
     tickets: Ticket[];
@@ -12,10 +13,10 @@ interface Props {
 export default function AgentAnalytics({ tickets }: Props) {
     const [activeModal, setActiveModal] = useState<'total' | 'activos' | 'cerrados' | null>(null);
 
-    // 1. Calculate KPI Metrics globally
-    const totalTickets = tickets;
-    const closedTickets = tickets.filter(t => t.estado === 'resuelto' || t.estado === 'cerrado');
-    const openTickets = tickets.filter(t => t.estado !== 'resuelto' && t.estado !== 'cerrado');
+    const activeCount   = countActive(tickets);
+    const terminalCount = countTerminal(tickets);
+    const openTickets   = tickets.filter(t => countActive([t]) > 0);
+    const closedTickets = tickets.filter(t => countTerminal([t]) > 0);
 
     // Modal Data Resolver
     const getModalData = () => {
@@ -41,7 +42,7 @@ export default function AgentAnalytics({ tickets }: Props) {
                         <LayoutDashboard className="w-5 h-5 sm:w-6 sm:h-6" />
                     </div>
                     <div className="text-center sm:text-left">
-                        <h4 className="text-lg sm:text-2xl font-black text-gray-900 leading-none mb-0.5 sm:mb-0">{totalTickets.length}</h4>
+                        <h4 className="text-lg sm:text-2xl font-black text-gray-900 leading-none mb-0.5 sm:mb-0">{tickets.length}</h4>
                         <p className="text-[9px] sm:text-sm font-bold sm:font-medium text-gray-500 uppercase sm:capitalize tracking-tighter sm:tracking-normal truncate w-full">Totales</p>
                     </div>
                 </button>
@@ -55,7 +56,7 @@ export default function AgentAnalytics({ tickets }: Props) {
                         <Clock className="w-5 h-5 sm:w-6 sm:h-6" />
                     </div>
                     <div className="text-center sm:text-left">
-                        <h4 className="text-lg sm:text-2xl font-black text-gray-900 leading-none mb-0.5 sm:mb-0">{openTickets.length}</h4>
+                        <h4 className="text-lg sm:text-2xl font-black text-gray-900 leading-none mb-0.5 sm:mb-0">{activeCount}</h4>
                         <p className="text-[9px] sm:text-sm font-bold sm:font-medium text-gray-500 uppercase sm:capitalize tracking-tighter sm:tracking-normal truncate w-full">Pendientes</p>
                     </div>
                 </button>
@@ -69,7 +70,7 @@ export default function AgentAnalytics({ tickets }: Props) {
                         <CheckCircle2 className="w-5 h-5 sm:w-6 sm:h-6" />
                     </div>
                     <div className="text-center sm:text-left">
-                        <h4 className="text-lg sm:text-2xl font-black text-gray-900 leading-none mb-0.5 sm:mb-0">{closedTickets.length}</h4>
+                        <h4 className="text-lg sm:text-2xl font-black text-gray-900 leading-none mb-0.5 sm:mb-0">{terminalCount}</h4>
                         <p className="text-[9px] sm:text-sm font-bold sm:font-medium text-gray-500 uppercase sm:capitalize tracking-tighter sm:tracking-normal truncate w-full">Cerrados</p>
                     </div>
                 </button>

@@ -6,6 +6,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { MessageSquare, Search, ChevronLeft, ChevronRight, CornerDownRight, Users, User } from 'lucide-react';
+import { getStatusBadge } from '@/app/dashboard/components/StatusBadge';
 import { LoopLoader } from '@/components/LoopLoader';
 
 const ITEMS_PER_PAGE = 25;
@@ -138,19 +139,6 @@ export default function TicketList({ limit }: { limit?: number }) {
         };
     }, [scope]);
 
-    const getStatusBadge = (status: Ticket['estado']) => {
-        switch (status) {
-            case 'abierto': return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] sm:text-[11px] uppercase tracking-wider font-bold bg-sky-100 text-sky-700 border border-sky-200 shadow-sm whitespace-nowrap">Abierto</span>;
-            case 'en_progreso': return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] sm:text-[11px] uppercase tracking-wider font-bold bg-indigo-100 text-indigo-700 border border-indigo-200 shadow-sm whitespace-nowrap">En Progreso</span>;
-            case 'resuelto': return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] sm:text-[11px] uppercase tracking-wider font-bold bg-emerald-100 text-emerald-700 border border-emerald-200 shadow-sm whitespace-nowrap">Resuelto</span>;
-            case 'cerrado': return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] sm:text-[11px] uppercase tracking-wider font-bold bg-gray-100 text-gray-600 border border-gray-200 shadow-sm whitespace-nowrap">Cerrado</span>;
-            case 'anulado': return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] sm:text-[11px] uppercase tracking-wider font-bold bg-red-100 text-red-700 border border-red-200 shadow-sm whitespace-nowrap ring-1 ring-red-300">Anulado</span>;
-            case 'pendiente': return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] sm:text-[11px] uppercase tracking-wider font-bold bg-orange-100 text-orange-700 border border-orange-200 shadow-sm whitespace-nowrap">Pendiente</span>;
-            case 'programado': return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] sm:text-[11px] uppercase tracking-wider font-bold bg-purple-100 text-purple-700 border border-purple-200 shadow-sm whitespace-nowrap">Programado</span>;
-            case 'esperando_agente': return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] sm:text-[11px] uppercase tracking-wider font-bold bg-slate-100 text-slate-600 border border-slate-200 shadow-sm whitespace-nowrap">Sin Asignar</span>;
-            default: return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] sm:text-[11px] uppercase tracking-wider font-bold bg-gray-100 text-gray-600 whitespace-nowrap">{status}</span>;
-        }
-    }
 
     const getPriorityBadge = (priority: Ticket['prioridad']) => {
         switch (priority) {
