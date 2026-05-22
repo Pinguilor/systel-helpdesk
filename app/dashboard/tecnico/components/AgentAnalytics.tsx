@@ -20,7 +20,7 @@ export default function AgentAnalytics({ tickets }: Props) {
 
     // Modal Data Resolver
     const getModalData = () => {
-        if (activeModal === 'total') return { title: 'Ticket Totales', data: totalTickets };
+        if (activeModal === 'total') return { title: 'Ticket Totales', data: tickets };
         if (activeModal === 'activos') return { title: 'Tickets Pendientes', data: openTickets };
         if (activeModal === 'cerrados') return { title: 'Tickets Finalizados', data: closedTickets };
         return { title: '', data: [] };
