@@ -116,6 +116,11 @@ interface Props {
 }
 
 export const ActaCierrePDF = ({ ticket, materiales = [], notas, firmaClienteUrl, firmaTecnicoUrl, agenteNombre, ayudantesNombres = [], logoUrl }: Props) => {
+  const tsBase = ticket?.fecha_resolucion ?? ticket?.actualizado_en ?? ticket?.fecha_creacion;
+  const tsDate = tsBase ? new Date(tsBase) : null;
+  const fechaDisplay = tsDate ? tsDate.toLocaleDateString('es-CL') : '—';
+  const horaDisplay  = tsDate ? tsDate.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', hour12: true }) + ' hrs' : '—';
+
   return (
     <Document>
       <Page size="A4" style={styles.page}>
@@ -130,8 +135,8 @@ export const ActaCierrePDF = ({ ticket, materiales = [], notas, firmaClienteUrl,
             <View style={{ textAlign: 'right', paddingTop: 10 }}>
                 <Text style={styles.title}>ORDEN DE SERVICIO</Text>
                 <Text style={{ fontSize: 9, color: '#333', marginBottom: 2 }}>Nº: {ticket?.numero_ticket}</Text>
-                <Text style={{ fontSize: 9, color: '#333', marginBottom: 2 }}>Fecha: {new Date().toLocaleDateString('es-CL')}</Text>
-                <Text style={{ fontSize: 9, color: '#333' }}>Hora: {new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })} hrs</Text>
+                <Text style={{ fontSize: 9, color: '#333', marginBottom: 2 }}>Fecha: {fechaDisplay}</Text>
+                <Text style={{ fontSize: 9, color: '#333' }}>Hora: {horaDisplay}</Text>
             </View>
         </View>
 
@@ -206,7 +211,7 @@ export const ActaCierrePDF = ({ ticket, materiales = [], notas, firmaClienteUrl,
             <View style={styles.tableRow} wrap={false}>
                 <Text style={{ flex: 2, fontWeight: 'bold' }}>{agenteNombre || 'Técnico Autorizado'}</Text>
                 <Text style={{ flex: 1, textAlign: 'center' }}>Responsable</Text>
-                <Text style={{ flex: 1, textAlign: 'center' }}>{new Date().toLocaleDateString('es-CL')}</Text>
+                <Text style={{ flex: 1, textAlign: 'center' }}>{fechaDisplay}</Text>
             </View>
 
             {/* Técnicos ayudantes */}
@@ -215,7 +220,7 @@ export const ActaCierrePDF = ({ ticket, materiales = [], notas, firmaClienteUrl,
                     <View key={i} style={i % 2 === 0 ? styles.tableRowAlt : styles.tableRow} wrap={false}>
                         <Text style={{ flex: 2 }}>{nombre}</Text>
                         <Text style={{ flex: 1, textAlign: 'center', color: '#6b7280' }}>Ayudante</Text>
-                        <Text style={{ flex: 1, textAlign: 'center' }}>{new Date().toLocaleDateString('es-CL')}</Text>
+                        <Text style={{ flex: 1, textAlign: 'center' }}>{fechaDisplay}</Text>
                     </View>
                 ))
                 : (
