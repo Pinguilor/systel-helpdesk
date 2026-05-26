@@ -17,6 +17,7 @@ interface CustomSelectProps {
     required?: boolean;
     name?: string;
     renderOption?: (option: Option) => React.ReactNode;
+    strategy?: 'absolute' | 'fixed';
 }
 
 export function CustomSelect({
@@ -29,6 +30,7 @@ export function CustomSelect({
     required = false,
     name,
     renderOption,
+    strategy = 'fixed',
 }: CustomSelectProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
@@ -51,9 +53,9 @@ export function CustomSelect({
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    // Cierra al hacer scroll fuera del dropdown o al hacer resize
+    // Cierra al hacer scroll fuera del dropdown o al hacer resize (solo si es fixed)
     useEffect(() => {
-        if (!isOpen) return;
+        if (!isOpen || strategy === 'absolute') return;
         const handleScroll = (e: Event) => {
             // Ignorar scroll interno del propio dropdown (arrastrar scrollbar)
             if (dropdownRef.current?.contains(e.target as Node)) return;
@@ -66,33 +68,44 @@ export function CustomSelect({
             window.removeEventListener('scroll', handleScroll, true);
             window.removeEventListener('resize', handleResize);
         };
-    }, [isOpen]);
+    }, [isOpen, strategy]);
 
     const handleOpen = () => {
         if (disabled) return;
         if (!isOpen && buttonRef.current) {
-            const rect = buttonRef.current.getBoundingClientRect();
-            const spaceBelow = window.innerHeight - rect.bottom;
-            const spaceAbove = rect.top;
-            const dropdownH = Math.min(options.length * 48 + 8, 240);
-
-            // Abre hacia arriba si no hay espacio abajo
-            if (spaceBelow < dropdownH && spaceAbove > spaceBelow) {
+            if (strategy === 'absolute') {
                 setDropdownStyle({
-                    position: 'fixed',
-                    bottom: window.innerHeight - rect.top + 4,
-                    left: rect.left,
-                    width: rect.width,
-                    zIndex: 9999,
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    width: '100%',
+                    marginTop: '4px',
+                    zIndex: 50,
                 });
             } else {
-                setDropdownStyle({
-                    position: 'fixed',
-                    top: rect.bottom + 4,
-                    left: rect.left,
-                    width: rect.width,
-                    zIndex: 9999,
-                });
+                const rect = buttonRef.current.getBoundingClientRect();
+                const spaceBelow = window.innerHeight - rect.bottom;
+                const spaceAbove = rect.top;
+                const dropdownH = Math.min(options.length * 48 + 8, 240);
+
+                // Abre hacia arriba si no hay espacio abajo
+                if (spaceBelow < dropdownH && spaceAbove > spaceBelow) {
+                    setDropdownStyle({
+                        position: 'fixed',
+                        bottom: window.innerHeight - rect.top + 4,
+                        left: rect.left,
+                        width: rect.width,
+                        zIndex: 9999,
+                    });
+                } else {
+                    setDropdownStyle({
+                        position: 'fixed',
+                        top: rect.bottom + 4,
+                        left: rect.left,
+                        width: rect.width,
+                        zIndex: 9999,
+                    });
+                }
             }
         }
         setIsOpen(v => !v);

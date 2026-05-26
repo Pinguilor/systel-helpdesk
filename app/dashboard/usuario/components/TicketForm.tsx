@@ -3,13 +3,14 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { createTicketAction } from '../actions';
-import { Loader2, Paperclip, Ticket } from 'lucide-react';
+import { Loader2, Paperclip, Ticket, ArrowLeft, ArrowRight, Building2, Check, AlertCircle } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { createClient } from '@/lib/supabase/client';
 import { Restaurante, CatalogoServicio, Zona } from '@/types/database.types';
 import { CustomSelect } from '../../components/CustomSelect';
 import 'react-quill-new/dist/quill.snow.css';
 import imageCompression from 'browser-image-compression';
+import { motion, AnimatePresence } from 'framer-motion';
 
 // Dynamic import of ReactQuill to prevent document hydration errors in Next.js
 const ReactQuill = dynamic(() => import('react-quill-new'), {
@@ -39,7 +40,13 @@ function ImagePreviewItem({ file, onRemove }: { file: File; onRemove: () => void
     }, [file]);
 
     return (
-        <li className="flex items-center justify-between p-2 bg-slate-50 rounded-lg border border-slate-100 shadow-sm">
+        <motion.li
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ duration: 0.2 }}
+            className="flex items-center justify-between p-2.5 bg-white rounded-xl border border-slate-100 shadow-sm hover:shadow transition-shadow"
+        >
             <div className="flex items-center gap-3 overflow-hidden">
                 {previewUrl ? (
                     <img
@@ -48,24 +55,24 @@ function ImagePreviewItem({ file, onRemove }: { file: File; onRemove: () => void
                         className="w-10 h-10 object-cover rounded-md border border-slate-200 shrink-0 shadow-sm"
                     />
                 ) : (
-                    <div className="w-10 h-10 bg-white flex items-center justify-center rounded-md border border-slate-200 text-slate-400 shrink-0 shadow-sm">
+                    <div className="w-10 h-10 bg-slate-50 flex items-center justify-center rounded-md border border-slate-200 text-slate-400 shrink-0 shadow-sm">
                         📄
                     </div>
                 )}
                 <div className="flex flex-col truncate pr-2">
-                    <span className="text-xs font-bold text-slate-700 truncate">{file.name || 'Imagen adjunta'}</span>
+                    <span className="text-xs font-bold text-slate-700 truncate">{file.name || 'Archivo adjunto'}</span>
                     <span className="text-[10px] text-slate-400 font-medium">{(file.size / 1024 / 1024).toFixed(2)} MB</span>
                 </div>
             </div>
             <button
                 type="button"
                 onClick={onRemove}
-                className="text-red-400 hover:text-red-600 bg-red-50 hover:bg-red-100 p-1.5 rounded-md transition-colors focus:outline-none flex-shrink-0"
+                className="text-red-400 hover:text-red-600 bg-red-50 hover:bg-red-100 p-1.5 rounded-md transition-colors focus:outline-none flex-shrink-0 cursor-pointer"
                 title="Eliminar archivo"
             >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
             </button>
-        </li>
+        </motion.li>
     );
 }
 // -----------------------------------------
@@ -81,6 +88,7 @@ export function TicketForm({ onClose }: Props) {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const isSubmittingRef = useRef(false);
     const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+    const [currentStep, setCurrentStep] = useState(1);
 
     // Restaurant Autocomplete State
     const [searchQuery, setSearchQuery] = useState('');
@@ -148,6 +156,7 @@ export function TicketForm({ onClose }: Props) {
     // Cuando cambia el restaurante seleccionado, recargar los tipos de servicio
     // filtrados por el cliente_id del restaurante. Reset completo de la cascada.
     useEffect(() => {
+        console.log("TicketForm: selectedRestaurant changed:", selectedRestaurant);
         setTiposServicio([]);
         setCategorias([]);
         setSubcategorias([]);
@@ -157,22 +166,37 @@ export function TicketForm({ onClose }: Props) {
         setSelectedSubcategoriaId('');
         setSelectedAccionId('');
 
-        if (!selectedRestaurant) return;
+        if (!selectedRestaurant) {
+            console.log("TicketForm: No selectedRestaurant, returning");
+            return;
+        }
 
         const clienteIdRestaurante = (selectedRestaurant as any).cliente_id;
-        if (!clienteIdRestaurante) return;
+        console.log("TicketForm: clienteIdRestaurante is:", clienteIdRestaurante);
+        if (!clienteIdRestaurante) {
+            console.warn("TicketForm: clienteIdRestaurante is missing/falsy!");
+            return;
+        }
 
         async function fetchTiposServicio() {
             setIsLoadingTipos(true);
             const supabase = createClient();
-            const { data } = await supabase
+            console.log("TicketForm: Querying ticket_tipos_servicio for client:", clienteIdRestaurante);
+            const { data, error } = await supabase
                 .from('ticket_tipos_servicio')
                 .select('id, nombre')
                 .eq('cliente_id', clienteIdRestaurante)
                 .eq('activo', true)
                 .order('nombre');
 
-            if (data) setTiposServicio(data);
+            console.log("TicketForm: Query result:", { data, error });
+            if (error) {
+                console.error("TicketForm: Error fetching tipos servicio:", error);
+            }
+            if (data) {
+                console.log("TicketForm: Setting tiposServicio to:", data);
+                setTiposServicio(data);
+            }
             setIsLoadingTipos(false);
         }
 
@@ -411,259 +435,474 @@ export function TicketForm({ onClose }: Props) {
         }
     };
 
+    // Definición de niveles de prioridad corporativos
+    const priorities = [
+        {
+            value: 'baja',
+            label: 'Baja',
+            color: 'border-slate-200 text-slate-600 bg-white hover:border-emerald-300 hover:bg-emerald-50/10 focus:ring-emerald-500/20',
+            activeColor: 'bg-emerald-50 text-emerald-800 border-emerald-500 ring-1 ring-emerald-500 shadow-sm',
+            dotBg: 'bg-emerald-500'
+        },
+        {
+            value: 'media',
+            label: 'Media',
+            color: 'border-slate-200 text-slate-600 bg-white hover:border-blue-300 hover:bg-blue-50/10 focus:ring-blue-500/20',
+            activeColor: 'bg-blue-50 text-blue-800 border-blue-500 ring-1 ring-blue-500 shadow-sm',
+            dotBg: 'bg-blue-500'
+        },
+        {
+            value: 'alta',
+            label: 'Alta',
+            color: 'border-slate-200 text-slate-600 bg-white hover:border-amber-300 hover:bg-amber-50/10 focus:ring-amber-500/20',
+            activeColor: 'bg-amber-50 text-amber-800 border-amber-500 ring-1 ring-amber-500 shadow-sm',
+            dotBg: 'bg-amber-500'
+        },
+        {
+            value: 'crítica',
+            label: 'Crítica',
+            color: 'border-slate-200 text-slate-600 bg-white hover:border-rose-300 hover:bg-rose-50/10 focus:ring-rose-500/20',
+            activeColor: 'bg-rose-50 text-rose-800 border-rose-500 ring-1 ring-rose-500 shadow-sm',
+            dotBg: 'bg-rose-500'
+        }
+    ];
+
+    const isStep1Complete = !!selectedRestaurant && !!selectedTipoServicioId && !!selectedCategoriaId && !!selectedSubcategoriaId && !!selectedAccionId;
+
     return (
-        <div className="p-8 pt-6 pb-4 max-w-3xl mx-auto">
-            <div className="flex items-center gap-3 mb-6 border-b border-gray-100 pb-4">
-                <div className="bg-blue-50 p-2 rounded-lg">
-                    <Ticket className="w-6 h-6 text-blue-600" />
+        <div className="p-6 sm:p-8 pt-5 pb-4 max-w-3xl mx-auto">
+            {/* Header con Icono */}
+            <div className="flex items-center gap-3 mb-6 border-b border-slate-100 pb-4">
+                <div className="bg-[#0e3187]/10 p-2 rounded-xl text-[#0e3187]">
+                    <Ticket className="w-6 h-6" strokeWidth={1.75} />
                 </div>
-                <h2 className="text-xl font-bold text-slate-800">Nueva solicitud</h2>
+                <div>
+                    <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">Nueva solicitud</h2>
+                    <p className="text-xs text-slate-400 font-semibold mt-0.5">Ingresa los datos para registrar un nuevo ticket</p>
+                </div>
+            </div>
+
+            {/* Barra de Progreso del Asistente */}
+            <div className="mb-8 relative flex items-center justify-between px-2">
+                {/* Línea de fondo */}
+                <div className="absolute left-6 right-6 top-1/2 -translate-y-1/2 h-[3px] bg-slate-100 rounded-full z-0" />
+                {/* Línea activa */}
+                <motion.div 
+                    className="absolute left-6 top-1/2 -translate-y-1/2 h-[3px] bg-[#0e3187] rounded-full z-0"
+                    initial={{ width: '0%' }}
+                    animate={{ width: currentStep === 1 ? '0%' : 'calc(100% - 48px)' }}
+                    transition={{ type: 'spring', stiffness: 120, damping: 20 }}
+                />
+                
+                {/* Paso 1 Selector */}
+                <button
+                    type="button"
+                    onClick={() => setCurrentStep(1)}
+                    className={`relative z-10 flex items-center gap-2.5 px-4.5 py-2 rounded-full border-2 transition-all duration-300 font-bold focus:outline-none cursor-pointer ${currentStep === 1 ? 'bg-[#0e3187] border-[#0e3187] text-white shadow-md shadow-[#0e3187]/10' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300'}`}
+                >
+                    <span className={`w-5 h-5 flex items-center justify-center rounded-full text-xs font-black ${currentStep === 1 ? 'bg-white text-[#0e3187]' : 'bg-slate-100 text-slate-600'}`}>1</span>
+                    <span className="text-xs uppercase tracking-wider">Clasificación</span>
+                </button>
+
+                {/* Paso 2 Selector */}
+                <button
+                    type="button"
+                    disabled={!isStep1Complete}
+                    onClick={() => { if (isStep1Complete) setCurrentStep(2); }}
+                    className={`relative z-10 flex items-center gap-2.5 px-4.5 py-2 rounded-full border-2 transition-all duration-300 font-bold focus:outline-none ${currentStep === 2 ? 'bg-[#0e3187] border-[#0e3187] text-white shadow-md shadow-[#0e3187]/10 cursor-pointer' : isStep1Complete ? 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 cursor-pointer' : 'bg-slate-50 border-slate-100 text-slate-350 cursor-not-allowed'}`}
+                >
+                    <span className={`w-5 h-5 flex items-center justify-center rounded-full text-xs font-black ${currentStep === 2 ? 'bg-white text-[#0e3187]' : 'bg-slate-100 text-slate-400'}`}>2</span>
+                    <span className="text-xs uppercase tracking-wider">Detalles</span>
+                </button>
             </div>
 
             {message && (
-                <div className={`p-4 mb-6 rounded-xl border ${message.type === 'error' ? 'bg-red-50 text-red-800 border-red-200' : 'bg-emerald-50 text-emerald-800 border-emerald-200'}`}>
-                    <span className="font-semibold text-sm">{message.text}</span>
+                <div className={`p-4 mb-6 rounded-2xl border ${message.type === 'error' ? 'bg-red-50 text-red-800 border-red-200' : 'bg-emerald-50 text-emerald-800 border-emerald-200'}`}>
+                    <span className="font-semibold text-sm flex items-center gap-2">
+                        {message.type === 'error' ? <AlertCircle className="w-5 h-5 text-red-600 shrink-0" /> : <Check className="w-5 h-5 text-emerald-600 shrink-0" />}
+                        {message.text}
+                    </span>
                 </div>
             )}
 
             <form onSubmit={handleSubmit} className={`space-y-6 ${isSubmitting ? 'opacity-60 pointer-events-none transition-opacity' : 'transition-opacity'}`}>
+                {/* Campo oculto para pasar la prioridad */}
+                <input type="hidden" name="prioridad" value={prioridad} />
 
-                {/* 1. Restaurant Autocomplete */}
-                <div className="relative" ref={dropdownRef}>
-                    <label htmlFor="restaurante_search" className="block text-sm font-bold text-slate-700 mb-1">Restaurante</label>
-                    <input
-                        type="text"
-                        id="restaurante_search"
-                        value={searchQuery}
-                        onChange={(e) => {
-                            setSearchQuery(e.target.value);
-                            if (selectedRestaurant) setSelectedRestaurant(null);
-                        }}
-                        onFocus={() => { if (restaurants.length > 0) setShowDropdown(true); }}
-                        className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent sm:text-sm text-slate-900 transition-all placeholder-gray-400"
-                        placeholder="Buscar restaurante por sigla o nombre..."
-                        autoComplete="off"
-                    />
-                    {isSearching && (
-                        <div className="absolute right-4 top-10 flex items-center justify-center">
-                            <div className="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-                        </div>
-                    )}
-
-                    {showDropdown && restaurants.length > 0 && (
-                        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-60 overflow-y-auto">
-                            <ul className="py-1">
-                                {restaurants.map((rest) => (
-                                    <li
-                                        key={rest.id}
-                                        onClick={() => {
-                                            setSelectedRestaurant(rest);
-                                            setSearchQuery(`${rest.sigla} - ${rest.nombre_restaurante}`);
-                                            setShowDropdown(false);
-                                        }}
-                                        className="px-4 py-3 hover:bg-indigo-50 cursor-pointer flex justify-between items-center transition-colors"
-                                    >
-                                        <div>
-                                            <span className="font-bold text-slate-800 block">{rest.sigla}</span>
-                                            <span className="text-sm text-slate-500">{rest.nombre_restaurante}</span>
-                                        </div>
-                                        <div className="text-xs font-mono text-slate-400">CC: {rest.centro_costo}</div>
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-                    )}
-                    {/* Hidden input to pass UUID to Server Action natively */}
-                    <input type="hidden" name="restaurante_id" value={selectedRestaurant?.id || ''} required />
-                </div>
-
-                {/* --- 2. Operational Catalog (Cascading Selects) --- */}
-                {isLoadingCatalog ? (
-                    <div className="flex animate-pulse space-x-4 mb-6">
-                        <div className="flex-1 h-12 bg-slate-200 rounded-xl"></div>
-                        <div className="flex-1 h-12 bg-slate-200 rounded-xl"></div>
-                    </div>
-                ) : (
-                    <div className="space-y-5 bg-slate-50 p-6 rounded-2xl border border-gray-100 shadow-sm">
-                        <div className="border-b border-gray-200 pb-4 mb-5">
-                            <h4 className="font-bold text-slate-800">Clasificación del Ticket</h4>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
-
-                            {/* A. Tipo de Servicio — bloqueado hasta elegir restaurante */}
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">Tipo de Servicio</label>
-                                <CustomSelect
-                                    id="tipo_servicio_id"
-                                    required
-                                    disabled={!selectedRestaurant || isLoadingTipos}
-                                    value={selectedTipoServicioId}
-                                    onChange={(val) => {
-                                        setSelectedTipoServicioId(val);
-                                        setSelectedCategoriaId('');
-                                        setSelectedSubcategoriaId('');
-                                        setSelectedAccionId('');
-                                    }}
-                                    options={tiposServicio.map(t => ({ value: t.id, label: t.nombre }))}
-                                    placeholder={
-                                        isLoadingTipos
-                                            ? 'Cargando catálogo...'
-                                            : !selectedRestaurant
-                                                ? 'Primero seleccione un restaurante'
-                                                : 'Seleccione el tipo general...'
-                                    }
-                                />
-                            </div>
-
-                            {/* B. Categoria */}
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">Categoría Principal</label>
-                                <CustomSelect
-                                    id="cat_select"
-                                    required
-                                    disabled={!selectedTipoServicioId}
-                                    value={selectedCategoriaId}
-                                    onChange={(val) => {
-                                        setSelectedCategoriaId(val);
-                                        setSelectedSubcategoriaId(''); // Cascada: Nivel 3 Reset
-                                        setSelectedAccionId(''); // Cascada: Nivel 4 Reset
-                                    }}
-                                    options={categorias.map(c => ({ value: c.id, label: c.nombre }))}
-                                    placeholder="Seleccione categoría..."
-                                />
-                            </div>
-
-                            {/* C. Subcategoria (Equipo) */}
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">Equipo / Subcategoría</label>
-                                <CustomSelect
-                                    id="subcat_select"
-                                    required
-                                    disabled={!selectedCategoriaId}
-                                    value={selectedSubcategoriaId}
-                                    onChange={(val) => {
-                                        setSelectedSubcategoriaId(val);
-                                        setSelectedAccionId(''); // Cascada: Nivel 3 Reset
-                                    }}
-                                    options={subcategorias.map(s => ({ value: s.id, label: s.nombre }))}
-                                    placeholder="Seleccione equipo..."
-                                />
-                            </div>
-
-                            {/* D. Acción (Falla) */}
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">Acción / Falla</label>
-                                <CustomSelect
-                                    id="element_select"
-                                    required
-                                    disabled={!selectedSubcategoriaId}
-                                    value={selectedAccionId}
-                                    onChange={(val) => setSelectedAccionId(val)}
-                                    options={acciones.map(a => ({ value: a.id, label: a.nombre }))}
-                                    placeholder="Indique la falla..."
-                                />
-                            </div>
-
-                            {/* E. Priority */}
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">Prioridad</label>
-                                <CustomSelect
-                                    id="prioridad"
-                                    name="prioridad"
-                                    required
-                                    value={prioridad}
-                                    onChange={(val) => setPrioridad(val)}
-                                    options={[
-                                        { value: 'baja', label: 'Baja' },
-                                        { value: 'media', label: 'Media' },
-                                        { value: 'alta', label: 'Alta' },
-                                        { value: 'crítica', label: 'Crítica' }
-                                    ]}
-                                    placeholder="Seleccione la prioridad"
-                                />
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                <div className="space-y-5">
-                    {/* 3. Título */}
-                    <div>
-                        <label htmlFor="titulo" className="block text-sm font-bold text-slate-700 mb-1">Título de la Solicitud</label>
-                        <input
-                            type="text"
-                            id="titulo"
-                            name="titulo"
-                            required
-                            className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent sm:text-sm text-slate-900 transition-all placeholder-gray-400"
-                            placeholder="Ej: Problema con la impresora de recursos humanos"
-                        />
-                    </div>
-
-                    <div className="pb-2">
-                        <label className="block text-sm font-bold text-slate-700 mb-2">Descripción</label>
-
-                        {/* Unified Editor Wrapper */}
-                        <div className="border border-slate-300 rounded-2xl overflow-hidden bg-white flex flex-col shadow-sm">
-                            <ReactQuill
-                                theme="snow"
-                                value={descripcion}
-                                onChange={setDescripcion}
-                                className="text-slate-900 flex-1 [&_.ql-editor]:min-h-[200px] [&_.ql-container]:!border-0 [&_.ql-toolbar]:!border-0 [&_.ql-toolbar]:!border-b [&_.ql-toolbar]:!border-slate-200 [&_.ql-toolbar]:bg-slate-50/50 [&_.ql-editor]:focus:!ring-0 [&_.ql-editor]:focus:!outline-none [&_.ql-editor]:!border-transparent"
-                            />
-
-                            {/* Attachment Zone Inside Wrapper */}
-                            <div className="bg-slate-50 border-t border-slate-200 p-3 flex flex-col gap-3">
-                                <div className="flex flex-wrap items-center gap-3">
-                                    <label className="relative cursor-pointer flex items-center justify-center gap-2 px-3 py-2 text-sm font-bold text-gray-500 hover:text-indigo-600 hover:bg-gray-200/50 rounded-lg transition-colors focus:outline-none">
-                                        <Paperclip className="w-4 h-4" />
-                                        <span>Adjuntar archivo</span>
-                                        <input
-                                            type="file"
-                                            className="hidden"
-                                            multiple
-                                            onChange={handleFileChange}
-                                            accept=".pdf,.jpg,.jpeg,.png,.xlsx,.docx"
-                                            disabled={files.length >= MAX_FILES}
-                                        />
-                                    </label>
-                                    <span className="text-xs text-slate-400 font-medium">Máx {MAX_FILES} archivos (5MB c/u)</span>
-                                </div>
-
-                                {/* File list */}
-                                {files.length > 0 && (
-                                    <div className="bg-white rounded-xl border border-gray-200 p-2 shadow-sm">
-                                        <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                            {files.map((file, index) => (
-                                                <ImagePreviewItem
-                                                    key={`${file.name}-${index}`}
-                                                    file={file}
-                                                    onRemove={() => removeFile(index)}
+                <AnimatePresence mode="wait">
+                    {currentStep === 1 ? (
+                        <motion.div
+                            key="step1"
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: 10 }}
+                            transition={{ duration: 0.2 }}
+                            className="space-y-6"
+                        >
+                            {/* 1. Restaurant Autocomplete o Tarjeta de Seleccionado */}
+                            <div className="relative" ref={dropdownRef}>
+                                <AnimatePresence mode="wait">
+                                    {selectedRestaurant ? (
+                                        <motion.div 
+                                            key="selected-restaurant-card"
+                                            initial={{ opacity: 0, scale: 0.95 }}
+                                            animate={{ opacity: 1, scale: 1 }}
+                                            exit={{ opacity: 0, scale: 0.95 }}
+                                            className="p-4.5 bg-gradient-to-br from-slate-50 to-indigo-50/20 border border-slate-200/60 rounded-2xl flex items-center justify-between shadow-sm relative overflow-hidden group"
+                                        >
+                                            <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full -mr-8 -mt-8 transition-transform group-hover:scale-110" />
+                                            <div className="flex items-center gap-4 z-10">
+                                                <div className="bg-[#0e3187]/10 p-3 rounded-xl text-[#0e3187] shrink-0">
+                                                    <Building2 className="w-6 h-6" strokeWidth={1.75} />
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                        <span className="text-[10px] font-black uppercase bg-[#0e3187] text-white px-2 py-0.5 rounded-md tracking-wider">
+                                                            {selectedRestaurant.sigla}
+                                                        </span>
+                                                        <span className="text-xs text-slate-400 font-bold">CC: {selectedRestaurant.centro_costo}</span>
+                                                    </div>
+                                                    <h3 className="text-sm sm:text-base font-extrabold text-slate-800 mt-1 leading-tight truncate">
+                                                        {selectedRestaurant.nombre_restaurante}
+                                                    </h3>
+                                                </div>
+                                            </div>
+                                            <motion.button
+                                                type="button"
+                                                whileHover={{ scale: 1.05 }}
+                                                whileTap={{ scale: 0.95 }}
+                                                onClick={() => {
+                                                    setSelectedRestaurant(null);
+                                                    setSearchQuery('');
+                                                }}
+                                                className="text-xs font-black text-[#0e3187] bg-white border border-slate-200 hover:border-[#0e3187]/30 hover:bg-slate-50 px-3 py-2 rounded-xl transition-colors shadow-sm z-10 cursor-pointer"
+                                            >
+                                                Cambiar
+                                            </motion.button>
+                                        </motion.div>
+                                    ) : (
+                                        <motion.div
+                                            key="search-restaurant-input"
+                                            initial={{ opacity: 0, scale: 0.98 }}
+                                            animate={{ opacity: 1, scale: 1 }}
+                                            exit={{ opacity: 0, scale: 0.98 }}
+                                        >
+                                            <label htmlFor="restaurante_search" className="block text-sm font-bold text-slate-700 mb-2">Restaurante</label>
+                                            <div className="relative group">
+                                                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-[#0e3187] transition-colors">
+                                                    <Building2 className="w-5 h-5" strokeWidth={1.75} />
+                                                </div>
+                                                <input
+                                                    type="text"
+                                                    id="restaurante_search"
+                                                    value={searchQuery}
+                                                    onChange={(e) => {
+                                                        setSearchQuery(e.target.value);
+                                                        if (selectedRestaurant) setSelectedRestaurant(null);
+                                                    }}
+                                                    onFocus={() => { if (restaurants.length > 0) setShowDropdown(true); }}
+                                                    className="mt-1 block w-full pl-11 pr-10 py-3.5 border border-slate-200 rounded-2xl shadow-sm focus:ring-4 focus:ring-[#0e3187]/10 focus:border-[#0e3187] sm:text-sm text-slate-900 transition-all placeholder-slate-400 font-semibold bg-slate-50/50 hover:bg-slate-50 focus:bg-white"
+                                                    placeholder="Buscar restaurante por sigla o nombre..."
+                                                    autoComplete="off"
                                                 />
+                                                {isSearching && (
+                                                    <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center justify-center">
+                                                        <Loader2 className="w-5 h-5 text-[#0e3187] animate-spin" />
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+
+                                {showDropdown && restaurants.length > 0 && (
+                                    <motion.div 
+                                        initial={{ opacity: 0, y: 5 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        className="absolute z-30 w-full mt-2 bg-white/95 backdrop-blur-md border border-slate-200/80 rounded-2xl shadow-2xl max-h-60 overflow-y-auto"
+                                    >
+                                        <ul className="py-1.5 divide-y divide-slate-100">
+                                            {restaurants.map((rest) => (
+                                                <li
+                                                    key={rest.id}
+                                                    onClick={() => {
+                                                        setSelectedRestaurant(rest);
+                                                        setSearchQuery(`${rest.sigla} - ${rest.nombre_restaurante}`);
+                                                        setShowDropdown(false);
+                                                    }}
+                                                    className="px-5 py-3 hover:bg-indigo-50/50 cursor-pointer flex justify-between items-center transition-colors group"
+                                                >
+                                                    <div>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="font-black text-slate-800 group-hover:text-[#0e3187] transition-colors">{rest.sigla}</span>
+                                                            <span className="text-[10px] bg-slate-100 text-slate-500 font-bold px-1.5 py-0.5 rounded">CC: {rest.centro_costo}</span>
+                                                        </div>
+                                                        <span className="text-xs text-slate-500 block mt-0.5">{rest.nombre_restaurante}</span>
+                                                    </div>
+                                                    <ArrowRight className="w-4 h-4 text-slate-300 opacity-0 group-hover:opacity-100 group-hover:text-[#0e3187] transition-all -translate-x-2 group-hover:translate-x-0" />
+                                                </li>
                                             ))}
                                         </ul>
-                                    </div>
+                                    </motion.div>
                                 )}
+                                {/* Hidden input to pass UUID to Server Action natively */}
+                                <input type="hidden" name="restaurante_id" value={selectedRestaurant?.id || ''} required />
                             </div>
-                        </div>
-                    </div>
-                </div>
 
-                <div className="flex justify-end pt-6 border-t border-gray-100 mt-8">
-                    <button
-                        type="submit"
-                        disabled={isSubmitting}
-                        className="w-full sm:w-auto inline-flex justify-center items-center py-3 px-8 border border-transparent shadow-sm text-sm font-bold rounded-xl text-white bg-brand-primary hover:bg-brand-secondary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-primary disabled:opacity-70 disabled:cursor-not-allowed transition-all duration-200"
-                    >
-                        {isSubmitting ? (
-                            <>
-                                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                                Creando solicitud...
-                            </>
-                        ) : 'Crear solicitud'}
-                    </button>
-                </div>
+                            {/* --- 2. Operational Catalog (Cascading Selects) --- */}
+                            {isLoadingCatalog ? (
+                                <div className="flex animate-pulse space-x-4 mb-6">
+                                    <div className="flex-1 h-12 bg-slate-200 rounded-xl"></div>
+                                    <div className="flex-1 h-12 bg-slate-200 rounded-xl"></div>
+                                </div>
+                            ) : (
+                                <AnimatePresence>
+                                    {selectedRestaurant && (
+                                        <motion.div
+                                            initial={{ opacity: 0, y: 15 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            exit={{ opacity: 0, y: -15 }}
+                                            transition={{ duration: 0.3 }}
+                                            className="space-y-6 bg-slate-50/40 backdrop-blur-sm p-5 sm:p-6 rounded-3xl border border-slate-100 shadow-sm"
+                                        >
+                                            <div className="border-b border-slate-200/60 pb-3 mb-4 flex items-center justify-between">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-2 h-2 rounded-full bg-[#0e3187] animate-pulse" />
+                                                    <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">Clasificación del Ticket</h4>
+                                                </div>
+                                                <span className="text-[10px] text-slate-400 font-bold">Jerárquica obligatoria</span>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
+                                                {/* A. Tipo de Servicio — bloqueado hasta elegir restaurante */}
+                                                <div>
+                                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">Tipo de Servicio</label>
+                                                    <CustomSelect
+                                                        id="tipo_servicio_id"
+                                                        required
+                                                        disabled={!selectedRestaurant || isLoadingTipos}
+                                                        value={selectedTipoServicioId}
+                                                        strategy="absolute"
+                                                        onChange={(val) => {
+                                                            setSelectedTipoServicioId(val);
+                                                            setSelectedCategoriaId('');
+                                                            setSelectedSubcategoriaId('');
+                                                            setSelectedAccionId('');
+                                                        }}
+                                                        options={tiposServicio.map(t => ({ value: t.id, label: t.nombre }))}
+                                                        placeholder={
+                                                            isLoadingTipos
+                                                                ? 'Cargando catálogo...'
+                                                                : !selectedRestaurant
+                                                                    ? 'Seleccione restaurante primero'
+                                                                    : 'Seleccione tipo general...'
+                                                        }
+                                                    />
+                                                </div>
+
+                                                {/* B. Categoria */}
+                                                <div>
+                                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">Categoría Principal</label>
+                                                    <CustomSelect
+                                                        id="cat_select"
+                                                        required
+                                                        disabled={!selectedTipoServicioId}
+                                                        value={selectedCategoriaId}
+                                                        strategy="absolute"
+                                                        onChange={(val) => {
+                                                            setSelectedCategoriaId(val);
+                                                            setSelectedSubcategoriaId('');
+                                                            setSelectedAccionId('');
+                                                        }}
+                                                        options={categorias.map(c => ({ value: c.id, label: c.nombre }))}
+                                                        placeholder={!selectedTipoServicioId ? 'Esperando Tipo de Servicio...' : 'Seleccione categoría...'}
+                                                    />
+                                                </div>
+
+                                                {/* C. Subcategoria (Equipo) */}
+                                                <div>
+                                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">Equipo / Subcategoría</label>
+                                                    <CustomSelect
+                                                        id="subcat_select"
+                                                        required
+                                                        disabled={!selectedCategoriaId}
+                                                        value={selectedSubcategoriaId}
+                                                        strategy="absolute"
+                                                        onChange={(val) => {
+                                                            setSelectedSubcategoriaId(val);
+                                                            setSelectedAccionId('');
+                                                        }}
+                                                        options={subcategorias.map(s => ({ value: s.id, label: s.nombre }))}
+                                                        placeholder={!selectedCategoriaId ? 'Esperando Categoría...' : 'Seleccione equipo...'}
+                                                    />
+                                                </div>
+
+                                                {/* D. Acción (Falla) */}
+                                                <div>
+                                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">Acción / Falla</label>
+                                                    <CustomSelect
+                                                        id="element_select"
+                                                        required
+                                                        disabled={!selectedSubcategoriaId}
+                                                        value={selectedAccionId}
+                                                        strategy="absolute"
+                                                        onChange={(val) => setSelectedAccionId(val)}
+                                                        options={acciones.map(a => ({ value: a.id, label: a.nombre }))}
+                                                        placeholder={!selectedSubcategoriaId ? 'Esperando Subcategoría...' : 'Indique la falla...'}
+                                                    />
+                                                </div>
+
+                                                {/* E. Prioridad (Nueva Fila de Botones Premium) */}
+                                                <div className="col-span-1 md:col-span-2">
+                                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2.5">Prioridad de la Solicitud</label>
+                                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                                                        {priorities.map((item) => {
+                                                            const isSelected = prioridad === item.value;
+                                                            return (
+                                                                <button
+                                                                    key={item.value}
+                                                                    type="button"
+                                                                    onClick={() => setPrioridad(item.value)}
+                                                                    className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl border-2 transition-all text-center focus:outline-none cursor-pointer focus:ring-4 font-bold ${isSelected ? item.activeColor : item.color}`}
+                                                                >
+                                                                    <span className={`w-2.5 h-2.5 rounded-full ${item.dotBg}`} />
+                                                                    <span className="text-xs sm:text-sm tracking-tight">{item.label}</span>
+                                                                </button>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                            )}
+
+                            {/* Navegación Paso 1 */}
+                            <div className="flex justify-end pt-5 mt-6 border-t border-slate-100">
+                                <motion.button
+                                    type="button"
+                                    disabled={!isStep1Complete}
+                                    whileHover={isStep1Complete ? { scale: 1.02 } : {}}
+                                    whileTap={isStep1Complete ? { scale: 0.98 } : {}}
+                                    onClick={() => { if (isStep1Complete) setCurrentStep(2); }}
+                                    className="w-full sm:w-auto inline-flex justify-center items-center py-3.5 px-8 border border-transparent shadow-md text-sm font-black rounded-2xl text-white bg-[#0e3187] hover:bg-[#1546be] focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 cursor-pointer"
+                                >
+                                    Siguiente paso
+                                    <ArrowRight className="w-4 h-4 ml-2" strokeWidth={2} />
+                                </motion.button>
+                            </div>
+                        </motion.div>
+                    ) : (
+                        <motion.div
+                            key="step2"
+                            initial={{ opacity: 0, x: 10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -10 }}
+                            transition={{ duration: 0.2 }}
+                            className="space-y-6"
+                        >
+                            {/* 3. Título */}
+                            <div>
+                                <label htmlFor="titulo" className="block text-sm font-bold text-slate-700 mb-2">Título de la Solicitud</label>
+                                <input
+                                    type="text"
+                                    id="titulo"
+                                    name="titulo"
+                                    required
+                                    className="mt-1 block w-full px-4.5 py-3.5 border border-slate-200 rounded-2xl shadow-sm focus:ring-4 focus:ring-[#0e3187]/10 focus:border-[#0e3187] sm:text-sm text-slate-900 transition-all placeholder-slate-400 font-semibold bg-slate-50/50 hover:bg-slate-50 focus:bg-white"
+                                    placeholder="Ej: Problema con la impresora de recursos humanos"
+                                />
+                            </div>
+
+                            <div className="pb-2">
+                                <label className="block text-sm font-bold text-slate-700 mb-2">Descripción y Adjuntos</label>
+
+                                {/* Unified Editor Wrapper */}
+                                <div className="border border-slate-200 focus-within:border-[#0e3187] focus-within:ring-4 focus-within:ring-[#0e3187]/10 rounded-2xl overflow-hidden bg-white flex flex-col shadow-sm transition-all">
+                                    <ReactQuill
+                                        theme="snow"
+                                        value={descripcion}
+                                        onChange={setDescripcion}
+                                        className="text-slate-900 flex-1 [&_.ql-editor]:min-h-[220px] [&_.ql-container]:!border-0 [&_.ql-toolbar]:!border-0 [&_.ql-toolbar]:!border-b [&_.ql-toolbar]:!border-slate-200/80 [&_.ql-toolbar]:bg-slate-50/50 [&_.ql-editor]:focus:!ring-0 [&_.ql-editor]:focus:!outline-none [&_.ql-editor]:!border-transparent"
+                                    />
+
+                                    {/* Attachment Zone Inside Wrapper */}
+                                    <div className="bg-slate-50/80 border-t border-slate-100 p-4 flex flex-col gap-3">
+                                        <div className="flex flex-wrap items-center justify-between gap-3">
+                                            <label className="relative cursor-pointer flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-bold text-slate-600 bg-white border border-slate-200 hover:text-[#0e3187] hover:border-[#0e3187]/30 hover:bg-slate-50 rounded-xl transition-all shadow-sm focus:outline-none">
+                                                <Paperclip className="w-4 h-4 text-[#0e3187]" />
+                                                <span>Adjuntar archivos</span>
+                                                <input
+                                                    type="file"
+                                                    className="hidden"
+                                                    multiple
+                                                    onChange={handleFileChange}
+                                                    accept=".pdf,.jpg,.jpeg,.png,.xlsx,.docx"
+                                                    disabled={files.length >= MAX_FILES}
+                                                />
+                                            </label>
+                                            <span className="text-[11px] text-slate-400 font-bold bg-slate-200/40 px-2.5 py-1 rounded-md">
+                                                Archivos: {files.length} / {MAX_FILES} (Máx 5MB c/u)
+                                            </span>
+                                        </div>
+
+                                        {/* File list */}
+                                        {files.length > 0 && (
+                                            <div className="bg-slate-100/40 rounded-2xl border border-slate-200/40 p-3 shadow-inner mt-1">
+                                                <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                    <AnimatePresence>
+                                                        {files.map((file, index) => (
+                                                            <ImagePreviewItem
+                                                                key={`${file.name}-${file.size}`}
+                                                                file={file}
+                                                                onRemove={() => removeFile(index)}
+                                                            />
+                                                        ))}
+                                                    </AnimatePresence>
+                                                </ul>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Navegación Paso 2 */}
+                            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-5 mt-6 border-t border-slate-100">
+                                <motion.button
+                                    type="button"
+                                    whileHover={{ scale: 1.02 }}
+                                    whileTap={{ scale: 0.98 }}
+                                    onClick={() => setCurrentStep(1)}
+                                    className="w-full sm:w-auto inline-flex justify-center items-center py-3.5 px-6 border border-slate-200 shadow-sm text-sm font-black rounded-2xl text-slate-700 bg-white hover:bg-slate-50 focus:outline-none transition-all duration-200 cursor-pointer"
+                                >
+                                    <ArrowLeft className="w-4 h-4 mr-2" strokeWidth={2} />
+                                    Atrás
+                                </motion.button>
+
+                                <motion.button
+                                    type="submit"
+                                    disabled={isSubmitting}
+                                    whileHover={{ scale: 1.02 }}
+                                    whileTap={{ scale: 0.98 }}
+                                    className="w-full sm:w-auto inline-flex justify-center items-center py-3.5 px-8 border border-transparent shadow-md text-sm font-black rounded-2xl text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none disabled:opacity-70 disabled:cursor-not-allowed transition-all duration-200 cursor-pointer"
+                                >
+                                    {isSubmitting ? (
+                                        <>
+                                            <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                                            Creando solicitud...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Ticket className="w-4 h-4 mr-2" />
+                                            Crear solicitud
+                                        </>
+                                    )}
+                                </motion.button>
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </form>
         </div>
     );

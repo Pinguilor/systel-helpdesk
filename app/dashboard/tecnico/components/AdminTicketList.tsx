@@ -7,6 +7,30 @@ import { FileText, Image as ImageIcon, FileSpreadsheet, File, MessageSquare, Sea
 import Link from 'next/link';
 import { ExportarMaestroButton } from '@/app/dashboard/admin/components/ExportarMaestroButton';
 import { getStatusBadge } from '@/app/dashboard/components/StatusBadge';
+import { motion } from 'framer-motion';
+
+const containerVariants = {
+    hidden: { opacity: 0 },
+    show: {
+        opacity: 1,
+        transition: {
+            staggerChildren: 0.03
+        }
+    }
+} as const;
+
+const itemVariants = {
+    hidden: { y: 10, opacity: 0 },
+    show: { 
+        y: 0, 
+        opacity: 1,
+        transition: {
+            type: "spring",
+            stiffness: 100,
+            damping: 15
+        }
+    }
+} as const;
 
 const ITEMS_PER_PAGE = 25;
 
@@ -70,19 +94,36 @@ export function AdminTicketList({ initialTickets, currentAgentId, agentName }: P
     const paginatedTickets = useMemo(() => {
         const start = (currentPage - 1) * ITEMS_PER_PAGE;
         return processedTickets.slice(start, start + ITEMS_PER_PAGE);
-    }, [processedTickets, currentPage]);
-
-    const getPriorityBadge = (priority: Ticket['prioridad'], isCompound = false) => {
-        const shape = isCompound ? 'rounded-l-md border-r-0 text-[10px]' : 'rounded text-[9px] sm:text-[10px] shadow-sm';
-        switch (priority) {
-            case 'alta': return <span className={`inline-flex items-center px-2 py-0.5 ${shape} uppercase tracking-wide font-black bg-white text-red-600 border border-red-200`}>Alta</span>;
-            case 'crítica': return <span className={`inline-flex items-center px-2 py-0.5 ${shape} uppercase tracking-wide font-black bg-white text-purple-700 border border-purple-200`}>Crítica</span>;
-            case 'media': return <span className={`inline-flex items-center px-2 py-0.5 ${shape} uppercase tracking-wide font-black bg-white text-amber-600 border border-amber-200`}>Media</span>;
-            case 'baja': return <span className={`inline-flex items-center px-2 py-0.5 ${shape} uppercase tracking-wide font-black bg-white text-blue-600 border border-blue-200`}>Baja</span>;
-            default: return <span className={`inline-flex items-center px-2 py-0.5 ${shape} uppercase tracking-wide font-black bg-gray-100 text-gray-700 border border-gray-200`}>{priority}</span>;
-        }
+    }, [processedTickets, currentPage]);    const getPriorityBadge = (priority: Ticket['prioridad']) => {
+        const p = priority?.toLowerCase() || 'baja';
+        const dotClass = (pr: string) => {
+            if (pr === 'alta') return 'bg-orange-500';
+            if (pr === 'crítica') return 'bg-red-500';
+            if (pr === 'media') return 'bg-blue-500';
+            return 'bg-emerald-500';
+        };
+        const bgClass = (pr: string) => {
+            if (pr === 'alta') return 'bg-orange-50/70 border-orange-200/50 text-orange-700';
+            if (pr === 'crítica') return 'bg-red-50/70 border-red-200/50 text-red-700';
+            if (pr === 'media') return 'bg-blue-50/70 border-blue-200/50 text-blue-700';
+            return 'bg-emerald-50/70 border-emerald-200/50 text-emerald-700';
+        };
+        const label = p.charAt(0).toUpperCase() + p.slice(1);
+        return (
+            <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border text-[10px] font-extrabold tracking-wider uppercase shadow-sm ${bgClass(p)}`}>
+                <span className="relative flex h-2 w-2">
+                    {p === 'crítica' && (
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                    )}
+                    {p === 'alta' && (
+                        <span className="animate-pulse absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75" />
+                    )}
+                    <span className={`relative inline-flex rounded-full h-2 w-2 ${dotClass(p)}`} />
+                </span>
+                {label}
+            </span>
+        );
     };
-
 
     const getFileIcon = (url: string) => {
         const ext = url.split('.').pop()?.toLowerCase() || '';
@@ -93,16 +134,16 @@ export function AdminTicketList({ initialTickets, currentAgentId, agentName }: P
     };
 
     return (
-        <div className="bg-transparent md:bg-white md:shadow-md md:rounded-xl overflow-hidden md:border border-transparent md:border-slate-200 w-full">
+        <div className="bg-white/70 backdrop-blur-md shadow-lg rounded-3xl overflow-hidden border border-slate-200/40 w-full mt-4">
             
             {/* Header / Controles Principales (Visible Móvil y Desktop) */}
-            <div className="p-4 sm:p-5 border-b border-gray-200 flex flex-col bg-white gap-4 w-full">
+            <div className="p-5 border-b border-slate-100 flex flex-col bg-white/40 gap-4 w-full">
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 w-full">
                     {/* Título y Badge */}
                     <div className="flex items-center gap-2">
-                        <h3 className="text-xl font-black text-slate-800 flex items-center gap-2 whitespace-nowrap tracking-tight">
+                        <h3 className="text-xl font-extrabold text-slate-900 flex items-center gap-2 whitespace-nowrap tracking-tight">
                             Todos los Tickets
-                            <span className="bg-brand-primary/10 text-brand-primary text-xs font-bold px-2.5 py-1 rounded-full border border-brand-primary/20">
+                            <span className="bg-[#0e3187]/10 text-[#0e3187] text-xs font-black px-2.5 py-0.5 rounded-full border border-[#0e3187]/15">
                                 {processedTickets.length}
                             </span>
                         </h3>
@@ -111,82 +152,151 @@ export function AdminTicketList({ initialTickets, currentAgentId, agentName }: P
                     <ExportarMaestroButton />
 
                     {/* Barra de Búsqueda de Ancho Completo */}
-                    <div className="relative w-full lg:max-w-md">
-                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                            <Search className="h-4 w-4 text-slate-400" />
+                    <div className="relative w-full lg:max-w-md group">
+                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 group-focus-within:text-[#0e3187] transition-colors">
+                            <Search className="h-4 w-4" strokeWidth={2} />
                         </div>
                         <input
                             type="text"
                             placeholder="Buscar por ID (NC-XX), título, descripción o restaurante..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="block w-full pl-10 pr-3 py-2.5 sm:py-2 border border-slate-300 rounded-xl leading-5 bg-slate-50 placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-2 focus:ring-brand-primary focus:border-brand-primary text-[15px] sm:text-sm transition-all shadow-sm"
+                            className="block w-full pl-10 pr-3 py-2.5 border border-slate-200 rounded-2xl leading-5 bg-slate-50/50 placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-4 focus:ring-[#0e3187]/10 focus:border-[#0e3187] text-[15px] sm:text-sm transition-all font-semibold shadow-inner"
                         />
                     </div>
                 </div>
 
                 {/* Filtros Estrictos (Tabs) */}
-                <div className="flex overflow-x-auto w-full p-1 sm:p-1.5 rounded-xl bg-slate-100 border border-slate-200 shadow-inner mt-1 sm:mt-0">
+                <div className="flex p-1.5 rounded-2xl bg-slate-100/80 border border-slate-200/50 shadow-inner mt-1 sm:mt-0 relative overflow-hidden">
                     <div className="flex space-x-1 min-w-max w-full">
-                        <button onClick={() => setFilter('TODOS')} className={`flex-1 px-4 sm:px-6 py-2 rounded-lg text-sm font-bold transition-all ${filter === 'TODOS' ? 'bg-white text-brand-primary shadow-sm ring-1 ring-slate-200/50' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/50'}`}>Todos</button>
-                        <button onClick={() => setFilter('PENDIENTES')} className={`flex-1 px-4 sm:px-6 py-2 rounded-lg text-sm font-bold transition-all ${filter === 'PENDIENTES' ? 'bg-white text-amber-600 shadow-sm ring-1 ring-slate-200/50' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/50'}`}>Pendientes</button>
-                        <button onClick={() => setFilter('RESUELTOS')} className={`flex-1 px-4 sm:px-6 py-2 rounded-lg text-sm font-bold transition-all ${filter === 'RESUELTOS' ? 'bg-white text-emerald-600 shadow-sm ring-1 ring-slate-200/50' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/50'}`}>Resueltos</button>
+                        <button 
+                            onClick={() => setFilter('TODOS')} 
+                            className="relative flex-1 px-6 py-2 rounded-xl text-xs font-black focus:outline-none cursor-pointer"
+                        >
+                            <span className={`relative z-10 transition-colors ${filter === 'TODOS' ? 'text-[#0e3187]' : 'text-slate-500 hover:text-slate-800'}`}>
+                                Todos
+                            </span>
+                            {filter === 'TODOS' && (
+                                <motion.div
+                                    layoutId="activeAdminFilterPill"
+                                    className="absolute inset-0 bg-white rounded-xl shadow-sm border border-slate-200/60"
+                                    transition={{ type: "spring", stiffness: 350, damping: 25 }}
+                                />
+                            )}
+                        </button>
+                        <button 
+                            onClick={() => setFilter('PENDIENTES')} 
+                            className="relative flex-1 px-6 py-2 rounded-xl text-xs font-black focus:outline-none cursor-pointer"
+                        >
+                            <span className={`relative z-10 transition-colors ${filter === 'PENDIENTES' ? 'text-amber-700' : 'text-slate-500 hover:text-slate-800'}`}>
+                                Pendientes
+                            </span>
+                            {filter === 'PENDIENTES' && (
+                                <motion.div
+                                    layoutId="activeAdminFilterPill"
+                                    className="absolute inset-0 bg-white rounded-xl shadow-sm border border-slate-200/60"
+                                    transition={{ type: "spring", stiffness: 350, damping: 25 }}
+                                />
+                            )}
+                        </button>
+                        <button 
+                            onClick={() => setFilter('RESUELTOS')} 
+                            className="relative flex-1 px-6 py-2 rounded-xl text-xs font-black focus:outline-none cursor-pointer"
+                        >
+                            <span className={`relative z-10 transition-colors ${filter === 'RESUELTOS' ? 'text-emerald-700' : 'text-slate-500 hover:text-slate-800'}`}>
+                                Resueltos
+                            </span>
+                            {filter === 'RESUELTOS' && (
+                                <motion.div
+                                    layoutId="activeAdminFilterPill"
+                                    className="absolute inset-0 bg-white rounded-xl shadow-sm border border-slate-200/60"
+                                    transition={{ type: "spring", stiffness: 350, damping: 25 }}
+                                />
+                            )}
+                        </button>
                     </div>
                 </div>
             </div>
 
             {/* Paneles de Resumen (Top 3) */}
-            <div className="grid grid-cols-3 gap-3 p-4 bg-slate-50 border-b border-gray-100">
-                <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center justify-center">
-                    <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-widest mb-0.5">Totales</span>
-                    <span className="text-xl sm:text-2xl font-black text-brand-primary">{initialTickets.length}</span>
+            <div className="grid grid-cols-3 gap-4 p-5 bg-slate-50/30 border-b border-slate-100/85">
+                <div className="bg-white/60 backdrop-blur-sm p-4 rounded-2xl border border-slate-200/50 shadow-sm flex flex-col items-center justify-center transition-all hover:shadow-md hover:scale-[1.02] duration-200">
+                    <span className="text-[10px] sm:text-xs font-black text-slate-400 uppercase tracking-widest mb-1.5">Totales</span>
+                    <motion.span 
+                        initial={{ scale: 0.9, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        transition={{ type: 'spring', stiffness: 200, damping: 15 }}
+                        className="text-xl sm:text-3xl font-black text-[#0e3187] tracking-tight"
+                    >
+                        {initialTickets.length}
+                    </motion.span>
                 </div>
-                <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center justify-center">
-                    <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-widest mb-0.5">Pendientes</span>
-                    <span className="text-xl sm:text-2xl font-black text-amber-600">{initialTickets.filter(t => !['anulado', 'resuelto', 'cerrado'].includes(t.estado)).length}</span>
+                <div className="bg-white/60 backdrop-blur-sm p-4 rounded-2xl border border-slate-200/50 shadow-sm flex flex-col items-center justify-center transition-all hover:shadow-md hover:scale-[1.02] duration-200">
+                    <span className="text-[10px] sm:text-xs font-black text-slate-400 uppercase tracking-widest mb-1.5">Pendientes</span>
+                    <motion.span 
+                        initial={{ scale: 0.9, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        transition={{ type: 'spring', stiffness: 200, damping: 15 }}
+                        className="text-xl sm:text-3xl font-black text-amber-500 tracking-tight"
+                    >
+                        {initialTickets.filter(t => !['anulado', 'resuelto', 'cerrado'].includes(t.estado)).length}
+                    </motion.span>
                 </div>
-                <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center justify-center">
-                    <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-widest mb-0.5">Resueltos</span>
-                    <span className="text-xl sm:text-2xl font-black text-emerald-600">{initialTickets.filter(t => ['anulado', 'resuelto', 'cerrado'].includes(t.estado)).length}</span>
+                <div className="bg-white/60 backdrop-blur-sm p-4 rounded-2xl border border-slate-200/50 shadow-sm flex flex-col items-center justify-center transition-all hover:shadow-md hover:scale-[1.02] duration-200">
+                    <span className="text-[10px] sm:text-xs font-black text-slate-400 uppercase tracking-widest mb-1.5">Resueltos</span>
+                    <motion.span 
+                        initial={{ scale: 0.9, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        transition={{ type: 'spring', stiffness: 200, damping: 15 }}
+                        className="text-xl sm:text-3xl font-black text-emerald-500 tracking-tight"
+                    >
+                        {initialTickets.filter(t => ['anulado', 'resuelto', 'cerrado'].includes(t.estado)).length}
+                    </motion.span>
                 </div>
             </div>
 
-
-
             {/* VISTA DE ESCRITORIO (Tabla) */}
             <div className="hidden md:block overflow-hidden">
-                <table className="w-full table-fixed divide-y divide-gray-200">
-                    <thead className="bg-gray-50/50">
+                <table className="w-full table-fixed divide-y divide-slate-100/50">
+                    <thead className="bg-slate-50/70 border-b border-slate-200/50">
                         <tr>
-                            <th scope="col" className="pl-6 pr-3 py-4 w-36 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">ID / Fecha</th>
-                            <th scope="col" className="pl-3 pr-6 py-4 w-56 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Usuario</th>
-                            <th scope="col" className="px-6 py-4 w-44 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Cliente</th>
-                            <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Asunto</th>
-                            <th scope="col" className="px-6 py-4 w-24 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Prioridad</th>
-                            <th scope="col" className="px-6 py-4 w-36 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Estado</th>
+                            <th scope="col" className="pl-6 pr-3 py-4 w-36 text-left text-[10px] font-black text-slate-500 uppercase tracking-widest">ID / Fecha</th>
+                            <th scope="col" className="pl-3 pr-6 py-4 w-56 text-left text-[10px] font-black text-slate-500 uppercase tracking-widest">Usuario</th>
+                            <th scope="col" className="px-6 py-4 w-44 text-left text-[10px] font-black text-slate-500 uppercase tracking-widest">Cliente</th>
+                            <th scope="col" className="px-6 py-4 text-left text-[10px] font-black text-slate-500 uppercase tracking-widest">Asunto</th>
+                            <th scope="col" className="px-6 py-4 w-36 text-left text-[10px] font-black text-slate-500 uppercase tracking-widest">Prioridad</th>
+                            <th scope="col" className="px-6 py-4 w-36 text-left text-[10px] font-black text-slate-500 uppercase tracking-widest">Estado</th>
                         </tr>
                     </thead>
-                    <tbody className="bg-white divide-y divide-gray-100">
+                    <motion.tbody 
+                        key={`${filter}-${searchTerm}-${currentPage}`}
+                        variants={containerVariants}
+                        initial="hidden"
+                        animate="show"
+                        className="bg-white/40 divide-y divide-slate-100/60"
+                    >
                         {paginatedTickets.length === 0 ? (
                             <tr>
-                                <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
+                                <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
                                     <div className="flex flex-col items-center justify-center">
-                                        <MessageSquare className="w-12 h-12 text-gray-300 mb-3" />
-                                        <p className="text-gray-500">No hay tickets en esta vista.</p>
+                                        <MessageSquare className="w-12 h-12 text-slate-450 mb-3" />
+                                        <p className="text-slate-500 font-bold text-sm">No hay tickets en esta vista.</p>
                                     </div>
                                 </td>
                             </tr>
                         ) : (
                             paginatedTickets.map((ticket) => (
-                                <tr
+                                <motion.tr
                                     key={ticket.id}
+                                    layout="position"
+                                    variants={itemVariants}
                                     onClick={() => router.push(`/dashboard/ticket/${ticket.id}`)}
-                                    className="hover:bg-gray-50 transition-colors cursor-pointer group"
+                                    className="hover:bg-slate-50/70 transition-colors duration-200 cursor-pointer group"
                                 >
                                     <td className="pl-6 pr-3 py-4 whitespace-nowrap">
                                         <div className="flex flex-col">
                                             <div className="text-xs font-bold tracking-wider mb-1">
-                                                <span className="inline-flex items-center px-3 py-1 rounded-full bg-slate-700 text-white text-xs font-semibold tracking-wide shadow-sm">
+                                                <span className="inline-flex items-center px-2.5 py-1 rounded-xl bg-[#0e3187] text-white text-xs font-black tracking-wide shadow-sm group-hover:scale-105 transition-transform duration-200 ease-out">
                                                     NC-{ticket.numero_ticket}
                                                 </span>
                                             </div>
@@ -194,25 +304,25 @@ export function AdminTicketList({ initialTickets, currentAgentId, agentName }: P
                                                 <Link 
                                                     href={`/dashboard/ticket/${ticket.ticket_padre_id}`}
                                                     onClick={(e) => e.stopPropagation()}
-                                                    className="inline-flex items-center gap-1.5 text-[10px] text-slate-500 hover:text-indigo-600 transition-colors font-medium mb-1 w-max"
+                                                    className="inline-flex items-center gap-1.5 text-[10px] text-slate-400 hover:text-[#0e3187] transition-colors font-bold mb-1 w-max"
                                                 >
-                                                    <CornerDownRight className="w-3 h-3 text-slate-400" />
+                                                    <CornerDownRight className="w-3.5 h-3.5 text-slate-400" />
                                                     ↳ Adicional de NC-{ticket.padre.numero_ticket}
                                                 </Link>
                                             )}
-                                            <div className="text-[11px] text-gray-500 font-medium">
-                                                {new Date(ticket.fecha_creacion).toLocaleDateString()}
+                                            <div className="text-[11px] text-slate-400 font-bold">
+                                                {new Date(ticket.fecha_creacion).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                                             </div>
                                         </div>
                                     </td>
 
                                     <td className="pl-3 pr-6 py-4 whitespace-nowrap">
                                         <div className="flex items-center min-w-0">
-                                            <div className="h-8 w-8 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-xs ring-2 ring-white shrink-0">
+                                            <div className="h-8 w-8 rounded-full bg-[#0e3187]/10 text-[#0e3187] flex items-center justify-center font-black text-xs shrink-0 ring-2 ring-white">
                                                 {ticket.profiles?.full_name?.charAt(0).toUpperCase() || 'U'}
                                             </div>
                                             <div className="ml-3 min-w-0">
-                                                <div className="text-sm font-medium text-gray-900 truncate" title={ticket.profiles?.full_name || 'Desconocido'}>
+                                                <div className="text-sm font-bold text-slate-700 truncate" title={ticket.profiles?.full_name || 'Desconocido'}>
                                                     {ticket.profiles?.full_name || 'Desconocido'}
                                                 </div>
                                             </div>
@@ -225,7 +335,7 @@ export function AdminTicketList({ initialTickets, currentAgentId, agentName }: P
                                             <div className="flex items-center gap-2">
                                                 <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
                                                 <div className="flex flex-col min-w-0">
-                                                    <span className="text-sm font-medium text-slate-700 truncate max-w-[160px]" title={(ticket.profiles as any)?.clientes?.nombre_fantasia}>
+                                                    <span className="text-sm font-bold text-slate-700 truncate max-w-[160px]" title={(ticket.profiles as any)?.clientes?.nombre_fantasia}>
                                                         {(ticket.profiles as any)?.clientes?.nombre_fantasia?.replace(/\s*\[.*?\]/g, '').trim()}
                                                     </span>
                                                     {(ticket.profiles as any)?.clientes?.razon_social && (
@@ -236,29 +346,28 @@ export function AdminTicketList({ initialTickets, currentAgentId, agentName }: P
                                                 </div>
                                             </div>
                                         ) : (
-                                            <span className="text-xs text-slate-300 font-medium">—</span>
+                                            <span className="text-xs text-slate-400 font-bold">—</span>
                                         )}
                                     </td>
 
                                     <td className="px-6 py-4 overflow-hidden">
-                                        <div className="text-sm font-bold text-gray-900 mb-1.5 truncate group-hover:text-emerald-600 transition-colors" title={ticket.titulo}>
+                                        <div className="text-sm font-extrabold text-slate-900 mb-1.5 truncate group-hover:text-[#0e3187] transition-colors" title={ticket.titulo}>
                                             {ticket.titulo}
                                         </div>
-                                        <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium whitespace-nowrap overflow-hidden text-ellipsis">
+                                        <div className="flex items-center gap-1.5 text-[10px] font-bold whitespace-nowrap overflow-hidden text-ellipsis">
                                             {ticket.restaurantes?.nombre_restaurante && (
-                                                <span className="truncate max-w-[120px]" title={ticket.restaurantes.nombre_restaurante}>
-                                                    {ticket.restaurantes.nombre_restaurante}
+                                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[10px] font-black tracking-widest bg-slate-50 text-slate-700 border border-slate-200 mr-1.5">
+                                                    📍 {ticket.restaurantes.nombre_restaurante.substring(0, 4).toUpperCase()}
                                                 </span>
                                             )}
 
                                             {ticket.catalogo_servicios && (
                                                 <>
-                                                    <ChevronRight className="w-3 h-3 text-slate-300 flex-shrink-0" />
-                                                    <span className="truncate max-w-[100px]" title={ticket.catalogo_servicios.categoria}>
+                                                    <span className="truncate max-w-[120px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-lg border border-slate-200/40" title={ticket.catalogo_servicios.categoria}>
                                                         {ticket.catalogo_servicios.categoria}
                                                     </span>
-                                                    <ChevronRight className="w-3 h-3 text-slate-300 flex-shrink-0" />
-                                                    <span className="truncate max-w-[100px]" title={ticket.catalogo_servicios.subcategoria}>
+                                                    <ChevronRight className="w-3 h-3 text-slate-400 flex-shrink-0" />
+                                                    <span className="truncate max-w-[120px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-lg border border-slate-200/40 font-bold" title={ticket.catalogo_servicios.subcategoria}>
                                                         {ticket.catalogo_servicios.subcategoria}
                                                     </span>
                                                 </>
@@ -267,7 +376,7 @@ export function AdminTicketList({ initialTickets, currentAgentId, agentName }: P
                                         {ticket.adjuntos && ticket.adjuntos.length > 0 && (
                                             <div className="flex space-x-1 mt-2">
                                                 {ticket.adjuntos.map((url, i) => (
-                                                    <span key={i} className="text-gray-400 p-0.5 bg-gray-100 rounded-sm">
+                                                    <span key={i} className="text-slate-400 p-0.5 bg-slate-100 rounded-sm">
                                                         {getFileIcon(url)}
                                                     </span>
                                                 ))}
@@ -282,28 +391,41 @@ export function AdminTicketList({ initialTickets, currentAgentId, agentName }: P
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         {getStatusBadge(ticket.estado)}
                                     </td>
-                                </tr>
+                                </motion.tr>
                             ))
                         )}
-                    </tbody>
+                    </motion.tbody>
                 </table>
             </div>
 
             {/* VISTA MÓVIL (Tarjetas independientes) */}
-            <div className="md:hidden flex flex-col p-4 md:bg-slate-50/50 gap-4 min-h-[50vh] bg-slate-50">
+            <motion.div 
+                key={`${filter}-${searchTerm}-${currentPage}-mobile`}
+                variants={containerVariants}
+                initial="hidden"
+                animate="show"
+                className="md:hidden flex flex-col p-4 gap-4 min-h-[50vh] bg-slate-50"
+            >
                 {paginatedTickets.length === 0 ? (
-                    <div className="px-6 py-12 text-center text-gray-500 bg-white rounded-2xl border border-slate-200 shadow-sm mt-4">
+                    <div className="px-6 py-12 text-center text-slate-400 bg-white rounded-2xl border border-slate-200 shadow-sm mt-4">
                         <div className="flex flex-col items-center justify-center">
-                            <MessageSquare className="w-12 h-12 text-gray-300 mb-3" />
-                            <p className="text-gray-500 font-medium">No hay tickets en esta vista.</p>
+                            <MessageSquare className="w-12 h-12 text-slate-400 mb-3" />
+                            <p className="text-slate-500 font-bold text-sm">No hay tickets en esta vista.</p>
                         </div>
                     </div>
                 ) : (
                     paginatedTickets.map((ticket) => (
-                        <div
+                        <motion.div
                             key={ticket.id}
+                            layout="position"
+                            variants={itemVariants}
                             onClick={() => router.push(`/dashboard/ticket/${ticket.id}`)}
-                            className="p-4 sm:p-5 bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md active:bg-slate-50 transition-all cursor-pointer flex flex-col gap-3"
+                            className={`p-5 bg-white border border-slate-150 border-l-4 rounded-3xl shadow-sm hover:shadow-md hover:border-slate-200 active:bg-slate-50 transition-all duration-300 cursor-pointer flex flex-col gap-3.5 relative overflow-hidden ${
+                                ticket.prioridad === 'crítica' ? 'border-l-red-500' :
+                                ticket.prioridad === 'alta' ? 'border-l-orange-500' :
+                                ticket.prioridad === 'media' ? 'border-l-blue-500' :
+                                'border-l-emerald-500'
+                            }`}
                         >
                             {/* Fila 1: Header con ID y Usuario */}
                             <div className="flex justify-between items-start gap-2">
@@ -313,10 +435,10 @@ export function AdminTicketList({ initialTickets, currentAgentId, agentName }: P
                                     </div>
                                     <div className="flex flex-col min-w-0">
                                         <div className="flex flex-wrap items-center gap-2 mb-0.5">
-                                            <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-slate-800 text-white text-[10px] font-black tracking-widest shadow-sm">
+                                            <span className="inline-flex items-center px-2.5 py-1 rounded-xl bg-slate-800 text-white text-[10px] font-black tracking-widest shadow-sm">
                                                 NC-{ticket.numero_ticket}
                                             </span>
-                                            <span className="text-[12px] font-bold text-gray-900 truncate">
+                                            <span className="text-[12px] font-bold text-slate-700 truncate">
                                                 {ticket.profiles?.full_name || 'Desconocido'}
                                             </span>
                                         </div>
@@ -324,7 +446,7 @@ export function AdminTicketList({ initialTickets, currentAgentId, agentName }: P
                                             <Link 
                                                 href={`/dashboard/ticket/${ticket.ticket_padre_id}`}
                                                 onClick={(e) => e.stopPropagation()}
-                                                className="inline-flex items-center gap-1 text-[10px] text-slate-500 hover:text-indigo-600 transition-colors font-bold w-max bg-slate-50 px-1.5 py-0.5 rounded"
+                                                className="inline-flex items-center gap-1 text-[10px] text-slate-500 hover:text-[#0e3187] transition-colors font-bold w-max bg-slate-50 px-1.5 py-0.5 rounded"
                                             >
                                                 <CornerDownRight className="w-3 h-3 text-slate-400" />
                                                 ↳ Adicional de NC-{ticket.padre.numero_ticket}
@@ -338,65 +460,65 @@ export function AdminTicketList({ initialTickets, currentAgentId, agentName }: P
                             </div>
 
                             {/* Fila 2: Título */}
-                            <div className="font-extrabold text-sm sm:text-base text-slate-900 leading-snug break-words mt-1">
+                            <div className="font-extrabold text-sm sm:text-base text-slate-900 leading-snug break-words">
                                 {ticket.titulo}
                             </div>
 
                             {/* Fila 3: Ubicación, Cliente y Categoría */}
-                            <div className="flex flex-col gap-1.5 text-[11px] text-slate-500">
+                            <div className="flex flex-col gap-2 text-[11px] text-slate-500">
                                 {(ticket.profiles as any)?.clientes?.nombre_fantasia && (
-                                    <span className="font-bold text-violet-700 flex items-center gap-1.5 bg-violet-50 px-2.5 py-1 w-max rounded-lg border border-violet-100">
-                                        <Building2 className="w-3 h-3 text-violet-400 shrink-0" />
+                                    <span className="font-bold text-[#0e3187] flex items-center gap-1.5 bg-[#0e3187]/5 px-2.5 py-1 w-max rounded-xl border border-[#0e3187]/10 text-[10px] tracking-wider uppercase">
+                                        <Building2 className="w-3 h-3 text-[#0e3187]/70 shrink-0" />
                                         {(ticket.profiles as any)?.clientes?.nombre_fantasia?.replace(/\s*\[.*?\]/g, '').trim()}
                                     </span>
                                 )}
                                 {ticket.restaurantes?.nombre_restaurante && (
-                                    <span className="font-bold text-slate-700 flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 w-max rounded-lg border border-slate-100">
+                                    <span className="font-extrabold text-slate-700 flex items-center gap-1.5 bg-slate-50 border border-slate-200/60 px-2.5 py-1 w-max rounded-xl text-[10px] tracking-wider uppercase">
                                         📍 {ticket.restaurantes.nombre_restaurante}
                                     </span>
                                 )}
                                 {ticket.catalogo_servicios && (
-                                    <span className="font-medium text-slate-600 flex items-center gap-1.5 mt-0.5">
-                                        <div className="w-1.5 h-1.5 rounded-full bg-slate-300"></div> {ticket.catalogo_servicios.categoria} &rsaquo; <span className="text-slate-800 font-bold">{ticket.catalogo_servicios.subcategoria}</span>
+                                    <span className="font-semibold text-slate-500 flex items-center gap-1.5 mt-0.5">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-slate-400" /> {ticket.catalogo_servicios.categoria} &rsaquo; <span className="text-slate-800 font-extrabold">{ticket.catalogo_servicios.subcategoria}</span>
                                     </span>
                                 )}
                             </div>
 
-                            {/* Fila 4: Badges Consolidados como un solo elemento visual */}
-                            <div className="flex items-center justify-between gap-3 mt-1.5 pt-3.5 border-t border-slate-50">
-                                <div className="flex items-center shadow-sm rounded-md hover:shadow transition-shadow">
+                            {/* Fila 4: Badges */}
+                            <div className="flex items-center justify-between gap-3 mt-1.5 pt-3.5 border-t border-slate-100">
+                                <div className="flex items-center">
                                     {getPriorityBadge(ticket.prioridad)}
                                 </div>
                                 <div className="shrink-0 flex items-center justify-end">
                                     {getStatusBadge(ticket.estado)}
                                 </div>
                             </div>
-                        </div>
+                        </motion.div>
                     ))
                 )}
-            </div>
+            </motion.div>
 
-            {/* Pagination Footer */}
+            {/* Pagination */}
             {totalPages > 1 && (
-                <div className="px-4 sm:px-6 py-4 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
+                <div className="px-6 py-4.5 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between">
                     <button
                         onClick={() => { setCurrentPage(p => Math.max(1, p - 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                         disabled={currentPage === 1}
-                        className="inline-flex items-center px-3 py-1.5 sm:px-4 sm:py-2 border border-slate-300 shadow-sm text-xs sm:text-sm font-medium rounded-lg text-slate-700 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                        className="inline-flex items-center px-4 py-2 border border-slate-200 shadow-sm text-xs font-bold rounded-xl text-slate-700 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
                     >
-                        <ChevronLeft className="h-4 w-4 mr-1 sm:mr-1.5" />
-                        <span className="hidden sm:inline">Anterior</span>
+                        <ChevronLeft className="h-4 w-4 mr-1.5" />
+                        Anterior
                     </button>
-                    <span className="text-xs sm:text-sm text-slate-600 font-medium">
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">
                         Página {currentPage} de {totalPages}
                     </span>
                     <button
                         onClick={() => { setCurrentPage(p => Math.min(totalPages, p + 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                         disabled={currentPage === totalPages}
-                        className="inline-flex items-center px-3 py-1.5 sm:px-4 sm:py-2 border border-slate-300 shadow-sm text-xs sm:text-sm font-medium rounded-lg text-slate-700 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                        className="inline-flex items-center px-4 py-2 border border-slate-200 shadow-sm text-xs font-bold rounded-xl text-slate-700 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
                     >
-                        <span className="hidden sm:inline">Siguiente</span>
-                        <ChevronRight className="h-4 w-4 ml-1 sm:ml-1.5" />
+                        Siguiente
+                        <ChevronRight className="h-4 w-4 ml-1.5" />
                     </button>
                 </div>
             )}

@@ -11,6 +11,7 @@ import { Notification } from '@/types/database.types';
 import debounce from 'lodash.debounce';
 import { TicketForm } from '../usuario/components/TicketForm';
 import { CatalogConfigModal } from './CatalogConfigModal';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface TopNavProps {
     userFullName: string | null;
@@ -22,6 +23,7 @@ export default function TopNav({ userFullName, userRole }: TopNavProps) {
     const [isNotifOpen, setIsNotifOpen] = useState(false);
     const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
     const [isCatalogModalOpen, setIsCatalogModalOpen] = useState(false);
+    const [isBtnHovered, setIsBtnHovered] = useState(false);
     const [notifications, setNotifications] = useState<any[]>([]);
     const [hasMore, setHasMore]             = useState(false);
     const [loadingMore, setLoadingMore]     = useState(false);
@@ -291,12 +293,12 @@ export default function TopNav({ userFullName, userRole }: TopNavProps) {
     const unreadCount = notifications.filter(n => !n.leida).length;
 
     const dashboardLink = userRole === 'tecnico' ? '/dashboard/tecnico' : userRole === 'ADMIN' ? '/dashboard/admin' : '/dashboard/usuario';
-    const displayInitial = userFullName ? userFullName.charAt(0).toUpperCase() : <User className="w-4 h-4" />;
+    const displayInitial = userFullName ? userFullName.charAt(0).toUpperCase() : <User className="w-4 h-4" strokeWidth={1.75} />;
 
     return (
-        <header className="sticky top-0 z-40 w-full bg-gradient-to-r from-[#0e3187] to-[#222727] shadow-sm transition-all">
+        <header className="sticky top-0 z-50 w-full bg-transparent px-4 pt-3 pb-2 transition-all duration-300">
             {/* Contenedor relativo para poder clavar el logo en el centro absoluto */}
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative bg-gradient-to-r from-[#0e3187]/80 to-[#222727]/80 backdrop-blur-md border border-white/10 rounded-2xl shadow-lg shadow-black/10">
                 <div className="flex justify-between items-center h-16">
 
                     {/* IZQUIERDA: Logo (Oculto en móvil si es tecnico) */}
@@ -339,7 +341,7 @@ export default function TopNav({ userFullName, userRole }: TopNavProps) {
                             <form onSubmit={handleSearchSubmit}>
                                 <div className="relative group">
                                     <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                                        <Search className="h-4 w-4 text-emerald-100 group-focus-within:text-brand-primary transition-colors" />
+                                        <Search className="h-4 w-4 text-emerald-100 group-focus-within:text-brand-primary transition-colors" strokeWidth={1.75} />
                                     </div>
                                     <input
                                         type="text"
@@ -387,13 +389,15 @@ export default function TopNav({ userFullName, userRole }: TopNavProps) {
 
                         {/* BOTÓN CREAR MÓVIL: Visible solo en móviles (md:hidden) y si es usuario */}
                         {userRole === 'usuario' && (
-                            <button
+                            <motion.button
                                 onClick={() => setIsTicketModalOpen(true)}
-                                className="md:hidden w-full max-w-[200px] bg-white text-brand-primary hover:bg-slate-50 font-black py-2 px-3 rounded-xl shadow-md transition-all flex items-center justify-center gap-1 active:scale-95 mx-2"
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                                className="md:hidden w-full max-w-[200px] bg-white text-[#0e3187] hover:bg-slate-50 font-bold py-2 px-3 rounded-xl shadow-md transition-all flex items-center justify-center gap-1 mx-2 hover:shadow-[0_0_15px_rgba(255,255,255,0.35)] cursor-pointer"
                             >
-                                <Plus className="w-4 h-4 shrink-0" />
+                                <Plus className="w-4 h-4 shrink-0" strokeWidth={1.75} />
                                 <span className="text-xs uppercase tracking-tight truncate">Solicitud</span>
-                            </button>
+                            </motion.button>
                         )}
                     </div>
 
@@ -402,13 +406,39 @@ export default function TopNav({ userFullName, userRole }: TopNavProps) {
 
                         {/* BOTÓN CREAR PC: Visible solo en PC y si es usuario */}
                         {userRole === 'usuario' && (
-                            <button
+                            <motion.button
                                 onClick={() => setIsTicketModalOpen(true)}
-                                className="hidden md:flex bg-white text-brand-primary hover:bg-slate-50 font-bold py-2 px-4 rounded-lg shadow-sm transition-all items-center gap-2 mr-2"
+                                initial={{ width: 40 }}
+                                animate={{ width: isBtnHovered ? 160 : 40 }}
+                                whileTap={{ scale: 0.95 }}
+                                onHoverStart={() => setIsBtnHovered(true)}
+                                onHoverEnd={() => setIsBtnHovered(false)}
+                                transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                                className="hidden md:flex bg-white text-[#0e3187] items-center justify-center overflow-hidden relative cursor-pointer shadow-sm hover:shadow-[0_0_15px_rgba(255,255,255,0.4)] h-10 mr-2 shrink-0"
+                                style={{ borderRadius: 20 }}
                             >
-                                <Plus className="w-5 h-5" />
-                                <span>Nueva Solicitud</span>
-                            </button>
+                                <motion.div
+                                    className="absolute flex items-center justify-center"
+                                    animate={{ 
+                                        opacity: isBtnHovered ? 0 : 1,
+                                        scale: isBtnHovered ? 0.8 : 1
+                                    }}
+                                    transition={{ duration: 0.15 }}
+                                >
+                                    <Plus className="w-5 h-5 shrink-0" strokeWidth={1.75} />
+                                </motion.div>
+
+                                <motion.div
+                                    className="w-full flex justify-center items-center px-3"
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: isBtnHovered ? 1 : 0 }}
+                                    transition={{ duration: 0.15, delay: isBtnHovered ? 0.05 : 0 }}
+                                >
+                                    <span className="text-[#0e3187] text-sm font-black whitespace-nowrap">
+                                        Nueva Solicitud
+                                    </span>
+                                </motion.div>
+                            </motion.button>
                         )}
 
                         <Link
@@ -454,110 +484,121 @@ export default function TopNav({ userFullName, userRole }: TopNavProps) {
                             </button>
 
                             {/* Centro de Notificaciones */}
-                            {isNotifOpen && (
-                                <div className="absolute right-0 mt-3 w-[340px] sm:w-[380px] rounded-2xl bg-white shadow-2xl ring-1 ring-black/[0.06] z-50 overflow-hidden flex flex-col">
+                            <AnimatePresence>
+                                {isNotifOpen && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                                        transition={{ duration: 0.2 }}
+                                        className="absolute right-0 mt-3 w-[340px] sm:w-[380px] rounded-2xl bg-white/90 backdrop-blur-md shadow-2xl ring-1 ring-black/[0.06] border border-slate-200/50 z-50 overflow-hidden flex flex-col"
+                                    >
 
-                                    {/* Header */}
-                                    <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between bg-white">
-                                        <div className="flex items-center gap-2.5">
-                                            <h3 className="text-sm font-black text-slate-900 tracking-tight">Notificaciones</h3>
+                                        {/* Header */}
+                                        <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between bg-white/50">
+                                            <div className="flex items-center gap-2.5">
+                                                <h3 className="text-sm font-black text-slate-900 tracking-tight">Notificaciones</h3>
+                                                {unreadCount > 0 && (
+                                                    <span className="bg-indigo-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full tabular-nums leading-none">
+                                                        {unreadCount}
+                                                    </span>
+                                                )}
+                                            </div>
                                             {unreadCount > 0 && (
-                                                <span className="bg-indigo-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full tabular-nums leading-none">
-                                                    {unreadCount}
-                                                </span>
-                                            )}
-                                        </div>
-                                        {unreadCount > 0 && (
-                                            <button
-                                                onClick={handleMarkAllRead}
-                                                className="flex items-center gap-1.5 text-[11px] font-bold text-indigo-600 hover:text-indigo-800 transition-colors py-1 px-2 rounded-lg hover:bg-indigo-50"
-                                            >
-                                                <CheckCheck className="w-3.5 h-3.5" />
-                                                Marcar todas
-                                            </button>
-                                        )}
-                                    </div>
-
-                                    {/* Lista */}
-                                    <div className="max-h-[460px] overflow-y-auto divide-y divide-slate-50/80">
-                                        {isLoadingNotifs ? (
-                                            <div className="flex flex-col items-center justify-center py-14 gap-3">
-                                                <div className="w-8 h-8 border-[3px] border-indigo-200 border-t-indigo-500 rounded-full animate-spin" />
-                                                <p className="text-sm font-medium text-slate-400">Actualizando notificaciones...</p>
-                                            </div>
-                                        ) : notifications.length === 0 ? (
-                                            <div className="flex flex-col items-center justify-center py-14 gap-3">
-                                                <div className="w-11 h-11 rounded-full bg-slate-100 flex items-center justify-center">
-                                                    <Bell className="w-5 h-5 text-slate-300" />
-                                                </div>
-                                                <p className="text-sm font-semibold text-slate-400">Sin notificaciones</p>
-                                                <p className="text-xs text-slate-300">Estás al día con todo</p>
-                                            </div>
-                                        ) : (
-                                            notifications.map(notif => {
-                                                const tipo = getNotifType(notif.mensaje, notif.tipo);
-                                                const { Icon, color, bg, border } = getNotifConfig(tipo);
-                                                const clienteName = notif.tickets?.clientes?.nombre_fantasia;
-                                                return (
-                                                    <button
-                                                        key={notif.id}
-                                                        onClick={() => handleNotificationClick(notif)}
-                                                        className={`w-full text-left px-4 py-3.5 transition-colors flex gap-3 items-start group ${!notif.leida ? 'bg-indigo-50/40 hover:bg-indigo-50/70' : 'bg-white hover:bg-slate-50'}`}
-                                                    >
-                                                        {/* Icono dinámico */}
-                                                        <div className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${bg} border ${border} mt-0.5`}>
-                                                            <Icon className={`w-[15px] h-[15px] ${color}`} />
-                                                        </div>
-
-                                                        {/* Contenido */}
-                                                        <div className="flex-1 min-w-0">
-                                                            <p className={`text-[13px] leading-snug line-clamp-2 ${!notif.leida ? 'font-semibold text-slate-900' : 'font-medium text-slate-500'}`}>
-                                                                {notif.mensaje}
-                                                            </p>
-                                                            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                                                                {clienteName && (
-                                                                    <span className="inline-flex items-center text-[10px] font-black text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full uppercase tracking-wide max-w-[120px] truncate">
-                                                                        {clienteName}
-                                                                    </span>
-                                                                )}
-                                                                <span className="text-[11px] text-slate-400 font-medium">
-                                                                    {timeAgo(notif.creado_en)}
-                                                                </span>
-                                                            </div>
-                                                        </div>
-
-                                                        {/* Indicador no leída */}
-                                                        {!notif.leida && (
-                                                            <div className="shrink-0 w-2 h-2 rounded-full bg-indigo-500 mt-2 shadow-[0_0_6px_rgba(99,102,241,0.6)]" />
-                                                        )}
-                                                    </button>
-                                                );
-                                            })
-                                        )}
-                                    </div>
-
-                                    {/* Footer */}
-                                    {notifications.length > 0 && (
-                                        <div className="border-t border-slate-100 px-4 py-2.5 bg-slate-50/50 flex flex-col items-center gap-1">
-                                            {hasMore ? (
                                                 <button
-                                                    onClick={fetchMoreNotifications}
-                                                    disabled={loadingMore}
-                                                    className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 transition-colors disabled:opacity-50 flex items-center gap-1.5 py-1"
+                                                    onClick={handleMarkAllRead}
+                                                    className="flex items-center gap-1.5 text-[11px] font-bold text-indigo-600 hover:text-indigo-800 transition-colors py-1 px-2 rounded-lg hover:bg-indigo-50"
                                                 >
-                                                    {loadingMore
-                                                        ? <><span className="w-3 h-3 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin inline-block" /> Cargando…</>
-                                                        : '↓ Ver más notificaciones'}
+                                                    <CheckCheck className="w-3.5 h-3.5" />
+                                                    Marcar todas
                                                 </button>
-                                            ) : (
-                                                <p className="text-[11px] text-slate-400 font-medium text-center">
-                                                    {notifications.length} notificación{notifications.length !== 1 ? 'es' : ''} · estás al día
-                                                </p>
                                             )}
                                         </div>
-                                    )}
-                                </div>
-                            )}
+
+                                        {/* Lista */}
+                                        <div className="max-h-[460px] overflow-y-auto divide-y divide-slate-50/80">
+                                            {isLoadingNotifs ? (
+                                                <div className="flex flex-col items-center justify-center py-14 gap-3">
+                                                    <div className="w-8 h-8 border-[3px] border-indigo-200 border-t-indigo-500 rounded-full animate-spin" />
+                                                    <p className="text-sm font-medium text-slate-400">Actualizando notificaciones...</p>
+                                                </div>
+                                            ) : notifications.length === 0 ? (
+                                                <div className="flex flex-col items-center justify-center py-14 gap-3">
+                                                    <div className="w-11 h-11 rounded-full bg-slate-100 flex items-center justify-center">
+                                                        <Bell className="w-5 h-5 text-slate-300" strokeWidth={1.75} />
+                                                    </div>
+                                                    <p className="text-sm font-semibold text-slate-400">Sin notificaciones</p>
+                                                    <p className="text-xs text-slate-300">Estás al día con todo</p>
+                                                </div>
+                                            ) : (
+                                                notifications.map((notif, index) => {
+                                                    const tipo = getNotifType(notif.mensaje, notif.tipo);
+                                                    const { Icon, color, bg, border } = getNotifConfig(tipo);
+                                                    const clienteName = notif.tickets?.clientes?.nombre_fantasia;
+                                                    return (
+                                                        <motion.button
+                                                            key={notif.id}
+                                                            initial={{ opacity: 0, x: 20, filter: "blur(10px)" }}
+                                                            animate={{ opacity: 1, x: 0, filter: "blur(0px)" }}
+                                                            transition={{ duration: 0.3, delay: Math.min(index, 5) * 0.05 }}
+                                                            onClick={() => handleNotificationClick(notif)}
+                                                            className={`w-full text-left px-4 py-3.5 transition-colors flex gap-3 items-start group ${!notif.leida ? 'bg-indigo-50/40 hover:bg-indigo-50/70' : 'bg-white hover:bg-slate-50'}`}
+                                                        >
+                                                            {/* Icono dinámico */}
+                                                            <div className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${bg} border ${border} mt-0.5`}>
+                                                                <Icon className={`w-[15px] h-[15px] ${color}`} strokeWidth={1.75} />
+                                                            </div>
+
+                                                            {/* Contenido */}
+                                                            <div className="flex-1 min-w-0">
+                                                                <p className={`text-[13px] leading-snug line-clamp-2 ${!notif.leida ? 'font-semibold text-slate-900' : 'font-medium text-slate-500'}`}>
+                                                                    {notif.mensaje}
+                                                                </p>
+                                                                <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                                                                    {clienteName && (
+                                                                        <span className="inline-flex items-center text-[10px] font-black text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full uppercase tracking-wide max-w-[120px] truncate">
+                                                                            {clienteName}
+                                                                        </span>
+                                                                    )}
+                                                                    <span className="text-[11px] text-slate-400 font-medium">
+                                                                        {timeAgo(notif.creado_en)}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+
+                                                            {/* Indicador no leída */}
+                                                            {!notif.leida && (
+                                                                <div className="shrink-0 w-2 h-2 rounded-full bg-indigo-500 mt-2 shadow-[0_0_6px_rgba(99,102,241,0.6)]" />
+                                                            )}
+                                                        </motion.button>
+                                                    );
+                                                })
+                                            )}
+                                        </div>
+
+                                        {/* Footer */}
+                                        {notifications.length > 0 && (
+                                            <div className="border-t border-slate-100 px-4 py-2.5 bg-slate-50/50 flex flex-col items-center gap-1">
+                                                {hasMore ? (
+                                                    <button
+                                                        onClick={fetchMoreNotifications}
+                                                        disabled={loadingMore}
+                                                        className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 transition-colors disabled:opacity-50 flex items-center gap-1.5 py-1"
+                                                    >
+                                                        {loadingMore
+                                                            ? <><span className="w-3 h-3 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin inline-block" /> Cargando…</>
+                                                            : '↓ Ver más notificaciones'}
+                                                    </button>
+                                                ) : (
+                                                    <p className="text-[11px] text-slate-400 font-medium text-center">
+                                                        {notifications.length} notificación{notifications.length !== 1 ? 'es' : ''} · estás al día
+                                                    </p>
+                                                )}
+                                            </div>
+                                        )}
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
                         </div>
 
                         {/* Divider PC */}
@@ -587,7 +628,7 @@ export default function TopNav({ userFullName, userRole }: TopNavProps) {
                                         onClick={() => setIsProfileOpen(false)}
                                         className="w-full text-left px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2"
                                     >
-                                        <User className="w-4 h-4" /> Mi Perfil
+                                        <User className="w-4 h-4" strokeWidth={1.75} /> Mi Perfil
                                     </Link>
                                     {(userRole === 'admin' || userRole === 'coordinador') && (
                                         <Link
@@ -595,7 +636,7 @@ export default function TopNav({ userFullName, userRole }: TopNavProps) {
                                             onClick={() => setIsProfileOpen(false)}
                                             className="hidden md:flex w-full text-left px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 items-center gap-2"
                                         >
-                                            <Settings className="w-4 h-4" /> Configuración
+                                            <Settings className="w-4 h-4" strokeWidth={1.75} /> Configuración
                                         </Link>
                                     )}
                                     {userRole === 'tecnico' && (
@@ -604,14 +645,14 @@ export default function TopNav({ userFullName, userRole }: TopNavProps) {
                                             onClick={() => setIsProfileOpen(false)}
                                             className="w-full text-left px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2"
                                         >
-                                            <Briefcase className="w-4 h-4" /> Mi Mochila
+                                            <Briefcase className="w-4 h-4" strokeWidth={1.75} /> Mi Mochila
                                         </Link>
                                     )}
                                     <button
                                         onClick={handleSignOut}
                                         className="w-full text-left px-4 py-2.5 text-sm font-bold text-red-600 hover:bg-red-50 flex items-center gap-2 border-t border-slate-50 mt-1"
                                     >
-                                        <LogOut className="w-4 h-4" /> Salir
+                                        <LogOut className="w-4 h-4" strokeWidth={1.75} /> Salir
                                     </button>
                                 </div>
                             )}
@@ -621,23 +662,42 @@ export default function TopNav({ userFullName, userRole }: TopNavProps) {
             </div>
 
             {/* Modal de Creación Global */}
-            {isTicketModalOpen && (
-                <div className="fixed inset-0 z-[100] overflow-y-auto">
-                    <div className="flex min-h-screen items-center justify-center p-4 text-center">
-                        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50" onClick={() => setIsTicketModalOpen(false)} />
-                        <div className="relative z-[60] transform overflow-hidden rounded-3xl bg-white text-left shadow-2xl transition-all sm:my-8 sm:w-full sm:max-w-2xl border border-white/20">
-                            <div className="absolute right-0 top-0 pr-6 pt-6 z-10">
-                                <button onClick={() => setIsTicketModalOpen(false)} className="rounded-full bg-slate-100 p-2 text-slate-400 hover:text-slate-600 transition-colors" title="Cerrar" aria-label="Cerrar modal">
-                                    <X className="h-5 w-5" />
-                                </button>
-                            </div>
-                            <div className="p-2">
-                                <TicketForm onClose={() => setIsTicketModalOpen(false)} />
-                            </div>
+            <AnimatePresence>
+                {isTicketModalOpen && (
+                    <motion.div 
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[100] overflow-y-auto"
+                    >
+                        <div className="flex min-h-screen items-center justify-center p-4 text-center relative">
+                            <motion.div 
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50" 
+                                onClick={() => setIsTicketModalOpen(false)} 
+                            />
+                            <motion.div 
+                                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                                transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+                                className="relative z-[60] transform overflow-hidden rounded-3xl bg-white text-left shadow-2xl transition-all sm:my-8 sm:w-full sm:max-w-2xl border border-white/20"
+                            >
+                                <div className="absolute right-0 top-0 pr-6 pt-6 z-10">
+                                    <button onClick={() => setIsTicketModalOpen(false)} className="rounded-full bg-slate-100 p-2 text-slate-400 hover:text-slate-600 transition-colors" title="Cerrar" aria-label="Cerrar modal">
+                                        <X className="h-5 w-5" />
+                                    </button>
+                                </div>
+                                <div className="p-2">
+                                    <TicketForm onClose={() => setIsTicketModalOpen(false)} />
+                                </div>
+                            </motion.div>
                         </div>
-                    </div>
-                </div>
-            )}
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             {/* Modal de Configuración de Catálogos */}
             {isCatalogModalOpen && (

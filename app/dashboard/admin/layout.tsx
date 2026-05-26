@@ -17,8 +17,8 @@ export default async function AdminLayout({
 
     return (
         <div className="min-h-screen bg-slate-50">
-            <div className="bg-white border-b border-gray-200 sticky top-16 z-30 shadow-sm">
-                    <AdminSegmentedNav rol={rol} />
+            <div className="sticky top-[80px] z-30">
+                <AdminSegmentedNav rol={rol} />
             </div>
             {children}
         </div>

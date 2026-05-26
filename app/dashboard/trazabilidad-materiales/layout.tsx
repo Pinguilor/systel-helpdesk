@@ -27,7 +27,7 @@ export default async function TrazabilidadLayout({
         <div className="min-h-screen bg-slate-50">
             {/* La barra de subnav solo se muestra para el personal de Systel */}
             {esStaff && (
-                <div className="bg-white border-b border-gray-200 sticky top-16 z-30 shadow-sm">
+                <div className="sticky top-[80px] z-30">
                     <AdminSegmentedNav rol={rol} />
                 </div>
             )}
