@@ -1,4 +1,4 @@
-export default function TrazabilidadLayout({
+export default function UsuarioLayout({
     children,
 }: {
     children: React.ReactNode;

@@ -441,32 +441,25 @@ export default function TopNav({ userFullName, userRole }: TopNavProps) {
                             </motion.button>
                         )}
 
-                        <Link
-                            href="/dashboard/analiticas"
-                            className={`hidden sm:flex w-9 h-9 rounded-full items-center justify-center transition-all text-white ${pathname === '/dashboard/analiticas' ? 'bg-white/25 ring-1 ring-white/20 shadow-inner' : 'bg-white/10 hover:bg-white/20'}`}
-                            title="Analíticas"
-                        >
-                            <ChartPie size={18} strokeWidth={1.75} />
-                        </Link>
-
-                        {/* Trazabilidad de Materiales — solo para clientes (usuario) */}
-                        {userRole === 'usuario' && (
+                        {userRole !== 'usuario' && (
                             <Link
-                                href="/dashboard/trazabilidad-materiales"
-                                className={`hidden sm:flex w-9 h-9 rounded-full items-center justify-center transition-all text-white ${pathname === '/dashboard/trazabilidad-materiales' ? 'bg-white/25 ring-1 ring-white/20 shadow-inner' : 'bg-white/10 hover:bg-white/20'}`}
-                                title="Materiales Insumidos"
+                                href="/dashboard/analiticas"
+                                className={`hidden sm:flex w-9 h-9 rounded-full items-center justify-center transition-all text-white ${pathname === '/dashboard/analiticas' ? 'bg-white/25 ring-1 ring-white/20 shadow-inner' : 'bg-white/10 hover:bg-white/20'}`}
+                                title="Analíticas"
                             >
-                                <ScanLine size={18} strokeWidth={1.75} />
+                                <ChartPie size={18} strokeWidth={1.75} />
                             </Link>
                         )}
 
-                        <Link
-                            href={dashboardLink}
-                            className={`hidden sm:flex w-9 h-9 rounded-full items-center justify-center transition-all text-white ${pathname === dashboardLink || pathname?.startsWith('/dashboard/ticket/') ? 'bg-white/25 ring-1 ring-white/20 shadow-inner' : 'bg-white/10 hover:bg-white/20'}`}
-                            title="Panel de Control"
-                        >
-                            <LayoutGrid size={18} strokeWidth={1.75} />
-                        </Link>
+                        {userRole !== 'usuario' && (
+                            <Link
+                                href={dashboardLink}
+                                className={`hidden sm:flex w-9 h-9 rounded-full items-center justify-center transition-all text-white ${pathname === dashboardLink || pathname?.startsWith('/dashboard/ticket/') ? 'bg-white/25 ring-1 ring-white/20 shadow-inner' : 'bg-white/10 hover:bg-white/20'}`}
+                                title="Panel de Control"
+                            >
+                                <LayoutGrid size={18} strokeWidth={1.75} />
+                            </Link>
+                        )}
 
                         {/* Notifications Bell */}
                         <div className="relative" ref={notifRef}>

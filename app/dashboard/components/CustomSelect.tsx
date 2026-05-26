@@ -112,7 +112,7 @@ export function CustomSelect({
     };
 
     return (
-        <div className="relative">
+        <div className="relative" style={{ zIndex: isOpen ? 50 : undefined }}>
             {/* Select nativo oculto para validación de formulario */}
             {name && (
                 <select name={name} title={placeholder || 'Select option'} value={value} onChange={() => { }} required={required} className="hidden">

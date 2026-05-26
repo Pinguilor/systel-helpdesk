@@ -289,10 +289,41 @@ export function TicketForm({ onClose }: Props) {
                 query = query.eq('cliente_id', clienteId);
             }
 
-            const { data, error } = await query.limit(5);
+            // Fetch a larger limit so we can prioritize matches in memory
+            const { data, error } = await query.limit(25);
 
             if (!error && data) {
-                setRestaurants(data);
+                const queryLower = searchQuery.toLowerCase();
+                
+                const sorted = [...data].sort((a, b) => {
+                    const aSigla = (a.sigla || '').toLowerCase();
+                    const bSigla = (b.sigla || '').toLowerCase();
+                    const aName = (a.nombre_restaurante || '').toLowerCase();
+                    const bName = (b.nombre_restaurante || '').toLowerCase();
+
+                    // 1. Exact sigla match (highest priority)
+                    const aExactSigla = aSigla === queryLower;
+                    const bExactSigla = bSigla === queryLower;
+                    if (aExactSigla && !bExactSigla) return -1;
+                    if (!aExactSigla && bExactSigla) return 1;
+
+                    // 2. Sigla starts with query
+                    const aStartsSigla = aSigla.startsWith(queryLower);
+                    const bStartsSigla = bSigla.startsWith(queryLower);
+                    if (aStartsSigla && !bStartsSigla) return -1;
+                    if (!aStartsSigla && bStartsSigla) return 1;
+
+                    // 3. Name starts with query
+                    const aStartsName = aName.startsWith(queryLower);
+                    const bStartsName = bName.startsWith(queryLower);
+                    if (aStartsName && !bStartsName) return -1;
+                    if (!aStartsName && bStartsName) return 1;
+
+                    // Default alphabetical sort by name
+                    return aName.localeCompare(bName);
+                });
+
+                setRestaurants(sorted.slice(0, 10)); // Display the top 10 best matches
                 setShowDropdown(true);
             }
             setIsSearching(false);
@@ -663,7 +694,7 @@ export function TicketForm({ onClose }: Props) {
                                             animate={{ opacity: 1, y: 0 }}
                                             exit={{ opacity: 0, y: -15 }}
                                             transition={{ duration: 0.3 }}
-                                            className="space-y-6 bg-slate-50/40 backdrop-blur-sm p-5 sm:p-6 rounded-3xl border border-slate-100 shadow-sm"
+                                            className="relative z-10 space-y-6 bg-slate-50/40 backdrop-blur-sm p-5 sm:p-6 rounded-3xl border border-slate-100 shadow-sm"
                                         >
                                             <div className="border-b border-slate-200/60 pb-3 mb-4 flex items-center justify-between">
                                                 <div className="flex items-center gap-2">
