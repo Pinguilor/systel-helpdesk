@@ -14,6 +14,7 @@
     "@supabase/supabase-js": "^2.98.0",
     "@types/file-saver": "^2.0.7",
     "browser-image-compression": "^2.0.2",
+    "cobe": "^2.0.1",
     "date-fns": "^4.1.0",
     "exceljs": "^4.4.0",
     "file-saver": "^2.0.5",
