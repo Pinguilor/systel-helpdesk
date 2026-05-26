@@ -430,6 +430,9 @@ export function TicketForm({ onClose }: Props) {
         const formData = new FormData(e.currentTarget);
 
         // Append relational IDs manually
+        if (selectedRestaurant?.id) {
+            formData.append('restaurante_id', selectedRestaurant.id);
+        }
         formData.append('tipo_servicio_id', selectedTipoServicioId);
         formData.append('categoria_id', selectedCategoriaId);
         formData.append('subcategoria_id', selectedSubcategoriaId);
