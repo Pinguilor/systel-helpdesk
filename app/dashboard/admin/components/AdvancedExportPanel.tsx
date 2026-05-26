@@ -240,6 +240,12 @@ interface Props {
 }
 
 export function AdvancedExportPanel({ onClose }: Props) {
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
+
     // ── Metadata para selectores ─────────────────────────────────────────────
     const [clientes, setClientes] = useState<{ id: string; nombre_fantasia: string }[]>([]);
     const [allProfiles, setAllProfiles] = useState<{ id: string; full_name: string; cliente_id: string | null }[]>([]);
@@ -483,16 +489,18 @@ export function AdvancedExportPanel({ onClose }: Props) {
     // ─────────────────────────────────────────────────────────────────────────
     // Render
     // ─────────────────────────────────────────────────────────────────────────
-    return (
+    if (!mounted) return null;
+
+    return createPortal(
         <>
             {/* Backdrop */}
             <div
-                className="fixed inset-0 z-40 bg-slate-900/50 backdrop-blur-sm"
+                className="fixed inset-0 z-[150] bg-slate-900/50 backdrop-blur-sm"
                 onClick={onClose}
             />
 
             {/* Panel lateral */}
-            <div className="fixed top-0 right-0 z-50 h-full w-full max-w-[520px] bg-white shadow-2xl flex flex-col">
+            <div className="fixed top-0 right-0 z-[151] h-full w-full max-w-[520px] bg-white shadow-2xl flex flex-col">
 
                 {/* ── Header ── */}
                 <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50 shrink-0">
@@ -749,6 +757,7 @@ export function AdvancedExportPanel({ onClose }: Props) {
                     </button>
                 </div>
             </div>
-        </>
+        </>,
+        document.body
     );
 }

@@ -301,8 +301,8 @@ export default function TopNav({ userFullName, userRole }: TopNavProps) {
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative bg-gradient-to-r from-[#0e3187]/80 to-[#222727]/80 backdrop-blur-md border border-white/10 rounded-2xl shadow-lg shadow-black/10">
                 <div className="flex justify-between items-center h-16">
 
-                    {/* IZQUIERDA: Logo (Oculto en móvil si es tecnico) */}
-                    <div className={`flex items-center flex-shrink-0 ${userRole === 'tecnico' ? 'hidden md:flex' : 'flex'}`}>
+                    {/* IZQUIERDA: Logo (Oculto en móvil) */}
+                    <div className="hidden md:flex items-center flex-shrink-0">
                         <Link href={dashboardLink} className="flex items-center group">
                             <div className="group-hover:opacity-80 transition-opacity duration-300">
                                 <Image
@@ -491,7 +491,7 @@ export default function TopNav({ userFullName, userRole }: TopNavProps) {
                                         animate={{ opacity: 1, y: 0, scale: 1 }}
                                         exit={{ opacity: 0, y: 10, scale: 0.95 }}
                                         transition={{ duration: 0.2 }}
-                                        className="absolute right-0 mt-3 w-[340px] sm:w-[380px] rounded-2xl bg-white/90 backdrop-blur-md shadow-2xl ring-1 ring-black/[0.06] border border-slate-200/50 z-50 overflow-hidden flex flex-col"
+                                        className="fixed inset-x-4 top-20 sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-3 w-auto sm:w-[380px] rounded-2xl bg-white/90 backdrop-blur-md shadow-2xl ring-1 ring-black/[0.06] border border-slate-200/50 z-50 overflow-hidden flex flex-col"
                                     >
 
                                         {/* Header */}
