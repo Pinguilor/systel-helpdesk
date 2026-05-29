@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Ticket } from '@/types/database.types';
+import { loadMoreTicketsAction } from '@/app/dashboard/admin/ticketActions';
 import { FileText, Image as ImageIcon, FileSpreadsheet, File, MessageSquare, Search, ChevronLeft, ChevronRight, User, CornerDownRight, Building2 } from 'lucide-react';
 import Link from 'next/link';
 import { ExportarMaestroButton } from '@/app/dashboard/admin/components/ExportarMaestroButton';
@@ -41,19 +42,45 @@ interface Props {
     initialTickets: Ticket[];
     currentAgentId: string;
     agentName?: string;
+    totalCount?: number;
+    pendingCount?: number;
+    resolvedCount?: number;
+    hasMore?: boolean;
 }
 
-export function AdminTicketList({ initialTickets, currentAgentId, agentName }: Props) {
+export function AdminTicketList({ initialTickets, currentAgentId, agentName, totalCount, pendingCount, resolvedCount, hasMore = false }: Props) {
     const [filter, setFilter] = useState<FilterType>('TODOS');
     const [searchTerm, setSearchTerm] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
+    const [allTickets, setAllTickets] = useState<Ticket[]>(initialTickets);
+    const [loadedPage, setLoadedPage] = useState(1);
+    const [reachedEnd, setReachedEnd] = useState(!hasMore);
+    const [isPending, startTransition] = useTransition();
+
+    // Si el servidor provee los conteos exactos los usamos; si no, calculamos desde el array cargado
+    const displayTotal   = totalCount   ?? allTickets.length;
+    const displayPending = pendingCount ?? allTickets.filter(t => !['anulado', 'resuelto', 'cerrado'].includes(t.estado)).length;
+    const displayResolved = resolvedCount ?? allTickets.filter(t => ['anulado', 'resuelto', 'cerrado'].includes(t.estado)).length;
     const router = useRouter();
+
+    const loadMore = () => {
+        startTransition(async () => {
+            const result = await loadMoreTicketsAction(loadedPage);
+            if (result.data && result.data.length > 0) {
+                setAllTickets(prev => [...prev, ...(result.data as Ticket[])]);
+                setLoadedPage(p => p + 1);
+                if (result.data.length < 30) setReachedEnd(true);
+            } else {
+                setReachedEnd(true);
+            }
+        });
+    };
 
     const globeMarkers = useMemo(() => {
         const counts: Record<string, number> = {};
-        
+
         // Filter only active tickets
-        const activeTickets = (initialTickets || []).filter(
+        const activeTickets = (allTickets || []).filter(
             t => !['anulado', 'resuelto', 'cerrado'].includes(t.estado)
         );
 
@@ -149,7 +176,7 @@ export function AdminTicketList({ initialTickets, currentAgentId, agentName }: P
                 users: count
             };
         });
-    }, [initialTickets]);
+    }, [allTickets]);
 
     // Reset pagination when search term changes
     useEffect(() => {
@@ -158,7 +185,7 @@ export function AdminTicketList({ initialTickets, currentAgentId, agentName }: P
 
     const processedTickets = useMemo(() => {
         // 1. Filter by Status/Role Tab
-        let filtered = initialTickets.filter(ticket => {
+        let filtered = allTickets.filter(ticket => {
             if (filter === 'TODOS') return true;
             if (filter === 'PENDIENTES') return !['anulado', 'resuelto', 'cerrado'].includes(ticket.estado);
             if (filter === 'RESUELTOS') return ['anulado', 'resuelto', 'cerrado'].includes(ticket.estado);
@@ -190,7 +217,7 @@ export function AdminTicketList({ initialTickets, currentAgentId, agentName }: P
         }
 
         return filtered;
-    }, [initialTickets, filter, currentAgentId, searchTerm]);
+    }, [allTickets, filter, currentAgentId, searchTerm]);
 
     // 3. Paginate
     const totalPages = Math.ceil(processedTickets.length / ITEMS_PER_PAGE);
@@ -334,35 +361,35 @@ export function AdminTicketList({ initialTickets, currentAgentId, agentName }: P
             <div className="grid grid-cols-3 gap-4 p-5 bg-slate-50/30 border-b border-slate-100/85">
                 <div className="bg-white/60 backdrop-blur-sm p-4 rounded-2xl border border-slate-200/50 shadow-sm flex flex-col items-center justify-center transition-all hover:shadow-md hover:scale-[1.02] duration-200">
                     <span className="text-[10px] sm:text-xs font-black text-slate-400 uppercase tracking-widest mb-1.5">Totales</span>
-                    <motion.span 
+                    <motion.span
                         initial={{ scale: 0.9, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
                         transition={{ type: 'spring', stiffness: 200, damping: 15 }}
                         className="text-xl sm:text-3xl font-black text-[#0e3187] tracking-tight"
                     >
-                        {initialTickets.length}
+                        {displayTotal}
                     </motion.span>
                 </div>
                 <div className="bg-white/60 backdrop-blur-sm p-4 rounded-2xl border border-slate-200/50 shadow-sm flex flex-col items-center justify-center transition-all hover:shadow-md hover:scale-[1.02] duration-200">
                     <span className="text-[10px] sm:text-xs font-black text-slate-400 uppercase tracking-widest mb-1.5">Pendientes</span>
-                    <motion.span 
+                    <motion.span
                         initial={{ scale: 0.9, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
                         transition={{ type: 'spring', stiffness: 200, damping: 15 }}
                         className="text-xl sm:text-3xl font-black text-amber-500 tracking-tight"
                     >
-                        {initialTickets.filter(t => !['anulado', 'resuelto', 'cerrado'].includes(t.estado)).length}
+                        {displayPending}
                     </motion.span>
                 </div>
                 <div className="bg-white/60 backdrop-blur-sm p-4 rounded-2xl border border-slate-200/50 shadow-sm flex flex-col items-center justify-center transition-all hover:shadow-md hover:scale-[1.02] duration-200">
                     <span className="text-[10px] sm:text-xs font-black text-slate-400 uppercase tracking-widest mb-1.5">Resueltos</span>
-                    <motion.span 
+                    <motion.span
                         initial={{ scale: 0.9, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
                         transition={{ type: 'spring', stiffness: 200, damping: 15 }}
                         className="text-xl sm:text-3xl font-black text-emerald-500 tracking-tight"
                     >
-                        {initialTickets.filter(t => ['anulado', 'resuelto', 'cerrado'].includes(t.estado)).length}
+                        {displayResolved}
                     </motion.span>
                 </div>
             </div>
@@ -631,6 +658,31 @@ export function AdminTicketList({ initialTickets, currentAgentId, agentName }: P
                     >
                         Siguiente
                         <ChevronRight className="h-4 w-4 ml-1.5" />
+                    </button>
+                </div>
+            )}
+
+            {/* Cargar más desde el servidor */}
+            {!reachedEnd && currentPage === totalPages && (
+                <div className="px-6 py-5 border-t border-slate-100 bg-slate-50/30 flex justify-center">
+                    <button
+                        onClick={loadMore}
+                        disabled={isPending}
+                        className="inline-flex items-center gap-2 px-6 py-2.5 rounded-2xl bg-[#0e3187] text-white text-xs font-black tracking-wide hover:bg-[#1846b9] disabled:opacity-60 disabled:cursor-not-allowed transition-all shadow-sm"
+                    >
+                        {isPending ? (
+                            <>
+                                <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                Cargando...
+                            </>
+                        ) : (
+                            <>
+                                Cargar más tickets
+                                <span className="bg-white/20 px-1.5 py-0.5 rounded-lg text-[10px]">
+                                    {Math.min(30, displayTotal - allTickets.length)} restantes
+                                </span>
+                            </>
+                        )}
                     </button>
                 </div>
             )}

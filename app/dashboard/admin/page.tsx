@@ -13,31 +13,45 @@ export default async function AdminDashboard() {
         redirect('/login');
     }
 
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('rol, full_name')
-        .eq('id', user.id)
-        .maybeSingle();
+    // 5 queries en paralelo: perfil + primera página (30) + 3 conteos de métricas
+    const [
+        { data: profile },
+        { data: tickets, error },
+        { count: totalCount },
+        { count: pendingCount },
+        { count: resolvedCount },
+    ] = await Promise.all([
+        supabase
+            .from('profiles')
+            .select('rol, full_name')
+            .eq('id', user.id)
+            .maybeSingle(),
+        // Solo los primeros 30 tickets — elimina el cuello de botella de 381+ filas con 4 joins
+        supabase
+            .from('tickets')
+            .select(`
+                *,
+                profiles:creado_por(full_name, clientes:cliente_id(nombre_fantasia, razon_social)),
+                restaurantes(nombre_restaurante, sigla),
+                catalogo_servicios!catalogo_servicio_id(categoria, subcategoria, elemento),
+                padre:ticket_padre_id(numero_ticket)
+            `)
+            .order('fecha_creacion', { ascending: false })
+            .range(0, 29),
+        // head:true — solo devuelve el conteo, sin descargar ninguna fila
+        supabase.from('tickets').select('*', { count: 'exact', head: true }),
+        supabase.from('tickets').select('*', { count: 'exact', head: true })
+            .not('estado', 'in', '(anulado,resuelto,cerrado)'),
+        supabase.from('tickets').select('*', { count: 'exact', head: true })
+            .in('estado', ['anulado', 'resuelto', 'cerrado']),
+    ]);
 
     if (profile?.rol?.toUpperCase() !== 'ADMIN' && profile?.rol?.toUpperCase() !== 'COORDINADOR') {
         redirect(profile?.rol?.toUpperCase() === 'TECNICO' ? '/dashboard/tecnico' : '/dashboard/usuario');
     }
 
-    // Fetch ALL tickets for Admin — clientes viene anidado a través de profiles.cliente_id
-    const { data: tickets, error } = await supabase
-        .from('tickets')
-        .select(`
-            *,
-            profiles:creado_por(full_name, clientes:cliente_id(nombre_fantasia, razon_social)),
-            restaurantes(nombre_restaurante, sigla),
-            catalogo_servicios!catalogo_servicio_id(categoria, subcategoria, elemento),
-            padre:ticket_padre_id(numero_ticket)
-        `)
-        .order('fecha_creacion', { ascending: false });
-
-
     if (error) {
-        console.error("Error al cargar todos los tickets para admin:", error.message);
+        console.error("Error al cargar tickets para admin:", error.message);
     }
 
     return (
@@ -72,7 +86,14 @@ export default async function AdminDashboard() {
 
                 <div className="w-full">
                     <TicketsRealtimeListener />
-                    <AdminTicketList initialTickets={tickets || []} currentAgentId={user.id} />
+                    <AdminTicketList
+                        initialTickets={tickets || []}
+                        currentAgentId={user.id}
+                        totalCount={totalCount ?? 0}
+                        pendingCount={pendingCount ?? 0}
+                        resolvedCount={resolvedCount ?? 0}
+                        hasMore={(totalCount ?? 0) > 30}
+                    />
                 </div>
             </div>
         </div>
