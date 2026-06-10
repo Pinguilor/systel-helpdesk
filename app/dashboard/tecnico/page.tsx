@@ -1,8 +1,9 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { AdminTicketList } from './components/AdminTicketList';
-import AgentAnalytics from './components/AgentAnalytics';
+
 import { TicketsRealtimeListener } from '../components/TicketsRealtimeListener';
+import { ProyectosAsignados } from './components/ProyectosAsignados';
 
 export default async function tecnicoDashboard() {
     const supabase = await createClient();
@@ -40,6 +41,31 @@ export default async function tecnicoDashboard() {
         console.error("Error al cargar todos los tickets para tecnico:", error.message);
     }
 
+    // Fetch assigned projects for the current technician
+    const { data: assignedProjects, error: projectsError } = await supabase
+        .from('proyectos')
+        .select(`
+            id,
+            nombre,
+            estado,
+            cliente:restaurantes ( sigla ),
+            proyecto_participantes!inner ( perfil_id )
+        `)
+        .eq('proyecto_participantes.perfil_id', user.id)
+        .order('created_at', { ascending: false });
+
+    if (projectsError) {
+        console.error("Error al cargar proyectos asignados:", projectsError.message);
+    }
+
+    // Map projects (TypeScript helper)
+    const misProyectos = (assignedProjects || []).map(p => ({
+        id: p.id,
+        nombre: p.nombre,
+        estado: p.estado,
+        clientes: Array.isArray(p.cliente) ? p.cliente[0] : p.cliente,
+    }));
+
     return (
         <div className="max-w-7xl mx-auto py-4 md:py-8 px-0 sm:px-6 lg:px-8 space-y-4 md:space-y-8 min-h-screen">
             {/* Greeting */}
@@ -50,10 +76,12 @@ export default async function tecnicoDashboard() {
                 </h1>
             </div>
 
-            {/* Agent Analytics Dashboard */}
-            <div className="hidden md:block px-4 sm:px-0">
-                <AgentAnalytics tickets={tickets || []} />
-            </div>
+
+
+            {/* Assigned Projects */}
+            {misProyectos.length > 0 && (
+                <ProyectosAsignados proyectos={misProyectos} />
+            )}
 
             <div className="w-full">
                 <TicketsRealtimeListener />

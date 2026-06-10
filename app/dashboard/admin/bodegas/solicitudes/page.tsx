@@ -41,6 +41,10 @@ export default async function SolicitudesPage() {
             solicitudes={solicitudesResult.data ?? []}
             devoluciones={devolucionesResult.data ?? []}
             bodegasCentrales={bodegasResult.data ?? []}
+            totalSolicitudesAprobadas={(solicitudesResult as any).totalAprobadas ?? 0}
+            totalSolicitudesRechazadas={(solicitudesResult as any).totalRechazadas ?? 0}
+            totalDevolucionesAprobadas={(devolucionesResult as any).totalAprobadas ?? 0}
+            totalDevolucionesRechazadas={(devolucionesResult as any).totalRechazadas ?? 0}
         />
     );
 }

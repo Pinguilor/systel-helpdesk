@@ -109,3 +109,27 @@ export async function addStockAction(formData: FormData) {
     revalidatePath('/dashboard/admin/bodegas');
     return { success: true };
 }
+
+export async function loadMoreInventarioAction(
+    page: number,
+    bodegaIds: string[],
+): Promise<{ data: any[]; error: string | null }> {
+    const user = await requireBodegaRole();
+    if (!user) return { data: [], error: 'No autorizado.' };
+    if (!bodegaIds.length) return { data: [], error: null };
+
+    const db = createAdminClient();
+    const from = page * 30;
+    const to   = from + 29;
+
+    const { data, error } = await db
+        .from('inventario')
+        .select('*, bodegas(id, nombre, tipo)')
+        .in('bodega_id', bodegaIds)
+        .neq('estado', 'Inactivo')
+        .order('modelo', { ascending: true })
+        .range(from, to);
+
+    if (error) return { data: [], error: error.message };
+    return { data: data ?? [], error: null };
+}

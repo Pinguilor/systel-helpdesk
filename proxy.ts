@@ -49,6 +49,11 @@ export async function proxy(request: NextRequest) {
             return redirect(url)
         }
 
+        // Bypass: rutas /api/** nunca deben ser redirigidas por el middleware de rol
+        if (url.pathname.startsWith('/api/')) {
+            return supabaseResponse;
+        }
+
         // Shared route bypass: All Roles can access generic /dashboard/ticket/[id]
         if (url.pathname.startsWith('/dashboard/ticket/')) {
             return supabaseResponse;
@@ -71,6 +76,11 @@ export async function proxy(request: NextRequest) {
 
         // Shared route bypass: Trazabilidad de Materiales (accesible para admin, coordinador, admin_bodega)
         if (url.pathname.startsWith('/dashboard/trazabilidad-materiales')) {
+            return supabaseResponse;
+        }
+
+        // Shared route bypass: Proyectos (admin y coordinador)
+        if (url.pathname.startsWith('/dashboard/proyectos')) {
             return supabaseResponse;
         }
 

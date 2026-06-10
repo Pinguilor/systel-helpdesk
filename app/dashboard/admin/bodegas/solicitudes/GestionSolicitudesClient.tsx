@@ -13,6 +13,7 @@ import {
     aprobarSolicitudAction, rechazarSolicitudAction,
     aprobarDevolucionAction, rechazarDevolucionAction,
     getStockEnBodegaAction, getAutoAsignacionBodegasAction,
+    loadMoreHistorialAction,
     type ItemContexto, type StockCheckResult,
     type AutoAsignacionInput, type ItemBodegaAsignacion,
 } from './actions';
@@ -67,6 +68,10 @@ interface Props {
     solicitudes: Solicitud[];
     devoluciones: Devolucion[];
     bodegasCentrales: Bodega[];
+    totalSolicitudesAprobadas: number;
+    totalSolicitudesRechazadas: number;
+    totalDevolucionesAprobadas: number;
+    totalDevolucionesRechazadas: number;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -1074,26 +1079,72 @@ export function GestionSolicitudesClient({
     solicitudes: initialSolicitudes,
     devoluciones: initialDevoluciones,
     bodegasCentrales,
+    totalSolicitudesAprobadas,
+    totalSolicitudesRechazadas,
+    totalDevolucionesAprobadas,
+    totalDevolucionesRechazadas,
 }: Props) {
     const router = useRouter();
     const [bandeja, setBandeja] = useState<BandejaTipo>('entregas');
     const [filtro, setFiltro] = useState<FiltroEstado>('pendiente');
+    const [allSolicitudes, setAllSolicitudes] = useState<Solicitud[]>(initialSolicitudes);
+    const [allDevoluciones, setAllDevoluciones] = useState<Devolucion[]>(initialDevoluciones);
+    const [loadingMore, setLoadingMore] = useState(false);
 
     const handleRefresh = () => router.refresh();
 
     // ── Datos filtrados por bandeja activa ───────────────────────────────────
-    const dataset = bandeja === 'entregas' ? initialSolicitudes : initialDevoluciones;
+    const dataset = (bandeja === 'entregas' ? allSolicitudes : allDevoluciones) as (Solicitud | Devolucion)[];
 
     const filtrados = dataset.filter(s =>
         filtro === 'todas' ? true : s.estado === filtro
     );
 
+    // Counts: pendientes from local state (fully loaded), aprobadas/rechazadas from server totals
+    const pendientesCnt = dataset.filter(s => s.estado === 'pendiente').length;
+    const totalAprobadas  = bandeja === 'entregas' ? totalSolicitudesAprobadas  : totalDevolucionesAprobadas;
+    const totalRechazadas = bandeja === 'entregas' ? totalSolicitudesRechazadas : totalDevolucionesRechazadas;
+
     const counts = {
-        todas:     dataset.length,
-        pendiente: dataset.filter(s => s.estado === 'pendiente').length,
-        aprobada:  dataset.filter(s => s.estado === 'aprobada').length,
-        rechazada: dataset.filter(s => s.estado === 'rechazada').length,
+        todas:     pendientesCnt + totalAprobadas + totalRechazadas,
+        pendiente: pendientesCnt,
+        aprobada:  totalAprobadas,
+        rechazada: totalRechazadas,
     };
+
+    // ── Load More ────────────────────────────────────────────────────────────
+    const loadedAprobadas  = dataset.filter(s => s.estado === 'aprobada').length;
+    const loadedRechazadas = dataset.filter(s => s.estado === 'rechazada').length;
+
+    const hasMoreAprobadas  = loadedAprobadas  < totalAprobadas;
+    const hasMoreRechazadas = loadedRechazadas < totalRechazadas;
+
+    const hasMore =
+        (filtro === 'aprobada'  && hasMoreAprobadas)  ||
+        (filtro === 'rechazada' && hasMoreRechazadas) ||
+        (filtro === 'todas'     && (hasMoreAprobadas || hasMoreRechazadas));
+
+    async function handleLoadMore() {
+        setLoadingMore(true);
+        const tabla = bandeja === 'entregas' ? 'solicitudes_materiales' : 'solicitudes_devoluciones';
+
+        // Determine which state to load next
+        const estadoToLoad: 'aprobada' | 'rechazada' =
+            (filtro === 'rechazada' || !hasMoreAprobadas) ? 'rechazada' : 'aprobada';
+
+        const loadedForEstado = estadoToLoad === 'aprobada' ? loadedAprobadas : loadedRechazadas;
+        const page = Math.floor(loadedForEstado / 30);
+
+        const result = await loadMoreHistorialAction(tabla, estadoToLoad, page);
+        if (!result.error && result.data.length > 0) {
+            if (bandeja === 'entregas') {
+                setAllSolicitudes(prev => [...prev, ...result.data as Solicitud[]]);
+            } else {
+                setAllDevoluciones(prev => [...prev, ...result.data as Devolucion[]]);
+            }
+        }
+        setLoadingMore(false);
+    }
 
     const filtros: { key: FiltroEstado; label: string; count: number; color: string }[] = [
         { key: 'pendiente', label: 'Pendientes', count: counts.pendiente, color: 'amber' },
@@ -1102,8 +1153,8 @@ export function GestionSolicitudesClient({
         { key: 'todas',     label: 'Todas',      count: counts.todas,     color: 'slate' },
     ];
 
-    const pendientesEntregas    = initialSolicitudes.filter(s => s.estado === 'pendiente').length;
-    const pendientesDevoluciones = initialDevoluciones.filter(s => s.estado === 'pendiente').length;
+    const pendientesEntregas     = allSolicitudes.filter(s => s.estado === 'pendiente').length;
+    const pendientesDevoluciones = allDevoluciones.filter(s => s.estado === 'pendiente').length;
 
     return (
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
@@ -1223,16 +1274,43 @@ export function GestionSolicitudesClient({
                     </p>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    {bandeja === 'entregas'
-                        ? (filtrados as Solicitud[]).map(sol => (
-                            <SolicitudCard key={sol.id} solicitud={sol} bodegasCentrales={bodegasCentrales} onRefresh={handleRefresh} />
-                        ))
-                        : (filtrados as Devolucion[]).map(dev => (
-                            <DevolucionCard key={dev.id} devolucion={dev} bodegasCentrales={bodegasCentrales} onRefresh={handleRefresh} />
-                        ))
-                    }
-                </div>
+                <>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        {bandeja === 'entregas'
+                            ? (filtrados as Solicitud[]).map(sol => (
+                                <SolicitudCard key={sol.id} solicitud={sol} bodegasCentrales={bodegasCentrales} onRefresh={handleRefresh} />
+                            ))
+                            : (filtrados as Devolucion[]).map(dev => (
+                                <DevolucionCard key={dev.id} devolucion={dev} bodegasCentrales={bodegasCentrales} onRefresh={handleRefresh} />
+                            ))
+                        }
+                    </div>
+
+                    {hasMore && (
+                        <div className="flex justify-center pt-2">
+                            <button
+                                onClick={handleLoadMore}
+                                disabled={loadingMore}
+                                className="inline-flex items-center gap-2 px-5 py-2.5 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors bg-white shadow-sm"
+                            >
+                                {loadingMore
+                                    ? <Loader2 className="w-4 h-4 animate-spin" />
+                                    : <PackageCheck className="w-4 h-4" />
+                                }
+                                {loadingMore
+                                    ? 'Cargando…'
+                                    : (() => {
+                                        const restAprobadas  = totalAprobadas  - loadedAprobadas;
+                                        const restRechazadas = totalRechazadas - loadedRechazadas;
+                                        if (filtro === 'aprobada')  return `Cargar más (${restAprobadas} restantes)`;
+                                        if (filtro === 'rechazada') return `Cargar más (${restRechazadas} restantes)`;
+                                        return `Cargar más (${restAprobadas + restRechazadas} restantes)`;
+                                    })()
+                                }
+                            </button>
+                        </div>
+                    )}
+                </>
             )}
         </div>
     );

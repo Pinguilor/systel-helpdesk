@@ -7,6 +7,17 @@ const nextConfig: NextConfig = {
     // de intentar bundlearlo, y los dynamic imports en el browser siguen funcionando
     // usando el build de browser que exceljs expone en su campo "browser" del package.json.
     serverExternalPackages: ['exceljs'],
+
+    images: {
+        remotePatterns: [
+            {
+                // Supabase Storage — todas las URLs públicas del proyecto
+                protocol: 'https',
+                hostname: '*.supabase.co',
+                pathname: '/storage/v1/object/public/**',
+            },
+        ],
+    },
 };
 
 export default nextConfig;

@@ -3,6 +3,7 @@ import TopNav from './components/TopNav';
 import { redirect } from 'next/navigation';
 import { AdminSegmentedNav } from './admin/components/AdminSegmentedNav';
 import { UserSegmentedNav } from './usuario/components/UserSegmentedNav';
+import { TecnicoSegmentedNav } from './tecnico/components/TecnicoSegmentedNav';
 
 export default async function DashboardLayout({
     children,
@@ -32,6 +33,16 @@ export default async function DashboardLayout({
     const rolUpper = profile?.rol?.toUpperCase() || '';
     const isStaff = ['ADMIN', 'COORDINADOR', 'ADMIN_BODEGA'].includes(rolUpper);
     const isUsuario = rolUpper === 'USUARIO';
+    const isTecnico = rolUpper === 'TECNICO';
+
+    let tecnicoHasProjects = false;
+    if (isTecnico) {
+        const { count } = await supabase
+            .from('proyecto_participantes')
+            .select('*', { count: 'exact', head: true })
+            .eq('perfil_id', user.id);
+        tecnicoHasProjects = (count ?? 0) > 0;
+    }
 
     return (
         <div className="min-h-screen bg-brand-bg-base text-slate-900 font-sans pb-10">
@@ -47,6 +58,11 @@ export default async function DashboardLayout({
             {isUsuario && (
                 <div className="sticky top-[80px] z-40 -mt-2">
                     <UserSegmentedNav />
+                </div>
+            )}
+            {isTecnico && tecnicoHasProjects && (
+                <div className="sticky top-[80px] z-40 -mt-2">
+                    <TecnicoSegmentedNav />
                 </div>
             )}
             {/* The main container limits width globally to match the navbar */}

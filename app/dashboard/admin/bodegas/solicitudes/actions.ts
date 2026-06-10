@@ -94,95 +94,176 @@ const REVALIDATE_PATHS = [
     '/dashboard/admin/solicitudes',
 ];
 
+const SOLICITUD_MATERIALES_SELECT = `
+    *,
+    tecnico:tecnico_id ( id, full_name ),
+    bodeguero:bodeguero_id ( full_name ),
+    ticket:ticket_id ( id, numero_ticket, titulo ),
+    solicitud_items (
+        id, cantidad,
+        inventario:inventario_id (
+            id, modelo, familia, es_serializado, numero_serie, cantidad
+        )
+    )
+` as const;
+
+const SOLICITUD_DEVOLUCION_SELECT = `
+    *,
+    tecnico:tecnico_id ( id, full_name ),
+    bodeguero:bodeguero_id ( full_name ),
+    ticket:ticket_id ( id, numero_ticket, titulo ),
+    inventario:inventario_id ( id, modelo, familia, es_serializado, numero_serie, cantidad )
+` as const;
+
 // ─────────────────────────────────────────────────────────────────────────────
-// Obtener todas las solicitudes de ENTREGA (para vista del Bodeguero)
+// Obtener solicitudes de ENTREGA paginadas por estado
+// Pendientes: todas (sin límite). Aprobadas/Rechazadas: primera página de 30.
 // ─────────────────────────────────────────────────────────────────────────────
 export async function getSolicitudesMaterialesAction() {
     try {
         const supabase = await createClient();
         const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return { error: 'No autorizado.', data: [] };
+        if (!user) return { error: 'No autorizado.', data: [], totalAprobadas: 0, totalRechazadas: 0 };
 
         const { data: profile } = await supabase
             .from('profiles').select('rol').eq('id', user.id).maybeSingle();
 
         const rol = profile?.rol?.toUpperCase() || '';
         if (!['ADMIN_BODEGA', 'ADMIN', 'COORDINADOR'].includes(rol)) {
-            return { error: 'Permisos insuficientes.', data: [] };
+            return { error: 'Permisos insuficientes.', data: [], totalAprobadas: 0, totalRechazadas: 0 };
         }
 
-        const { data, error } = await supabase
-            .from('solicitudes_materiales')
-            .select(`
-                *,
-                tecnico:tecnico_id ( id, full_name ),
-                bodeguero:bodeguero_id ( full_name ),
-                ticket:ticket_id ( id, numero_ticket, titulo ),
-                solicitud_items (
-                    id,
-                    cantidad,
-                    inventario:inventario_id (
-                        id, modelo, familia, es_serializado, numero_serie, cantidad
-                    )
-                )
-            `)
-            .order('creado_en', { ascending: false });
+        const [pendientesRes, aprobadasRes, rechazadasRes] = await Promise.all([
+            supabase
+                .from('solicitudes_materiales')
+                .select(SOLICITUD_MATERIALES_SELECT)
+                .eq('estado', 'pendiente')
+                .order('creado_en', { ascending: false }),
+            supabase
+                .from('solicitudes_materiales')
+                .select(SOLICITUD_MATERIALES_SELECT, { count: 'exact' })
+                .eq('estado', 'aprobada')
+                .order('creado_en', { ascending: false })
+                .range(0, 29),
+            supabase
+                .from('solicitudes_materiales')
+                .select(SOLICITUD_MATERIALES_SELECT, { count: 'exact' })
+                .eq('estado', 'rechazada')
+                .order('creado_en', { ascending: false })
+                .range(0, 29),
+        ]);
 
-        if (error) throw new Error(error.message);
+        if (pendientesRes.error) throw new Error(pendientesRes.error.message);
 
-        const sorted = (data || []).sort((a: any, b: any) => {
-            const order: Record<string, number> = { pendiente: 0, aprobada: 1, rechazada: 2 };
-            return (order[a.estado] ?? 3) - (order[b.estado] ?? 3);
-        });
-
-        return { data: sorted };
+        return {
+            data: [
+                ...(pendientesRes.data ?? []),
+                ...(aprobadasRes.data  ?? []),
+                ...(rechazadasRes.data ?? []),
+            ],
+            totalAprobadas:  aprobadasRes.count  ?? 0,
+            totalRechazadas: rechazadasRes.count ?? 0,
+        };
     } catch (e: any) {
-        return { error: e.message, data: [] };
+        return { error: e.message, data: [], totalAprobadas: 0, totalRechazadas: 0 };
     }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Obtener todas las solicitudes de DEVOLUCIÓN (reingreso)
+// Obtener solicitudes de DEVOLUCIÓN paginadas por estado
 // ─────────────────────────────────────────────────────────────────────────────
 export async function getSolicitudesDevolucionAction() {
     try {
         const supabase = await createClient();
         const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return { error: 'No autorizado.', data: [] };
+        if (!user) return { error: 'No autorizado.', data: [], totalAprobadas: 0, totalRechazadas: 0 };
 
         const { data: profile } = await supabase
             .from('profiles').select('rol').eq('id', user.id).maybeSingle();
 
         const rol = profile?.rol?.toUpperCase() || '';
         if (!['ADMIN_BODEGA', 'ADMIN', 'COORDINADOR'].includes(rol)) {
-            return { error: 'Permisos insuficientes.', data: [] };
+            return { error: 'Permisos insuficientes.', data: [], totalAprobadas: 0, totalRechazadas: 0 };
         }
+
+        const [pendientesRes, aprobadasRes, rechazadasRes] = await Promise.all([
+            supabase
+                .from('solicitudes_devoluciones')
+                .select(SOLICITUD_DEVOLUCION_SELECT)
+                .eq('estado', 'pendiente')
+                .order('creado_en', { ascending: false }),
+            supabase
+                .from('solicitudes_devoluciones')
+                .select(SOLICITUD_DEVOLUCION_SELECT, { count: 'exact' })
+                .eq('estado', 'aprobada')
+                .order('creado_en', { ascending: false })
+                .range(0, 29),
+            supabase
+                .from('solicitudes_devoluciones')
+                .select(SOLICITUD_DEVOLUCION_SELECT, { count: 'exact' })
+                .eq('estado', 'rechazada')
+                .order('creado_en', { ascending: false })
+                .range(0, 29),
+        ]);
+
+        if (pendientesRes.error) {
+            console.warn('[solicitudes_devoluciones] Tabla no encontrada:', pendientesRes.error.message);
+            return { data: [], totalAprobadas: 0, totalRechazadas: 0 };
+        }
+
+        return {
+            data: [
+                ...(pendientesRes.data ?? []),
+                ...(aprobadasRes.data  ?? []),
+                ...(rechazadasRes.data ?? []),
+            ],
+            totalAprobadas:  aprobadasRes.count  ?? 0,
+            totalRechazadas: rechazadasRes.count ?? 0,
+        };
+    } catch (e: any) {
+        return { error: e.message, data: [], totalAprobadas: 0, totalRechazadas: 0 };
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Cargar más historial (aprobadas / rechazadas) — usado por load-more client
+// ─────────────────────────────────────────────────────────────────────────────
+export async function loadMoreHistorialAction(
+    tabla: 'solicitudes_materiales' | 'solicitudes_devoluciones',
+    estado: 'aprobada' | 'rechazada',
+    page: number,
+): Promise<{ data: any[]; error: string | null }> {
+    try {
+        const supabase = await createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return { data: [], error: 'No autorizado.' };
+
+        const { data: profile } = await supabase
+            .from('profiles').select('rol').eq('id', user.id).maybeSingle();
+
+        const rol = profile?.rol?.toUpperCase() || '';
+        if (!['ADMIN_BODEGA', 'ADMIN', 'COORDINADOR'].includes(rol)) {
+            return { data: [], error: 'Permisos insuficientes.' };
+        }
+
+        const selectQuery = tabla === 'solicitudes_materiales'
+            ? SOLICITUD_MATERIALES_SELECT
+            : SOLICITUD_DEVOLUCION_SELECT;
+
+        const from = page * 30;
+        const to   = from + 29;
 
         const { data, error } = await supabase
-            .from('solicitudes_devoluciones')
-            .select(`
-                *,
-                tecnico:tecnico_id ( id, full_name ),
-                bodeguero:bodeguero_id ( full_name ),
-                ticket:ticket_id ( id, numero_ticket, titulo ),
-                inventario:inventario_id ( id, modelo, familia, es_serializado, numero_serie, cantidad )
-            `)
-            .order('creado_en', { ascending: false });
+            .from(tabla)
+            .select(selectQuery)
+            .eq('estado', estado)
+            .order('creado_en', { ascending: false })
+            .range(from, to);
 
-        if (error) {
-            // Si la tabla no existe aún, retornar vacío sin romper la UI
-            console.warn('[solicitudes_devoluciones] Tabla no encontrada:', error.message);
-            return { data: [] };
-        }
-
-        const sorted = (data || []).sort((a: any, b: any) => {
-            const order: Record<string, number> = { pendiente: 0, aprobada: 1, rechazada: 2 };
-            return (order[a.estado] ?? 3) - (order[b.estado] ?? 3);
-        });
-
-        return { data: sorted };
+        if (error) return { data: [], error: error.message };
+        return { data: data ?? [], error: null };
     } catch (e: any) {
-        return { error: e.message, data: [] };
+        return { data: [], error: e.message };
     }
 }
 

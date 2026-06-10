@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useTransition, useRef, useEffect, useMemo } from 'react';
+import React, { forwardRef, useImperativeHandle, useState, useTransition, useRef, useEffect, useMemo } from 'react';
 import {
     PackagePlus, X, Loader2, AlertTriangle, CheckCircle2,
     Package, ChevronDown, Hash, Plus,
@@ -20,6 +20,11 @@ interface Props {
     bodegas: { id: string; nombre: string; tipo: string; activo?: boolean }[];
     catalogo: CatalogoItem[];
     familias: { id: string; nombre: string; bodega_id: string }[];
+    hideTriggerButton?: boolean;
+}
+
+export interface AddStockModalHandle {
+    open: () => void;
 }
 
 function Alert({ type, msg }: { type: 'error' | 'success'; msg: string }) {
@@ -43,9 +48,13 @@ function parseSerials(raw: string): string[] {
     )];
 }
 
-export function AddStockModal({ bodegas, catalogo, familias }: Props) {
+export const AddStockModal = forwardRef<AddStockModalHandle, Props>(function AddStockModal(
+    { bodegas, catalogo, familias, hideTriggerButton },
+    ref,
+) {
     const router = useRouter();
     const [open, setOpen] = useState(false);
+    useImperativeHandle(ref, () => ({ open: () => setOpen(true) }), []);
     const [isPending, startTransition] = useTransition();
     const [alert, setAlert] = useState<{ type: 'error' | 'success'; msg: string } | null>(null);
 
@@ -209,13 +218,15 @@ export function AddStockModal({ bodegas, catalogo, familias }: Props) {
 
     return (
         <>
-            <button
-                onClick={() => setOpen(true)}
-                className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-5 rounded-xl transition-all shadow-sm"
-            >
-                <PackagePlus className="w-5 h-5" />
-                Ingreso de Stock
-            </button>
+            {!hideTriggerButton && (
+                <button
+                    onClick={() => setOpen(true)}
+                    className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-5 rounded-xl transition-all shadow-sm"
+                >
+                    <PackagePlus className="w-5 h-5" />
+                    Ingreso de Stock
+                </button>
+            )}
 
             {open && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
@@ -464,4 +475,5 @@ export function AddStockModal({ bodegas, catalogo, familias }: Props) {
             )}
         </>
     );
-}
+});
+AddStockModal.displayName = 'AddStockModal';
