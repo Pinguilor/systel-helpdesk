@@ -21,22 +21,36 @@ async function requireAccess() {
 
 export async function getBomConItems(proyectoId: string) {
     const supabase = await createClient();
-    const { data } = await supabase
-        .from('proyecto_bom')
+    // Reemplazado para usar la nueva Receta Maestra (proyecto_equipamiento)
+    // Se asume que el frontend ahora mapea sobre "items" que vendrá directamente como array
+    const { data, error } = await supabase
+        .from('proyecto_equipamiento')
         .select(`
-            id, nombre, created_at,
-            items:proyecto_bom_items(
-                id, proyecto_id, familia, modelo, es_serializado,
-                cantidad_requerida, estado, notas, numero_serie,
-                bodega_origen_id, inventario_id,
-                bodega:bodegas(nombre),
-                created_at
+            id, proyecto_id, tipo_item, inventario_id, cantidad_total, cantidad_entregada, created_at,
+            inventario:catalogo_equipos!inventario_id(
+                modelo, 
+                es_serializado, 
+                familia_obj:familias_hardware(nombre)
             )
         `)
         .eq('proyecto_id', proyectoId)
-        .order('created_at')
-        .maybeSingle();
-    return data;
+        .order('created_at');
+        
+    // Flatten la familia para que el frontend la lea fácil. Si inventario es null (ej. manual), usar tipo_item
+    const items = (data || []).map(item => {
+        const inv = item.inventario as any;
+        return {
+            ...item,
+            inventario: {
+                ...inv,
+                modelo: inv?.modelo || item.tipo_item || 'Manual',
+                familia: inv?.familia_obj?.nombre || 'Manual/Sin familia',
+                es_serializado: inv?.es_serializado || false
+            }
+        };
+    });
+
+    return { items };
 }
 
 export async function getCatalogoEquipos(): Promise<
@@ -145,7 +159,7 @@ export async function agregarItemsBom(
     const proyectoId = (formData.get('proyecto_id') as string)?.trim();
     const itemsJson  =  formData.get('items')       as string;
 
-    let items: Array<{ familia: string; modelo: string; cantidad: number; es_serializado: boolean }>;
+    let items: Array<{ id?: string; familia: string; modelo: string; cantidad: number; es_serializado: boolean }>;
     try {
         items = JSON.parse(itemsJson);
     } catch {
@@ -153,20 +167,24 @@ export async function agregarItemsBom(
     }
     if (!items?.length) return { error: 'Selecciona al menos un ítem del catálogo.' };
 
-    const bomId = await ensureBomExists(proyectoId);
-    const db    = createAdminClient();
+    const db = createAdminClient();
+    const { error } = await db.from('proyecto_equipamiento').insert(
+        items.map(item => {
+            // item.id es catalogo_equipos.id. proyecto_equipamiento.inventario_id es
+            // una FK al CATÁLOGO (no a inventario físico). Solo aceptamos UUIDs reales:
+            // los ítems manuales/sintéticos (familia::modelo) quedan con catálogo NULL y
+            // se resuelven por tipo_item.
+            const passedId = item.id;
+            const validId = passedId && /^[0-9a-f]{8}-/i.test(passedId) ? passedId : null;
 
-    const { error } = await db.from('proyecto_bom_items').insert(
-        items.map(item => ({
-            bom_id:             bomId,
-            proyecto_id:        proyectoId,
-            familia:            item.familia,
-            modelo:             item.modelo,
-            cantidad_requerida: item.cantidad,
-            es_serializado:     item.es_serializado,
-            estado:             'requerido' as BomItemEstado,
-            actualizado_por:    user.id,
-        }))
+            return {
+                proyecto_id:        proyectoId,
+                inventario_id:      validId,
+                tipo_item:          item.modelo || 'Manual',
+                cantidad_total:     item.cantidad,
+                cantidad_entregada: 0,
+            };
+        })
     );
     if (error) return { error: error.message };
 
@@ -313,22 +331,18 @@ export async function aplicarRecetaBOMAction(
     }>;
     if (items.length === 0) return { error: 'La receta no contiene ítems definidos.' };
 
-    // 2. Asegurar que existe el BOM para el proyecto
-    const bomId = await ensureBomExists(proyectoId);
+    // 2. Omitido: Ya no se requiere un "bom_id" principal. La tabla es directa.
 
-    // 3. Inserción masiva de ítems en proyecto_bom_items
+    // 3. Inserción masiva de ítems en proyecto_equipamiento
     const inserts = items.map(item => ({
-        bom_id:             bomId,
         proyecto_id:        proyectoId,
-        familia:            item.familia || 'Sin familia',
-        modelo:             item.nombre_modelo,
-        cantidad_requerida: item.cantidad,
-        es_serializado:     item.es_serializado ?? (item.tipo === 'Serializado'),
-        estado:             'requerido',
-        actualizado_por:    user.id,
+        inventario_id:      item.modelo_id, // NOTA: Si el modelo_id en la receta es de catalogo_equipos, entonces esto requiere que inventario_id en esta tabla apunte allá.
+        tipo_item:          item.tipo || 'Equipamiento',
+        cantidad_total:     item.cantidad,
+        cantidad_entregada: 0,
     }));
 
-    const { error: insertError } = await db.from('proyecto_bom_items').insert(inserts);
+    const { error: insertError } = await db.from('proyecto_equipamiento').insert(inserts);
     if (insertError) return { error: `Error al inyectar materiales: ${insertError.message}` };
 
     // 4. Registrar un único log de auditoría

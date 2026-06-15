@@ -18,8 +18,8 @@ export default async function BomPage({
 
     const items = (bom?.items ?? []) as any[];
 
-    const instalados = items.filter(i => i.estado === 'instalado').length;
-    const total      = items.length;
+    const totalEquipos = items.reduce((acc, item) => acc + (item.cantidad_total || 0), 0);
+    const totalEntregados = items.reduce((acc, item) => acc + (item.cantidad_entregada || 0), 0);
 
     return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
@@ -33,9 +33,9 @@ export default async function BomPage({
                     <div>
                         <h2 className="text-base font-black text-slate-900">Hardware y Logística</h2>
                         <p className="text-xs text-slate-400 mt-0.5">
-                            {total === 0
-                                ? 'Sin ítems aún'
-                                : `${instalados} de ${total} ítem${total !== 1 ? 's' : ''} instalado${instalados !== 1 ? 's' : ''}`
+                            {totalEquipos === 0
+                                ? 'Sin ítems en la Receta Maestra'
+                                : `${totalEntregados} de ${totalEquipos} equipos entregados`
                             }
                         </p>
                     </div>
@@ -43,9 +43,6 @@ export default async function BomPage({
 
                 <AgregarItemModal proyectoId={id} catalogo={catalogo} />
             </div>
-
-            {/* Resumen 4 estados */}
-            {total > 0 && <BomResumen items={items} />}
 
             {/* Tabla con motor de transiciones */}
             <BomTable items={items} proyectoId={id} />

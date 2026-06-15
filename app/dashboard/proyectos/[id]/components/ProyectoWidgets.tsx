@@ -256,12 +256,9 @@ export function ProyectoWidgets({
 
     // ── BOM Stats Calculations ──────────────────────────────────────────
     const bomStats = useMemo(() => {
-        const total = bomItems.length;
-        const requerido = bomItems.filter(i => i.estado === 'requerido').length;
-        const pendiente = bomItems.filter(i => i.estado === 'pendiente').length;
-        const asignado = bomItems.filter(i => i.estado === 'asignado').length;
-        const instalado = bomItems.filter(i => i.estado === 'instalado').length;
-        return { total, requerido, pendiente, asignado, instalado };
+        const total = bomItems.reduce((acc: number, item: any) => acc + (item.cantidad_total || 0), 0);
+        const instalado = bomItems.reduce((acc: number, item: any) => acc + (item.cantidad_entregada || 0), 0);
+        return { total, instalado };
     }, [bomItems]);
 
     return (
@@ -635,7 +632,7 @@ export function ProyectoWidgets({
                                 <div>
                                     <h3 className="text-lg font-black text-slate-900">Hardware y Logística</h3>
                                     <p className="text-xs text-slate-400">
-                                        {bomItems.length === 0 ? 'Sin ítems registrados' : `${bomStats.instalado} de ${bomStats.total} ítems instalados`}
+                                        {bomStats.total === 0 ? 'Sin ítems registrados' : `${bomStats.instalado} de ${bomStats.total} equipos entregados`}
                                     </p>
                                 </div>
                             </div>
@@ -755,7 +752,7 @@ export function ProyectoWidgets({
                         </div>
                         
                         {/* Modal Body */}
-                        {bomStats.total > 0 && <BomResumen items={bomItems} />}
+
                         <BomTable items={bomItems} proyectoId={proyectoId} />
                     </div>
                 </div>

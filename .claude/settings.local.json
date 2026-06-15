@@ -6,7 +6,8 @@
       "Bash(grep -rni \"vencimiento_sla\\\\|vencimientoSla\" c:app_gestion_de_ticketapp c:app_gestion_de_ticketcomponents c:app_gestion_de_tickettypes --include=*.ts --include=*.tsx)",
       "Bash(grep -rni \"vencimiento_sla\\\\|vencimientoSla\" /c/app_gestion_de_ticket/app --include=*.ts --include=*.tsx)",
       "Bash(grep -n \"notification\\\\|Notification\" /c/app_gestion_de_ticket/app/dashboard/ticket/[id]/actions.ts)",
-      "Bash(wc -l /c/app_gestion_de_ticket/app/dashboard/ticket/[id]/actions.ts)"
+      "Bash(wc -l /c/app_gestion_de_ticket/app/dashboard/ticket/[id]/actions.ts)",
+      "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\(JSON.stringify\\(p.scripts,null,2\\)\\)\")"
     ]
   }
 }

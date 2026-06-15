@@ -300,6 +300,7 @@ export function AgregarItemModal({ proyectoId, catalogo }: Props) {
                                 type="hidden"
                                 name="items"
                                 value={JSON.stringify(carrito.map(c => ({
+                                    id:             c.id,   // catalogo_equipos.id → se persiste como inventario_id (ref. al catálogo)
                                     familia:        c.familia,
                                     modelo:         c.modelo,
                                     cantidad:       c.cantidad,

@@ -99,10 +99,19 @@ const SOLICITUD_MATERIALES_SELECT = `
     tecnico:tecnico_id ( id, full_name ),
     bodeguero:bodeguero_id ( full_name ),
     ticket:ticket_id ( id, numero_ticket, titulo ),
+    proyecto:proyecto_id ( id, nombre ),
     solicitud_items (
         id, cantidad,
         inventario:inventario_id (
             id, modelo, familia, es_serializado, numero_serie, cantidad
+        ),
+        proyecto_equipamiento:proyecto_equipamiento_id(
+            id,
+            inventario:catalogo_equipos!inventario_id(
+                modelo,
+                es_serializado,
+                familia_obj:familias_hardware(nombre)
+            )
         )
     )
 ` as const;
@@ -133,19 +142,25 @@ export async function getSolicitudesMaterialesAction() {
             return { error: 'Permisos insuficientes.', data: [], totalAprobadas: 0, totalRechazadas: 0 };
         }
 
+        // Lectura con service-role (bypass RLS). El bodeguero ya quedó autorizado arriba.
+        // Necesario porque ADMIN_BODEGA no tiene políticas SELECT sobre `proyectos` ni
+        // `proyecto_equipamiento`; sin esto PostgREST devuelve esos embeds anidados como
+        // null y la tarjeta del proyecto renderiza en blanco ("—").
+        const db = getAdminSupabase();
+
         const [pendientesRes, aprobadasRes, rechazadasRes] = await Promise.all([
-            supabase
+            db
                 .from('solicitudes_materiales')
                 .select(SOLICITUD_MATERIALES_SELECT)
                 .eq('estado', 'pendiente')
                 .order('creado_en', { ascending: false }),
-            supabase
+            db
                 .from('solicitudes_materiales')
                 .select(SOLICITUD_MATERIALES_SELECT, { count: 'exact' })
                 .eq('estado', 'aprobada')
                 .order('creado_en', { ascending: false })
                 .range(0, 29),
-            supabase
+            db
                 .from('solicitudes_materiales')
                 .select(SOLICITUD_MATERIALES_SELECT, { count: 'exact' })
                 .eq('estado', 'rechazada')
@@ -253,7 +268,11 @@ export async function loadMoreHistorialAction(
         const from = page * 30;
         const to   = from + 29;
 
-        const { data, error } = await supabase
+        // Service-role (bypass RLS): el embed proyecto/proyecto_equipamiento se anula
+        // bajo la sesión del bodeguero. Usuario ya autorizado arriba.
+        const db = getAdminSupabase();
+
+        const { data, error } = await db
             .from(tabla)
             .select(selectQuery)
             .eq('estado', estado)
@@ -327,7 +346,7 @@ export async function getStockEnBodegaAction(
                         .eq('bodega_id', bodegaId)
                         .eq('modelo', item.modelo ?? '')
                         .eq('es_serializado', true)
-                        .ilike('estado', 'Disponible');
+                        .in('estado', ['Disponible', 'operativo', 'Operativo', 'disponible']);
 
                     const disponible = count ?? 0;
                     return { solicitudItemId: item.solicitudItemId, disponible, suficiente: disponible >= item.cantidad };
@@ -405,24 +424,24 @@ export async function getAutoAsignacionBodegasAction(
             : { data: [] as { id: string; bodega_id: string }[] };
         const serializedBodegaMap = new Map((serializedRows || []).map(r => [r.id, r.bodega_id]));
 
-        // Generic: fetch all stock across INTERNA bodegas for the requested combos
-        const genericItems = items.filter(i => !i.esSerializado);
+        // Generic OR Serialized Bulk (Projects): fetch all available stock across INTERNA bodegas for the requested combos
+        const genericOrBulkItems = items.filter(i => !i.esSerializado || !i.inventarioId);
         let genericStock: { bodega_id: string; modelo: string; familia: string; cantidad: number }[] = [];
 
-        if (genericItems.length > 0) {
+        if (genericOrBulkItems.length > 0) {
             const { data: stockRows } = await supabase
                 .from('inventario')
-                .select('bodega_id, modelo, familia, cantidad')
+                .select('bodega_id, modelo, familia, cantidad, es_serializado')
                 .in('bodega_id', bodegaIds)
-                .eq('es_serializado', false)
+                .in('estado', ['Disponible', 'operativo', 'Operativo', 'disponible'])
                 .gt('cantidad', 0);
 
-            const combos = new Set(genericItems.map(i => `${i.modelo}__${i.familia}`));
+            const combos = new Set(genericOrBulkItems.map(i => `${i.modelo}__${i.familia}`));
             genericStock = (stockRows || []).filter(r => combos.has(`${r.modelo}__${r.familia}`));
         }
 
         const results: AutoAsignacionResult[] = items.map(item => {
-            if (item.esSerializado) {
+            if (item.esSerializado && item.inventarioId) {
                 const bodegaId = serializedBodegaMap.get(item.inventarioId) || bodegaIds[0];
                 return {
                     solicitudItemId: item.solicitudItemId,
@@ -522,31 +541,50 @@ export async function aprobarSolicitudAction(
         // ── Validación de stock por ítem con su bodega específica ─────────────
         const { data: itemsToValidate, error: itemsErr } = await supabase
             .from('solicitud_items')
-            .select('id, cantidad, inventario:inventario_id(id, modelo, familia, es_serializado, numero_serie)')
+            .select(`
+                id, 
+                cantidad, 
+                inventario:inventario_id(id, modelo, familia, es_serializado, numero_serie),
+                proyecto_equipamiento:proyecto_equipamiento_id(
+                    id, 
+                    inventario:catalogo_equipos!inventario_id(modelo, es_serializado, familia_obj:familias_hardware(nombre))
+                )
+            `)
             .in('id', approvedItemIds);
 
         if (itemsErr) throw new Error(`Error obteniendo ítems: ${itemsErr.message}`);
 
         for (const si of (itemsToValidate ?? []) as any[]) {
-            const inv = si.inventario;
-            if (!inv) throw new Error(`Ítem ${si.id} no tiene inventario asociado.`);
+            const inv = si.inventario || {
+                modelo: si.proyecto_equipamiento?.inventario?.modelo,
+                familia: si.proyecto_equipamiento?.inventario?.familia_obj?.nombre,
+                es_serializado: si.proyecto_equipamiento?.inventario?.es_serializado ?? false,
+                numero_serie: null
+            };
+            if (!inv || !inv.modelo) throw new Error(`Ítem ${si.id} no tiene inventario asociado.`);
 
             const bodegaId = itemBodegas.find(ib => ib.solicitudItemId === si.id)!.bodegaId;
 
-            if (inv.es_serializado) {
+            // Ítem serializado de PROYECTO (sin inventario físico fijo): NO validamos aquí.
+            // El RPC `aprobar_solicitud_rpc` (rama C) toma el primer serial disponible en la
+            // bodega de origen, lo pasa a 'En Proyecto' y libera su bodega_id. Validar por
+            // modelo/familia en el front bloquea injustamente estos retiros.
+            const esProyectoAutoSerial = !si.inventario && inv.es_serializado;
+
+            if (inv.es_serializado && !esProyectoAutoSerial) {
                 const { count } = await supabase
                     .from('inventario')
                     .select('id', { count: 'exact', head: true })
                     .eq('bodega_id', bodegaId)
                     .eq('modelo', inv.modelo)
                     .eq('es_serializado', true)
-                    .ilike('estado', 'Disponible');
-                if ((count ?? 0) < 1) {
+                    .in('estado', ['Disponible', 'operativo', 'Operativo', 'disponible']);
+                if ((count ?? 0) < si.cantidad) {
                     throw new Error(
                         `Stock insuficiente en bodega de origen para "${inv.modelo}" (serializado).`
                     );
                 }
-            } else {
+            } else if (!inv.es_serializado) {
                 const { data: stockRows } = await supabase
                     .from('inventario')
                     .select('cantidad')
@@ -563,15 +601,43 @@ export async function aprobarSolicitudAction(
                     );
                 }
             }
+
+            // Inyectar el inventario_id en la BD si la solicitud es de proyecto (inventario_id era null)
+            if (!si.inventario && !inv.es_serializado) {
+                const { data: stockRows } = await supabase
+                    .from('inventario')
+                    .select('id')
+                    .eq('bodega_id', bodegaId)
+                    .eq('modelo', inv.modelo)
+                    .eq('familia', inv.familia)
+                    .eq('es_serializado', false)
+                    .gt('cantidad', 0)
+                    .limit(1);
+
+                if (stockRows && stockRows.length > 0) {
+                    const adminSupabase = getAdminSupabase();
+                    const { error: updErr } = await adminSupabase
+                        .from('solicitud_items')
+                        .update({ inventario_id: stockRows[0].id })
+                        .eq('id', si.id);
+                    if (updErr) throw new Error(`Error asignando inventario físico: ${updErr.message}`);
+                }
+            }
+            // NOTA: Si es serializado y si.inventario es null, el RPC se encargará de
+            // buscar N unidades físicas y auto-asignarlas al proyecto.
         }
         // ─────────────────────────────────────────────────────────────────────
 
         const approvedItemBodegas = itemBodegas.filter(ib => approvedItemIds.includes(ib.solicitudItemId));
+        const itemBodegasPayload = approvedItemBodegas.map(ib => ({
+            solicitud_item_id: ib.solicitudItemId,
+            bodega_id: ib.bodegaId
+        }));
 
         const { data, error } = await supabase.rpc('aprobar_solicitud_rpc', {
             p_solicitud_id:      solicitudId,
             p_bodeguero_id:      user.id,
-            p_item_bodegas:      approvedItemBodegas,
+            p_item_bodegas:      itemBodegasPayload,
             p_approved_item_ids: approvedItemIds,
             p_comentario:        comentario ?? null,
         });
