@@ -794,6 +794,28 @@ export async function closeTicketWithActaAction(
     if (!user) return { error: 'No autorizado' };
 
     try {
+        // 0. Pre-flight: el restaurante DEBE tener una bodega configurada para recibir
+        //    el stock. Esta validación va ANTES de cerrar el ticket: si saltáramos el
+        //    bloque de logística en silencio (como antes), el ticket quedaría cerrado
+        //    pero el material nunca saldría de la mochila → stock fantasma.
+        const { data: ticketData, error: fetchError } = await supabase
+            .from('tickets')
+            .select('restaurante_id, restaurantes(bodega_id)')
+            .eq('id', ticketId)
+            .single();
+
+        if (fetchError || !ticketData) {
+            throw new Error(`No se pudo obtener el restaurante del ticket: ${fetchError?.message ?? 'ticket no encontrado'}`);
+        }
+
+        // @ts-ignore
+        const restaurante = Array.isArray(ticketData?.restaurantes) ? ticketData?.restaurantes[0] : ticketData?.restaurantes;
+        const bodegaId = restaurante?.bodega_id;
+
+        if (!bodegaId) {
+            throw new Error('El restaurante de este ticket no tiene una Bodega asignada (bodega_id es nulo). Configura la bodega del local antes de cerrar el ticket para que el material salga de la mochila hacia el local.');
+        }
+
         // 1. Actualización Principal (Tickets)
         const { error: ticketError, data: updatedTicket } = await supabase.from('tickets').update({
             estado: 'cerrado',
@@ -811,21 +833,6 @@ export async function closeTicketWithActaAction(
             throw new Error(`Error actualizando el ticket: ${ticketError?.message || 'Ticket no encontrado o sin permisos'}`);
         }
 
-        // Obtener bodega_id
-        const { data: ticketData, error: fetchError } = await supabase
-            .from('tickets')
-            .select('restaurante_id, restaurantes(bodega_id)')
-            .eq('id', ticketId)
-            .single();
-
-        if (fetchError) {
-            console.warn('No se pudo obtener el restaurante para logística:', fetchError);
-        }
-
-        // @ts-ignore
-        const restaurante = Array.isArray(ticketData?.restaurantes) ? ticketData?.restaurantes[0] : ticketData?.restaurantes;
-        const bodegaId = restaurante?.bodega_id;
-
         // Capturar SOLO los materiales apartados (En proceso) ANTES de que la logística los mueva al local.
         // Los sobrantes (Disponible + ticket_id en mochila) NO deben aparecer en el Acta.
         const { data: mochilaSnapshot } = await supabase
@@ -835,7 +842,8 @@ export async function closeTicketWithActaAction(
             .eq('estado', ESTADO_EN_PROCESO);
 
         // 2. Actualización Logística (Inventario + Movimientos)
-        if (bodegaId) {
+        // bodegaId garantizado no-nulo por el pre-flight (paso 0).
+        {
             // Obtener todos los inventario_ids vinculados a este ticket
             // vía movimientos_inventario (cubre tanto flujo directo como solicitud→mochila)
             const { data: movsPrevios } = await supabase
@@ -1110,6 +1118,12 @@ export async function smartCloseAction(formData: FormData) {
 
         try { materialInstaladoIds = JSON.parse(materialInstaladoRaw); } catch (e) { }
         try { equiposDañados = JSON.parse(equiposDañadosRaw); } catch (e) { }
+
+        // Defensa en profundidad: descartar ids nulos/indefinidos. Si llegan ids
+        // inválidos (p. ej. shape incorrecto del packing list), preferimos caer al
+        // fallback por ticket_id + 'En proceso' antes que ejecutar un UPDATE que no
+        // matchea ninguna fila y deja stock fantasma en la mochila.
+        materialInstaladoIds = (materialInstaladoIds || []).filter(Boolean);
 
         const fileUrls: string[] = [];
 

@@ -49,12 +49,13 @@ interface Props {
     isAgent?: boolean;
     isAdmin?: boolean;
     packingList?: any[];
+    materialesMochila?: any[];
     inventarioTicket?: any[];
     parentTicket?: { id: string; numero_ticket: number; titulo: string } | null;
     ayudantesNombres?: string[];
 }
 
-export default function TicketTimeline({ ticket, messages, currentUserId, isAgent, isAdmin, packingList = [], inventarioTicket = [], parentTicket = null, ayudantesNombres = [] }: Props) {
+export default function TicketTimeline({ ticket, messages, currentUserId, isAgent, isAdmin, packingList = [], materialesMochila = [], inventarioTicket = [], parentTicket = null, ayudantesNombres = [] }: Props) {
     const router = useRouter();
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const [newMessage, setNewMessage] = useState('');
@@ -892,7 +893,7 @@ export default function TicketTimeline({ ticket, messages, currentUserId, isAgen
                 <SmartCloseModal
                     ticketId={ticket.id}
                     onClose={() => setShowSmartClose(false)}
-                    packingList={packingList}
+                    packingList={materialesMochila}
                 />
             )}
 

@@ -171,6 +171,18 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
         packingList = Object.values(map).sort((a, b) => a.modelo.localeCompare(b.modelo));
     }
 
+    // Materiales REALES apartados en la mochila del técnico para ESTE ticket
+    // (filas de inventario en estado 'En proceso'). SmartCloseModal necesita el
+    // id real de cada fila para poder moverlas al local al cerrar; el packingList
+    // agregado (modelo/familia/cantidades) NO trae ids y por eso el descuento de
+    // la mochila nunca se ejecutaba (stock fantasma).
+    const { data: materialesMochilaRaw } = await supabase
+        .from('inventario')
+        .select('id, modelo, familia, cantidad, es_serializado, numero_serie, catalogo_id')
+        .eq('ticket_id', ticketId)
+        .eq('estado', 'En proceso');
+    const materialesMochila = materialesMochilaRaw ?? [];
+
     // Fetch nombres de técnicos ayudantes si el ticket los tiene
     let ayudantesInfo: { id: string; full_name: string }[] = [];
     const ayudantesIds: string[] = (ticket as any).ayudantes ?? [];
@@ -233,6 +245,7 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
                             isAgent={isAgent}
                             isAdmin={isAdmin}
                             packingList={packingList}
+                            materialesMochila={materialesMochila}
                             inventarioTicket={inventarioTicket}
                             ayudantesNombres={ayudantesInfo.map(a => a.full_name)}
                         />

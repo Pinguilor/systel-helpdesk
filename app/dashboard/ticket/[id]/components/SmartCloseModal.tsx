@@ -85,11 +85,12 @@ export function SmartCloseModal({ ticketId, onClose, packingList }: SmartCloseMo
 
         packingList.forEach(mov => {
             if (instalados[mov.id]) {
-                materialInstaladoIds.push(mov.inventario_id);
+                // mov.id ES el id real de la fila de inventario apartada en la mochila.
+                materialInstaladoIds.push(mov.id);
                 // Si registró serie devuelta:
                 if (retirados[mov.id] && retirados[mov.id].trim() !== '') {
                     equiposDañados.push({
-                        catalogo_id: mov.inventario.catalogo_id,
+                        catalogo_id: mov.catalogo_id,
                         numero_serie: retirados[mov.id].trim().toUpperCase()
                     });
                 }
@@ -228,10 +229,15 @@ export function SmartCloseModal({ ticketId, onClose, packingList }: SmartCloseMo
                                                             </div>
                                                             <div className="flex flex-col min-w-0">
                                                                 <span className={`text-sm font-bold truncate ${isChecked ? 'text-slate-900' : 'text-slate-600'}`}>
-                                                                    {mov.inventario?.catalogo_equipos?.modelo}
+                                                                    {mov.modelo}
+                                                                    {mov.es_serializado && mov.numero_serie && (
+                                                                        <span className="ml-1.5 font-mono text-[10px] text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">
+                                                                            SN: {mov.numero_serie}
+                                                                        </span>
+                                                                    )}
                                                                 </span>
                                                                 <span className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">
-                                                                    Mover a Local
+                                                                    {mov.familia ?? 'Mover a Local'}
                                                                 </span>
                                                             </div>
                                                         </div>
