@@ -22,6 +22,9 @@ import { BomResumen } from '../bom/components/BomResumen';
 import { BomTable } from '../bom/components/BomTable';
 import { AgregarItemModal } from '../bom/components/AgregarItemModal';
 import { aplicarRecetaBOMAction } from '../bom/actions';
+import { HistorialRetirosProyecto } from '../equipamiento/components/HistorialRetirosProyecto';
+import { HardwareLogisticaTabs } from '../equipamiento/components/HardwareLogisticaTabs';
+import type { DespachoProyecto } from '../equipamiento/actions';
 import { GestorTareasModal } from './GestorTareasModal';
 
 interface Profile {
@@ -46,6 +49,7 @@ interface ProyectoWidgetsProps {
     entradas: any[];
     plantillas: any[];
     recetasBOM: any[];
+    historialDespachos?: DespachoProyecto[];
     currentUserRol?: string;
     currentUserId?: string;
 }
@@ -59,6 +63,7 @@ export function ProyectoWidgets({
     entradas,
     plantillas,
     recetasBOM,
+    historialDespachos = [],
     currentUserRol = 'tecnico',
     currentUserId = '',
 }: ProyectoWidgetsProps) {
@@ -258,7 +263,13 @@ export function ProyectoWidgets({
     const bomStats = useMemo(() => {
         const total = bomItems.reduce((acc: number, item: any) => acc + (item.cantidad_total || 0), 0);
         const instalado = bomItems.reduce((acc: number, item: any) => acc + (item.cantidad_entregada || 0), 0);
-        return { total, instalado };
+        // Pendiente = saldo por entregar (cantidad_total − cantidad_entregada), nunca negativo.
+        // Se reconcilia: total = instalado + pendiente.
+        const pendiente = bomItems.reduce(
+            (acc: number, item: any) => acc + Math.max(0, (item.cantidad_total || 0) - (item.cantidad_entregada || 0)),
+            0,
+        );
+        return { total, instalado, pendiente };
     }, [bomItems]);
 
     return (
@@ -458,19 +469,15 @@ export function ProyectoWidgets({
                     </span>
                 </div>
 
-                {/* Grid de contadores de estados */}
-                <div className="grid grid-cols-2 gap-2 text-center">
+                {/* Grid de contadores: se reconcilian (Requeridos = Instalados + Pendientes) */}
+                <div className="grid grid-cols-3 gap-2 text-center">
                     <div className="bg-slate-50 border border-slate-100/80 rounded-xl py-2">
                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Requeridos</p>
-                        <p className="text-lg font-black text-slate-800 mt-0.5">{bomStats.requerido}</p>
+                        <p className="text-lg font-black text-slate-800 mt-0.5">{bomStats.total}</p>
                     </div>
                     <div className="bg-amber-500/[0.04] border border-amber-200/20 rounded-xl py-2">
                         <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">Pendientes</p>
                         <p className="text-lg font-black text-amber-700 mt-0.5">{bomStats.pendiente}</p>
-                    </div>
-                    <div className="bg-blue-500/[0.04] border border-blue-200/20 rounded-xl py-2">
-                        <p className="text-[10px] font-bold text-blue-600 uppercase tracking-wider">Asignados</p>
-                        <p className="text-lg font-black text-blue-700 mt-0.5">{bomStats.asignado}</p>
                     </div>
                     <div className="bg-emerald-500/[0.04] border border-emerald-200/20 rounded-xl py-2">
                         <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Instalados</p>
@@ -751,9 +758,12 @@ export function ProyectoWidgets({
                             </div>
                         </div>
                         
-                        {/* Modal Body */}
-
-                        <BomTable items={bomItems} proyectoId={proyectoId} />
+                        {/* Modal Body: navegación por pestañas Receta Maestra / Historial de Despachos */}
+                        <HardwareLogisticaTabs
+                            totalDespachos={historialDespachos.length}
+                            recetaContent={<BomTable items={bomItems} proyectoId={proyectoId} />}
+                            historialContent={<HistorialRetirosProyecto despachos={historialDespachos} />}
+                        />
                     </div>
                 </div>
             )}
