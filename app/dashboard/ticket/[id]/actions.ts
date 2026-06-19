@@ -833,14 +833,6 @@ export async function closeTicketWithActaAction(
             throw new Error(`Error actualizando el ticket: ${ticketError?.message || 'Ticket no encontrado o sin permisos'}`);
         }
 
-        // Capturar SOLO los materiales apartados (En proceso) ANTES de que la logística los mueva al local.
-        // Los sobrantes (Disponible + ticket_id en mochila) NO deben aparecer en el Acta.
-        const { data: mochilaSnapshot } = await supabase
-            .from('inventario')
-            .select('modelo, familia, cantidad, es_serializado, numero_serie')
-            .eq('ticket_id', ticketId)
-            .eq('estado', ESTADO_EN_PROCESO);
-
         // 2. Actualización Logística (Inventario + Movimientos)
         // bodegaId garantizado no-nulo por el pre-flight (paso 0).
         {
@@ -997,17 +989,28 @@ export async function closeTicketWithActaAction(
                 .single();
             ticketFull = ticketFullData;
 
-            // Fuente única: solo los ítems que el técnico realmente consumió (estado = En Tránsito),
-            // capturados en mochilaSnapshot justo antes de que la logística limpie ticket_id.
-            // Los ítems aprobados por bodega pero no asignados desde la mochila son sobrantes,
-            // NO aparecen en el Acta de Cierre.
-            const materiales = (mochilaSnapshot ?? []).map((item: any) => ({
-                cantidad:      item.cantidad,
-                modelo:        item.modelo ?? '—',
-                familia:       item.familia ?? '—',
-                es_serializado: item.es_serializado ?? false,
-                numero_serie:  item.numero_serie ?? null,
-            }));
+            // Fuente canónica del Acta: inventario consumido de este ticket en estado
+            // 'Operativo' (mismo criterio que la Tabla Maestra). Es el estado en que
+            // quedan los ítems tras el cierre/logística, así que es robusto incluso al
+            // regenerar el acta más tarde — no depende del instante en que se capture.
+            // Se agrupa por modelo/familia sumando cantidades: cada equipo aparece una
+            // sola vez con su total.
+            const { data: consumidosActa } = await supabase
+                .from('inventario')
+                .select('modelo, familia, cantidad')
+                .eq('ticket_id', ticketId)
+                .eq('estado', ESTADO_OPERATIVO);
+
+            const materialesMap = new Map<string, { modelo: string; familia: string; cantidad: number }>();
+            for (const it of (consumidosActa ?? [])) {
+                const modelo  = (it as any).modelo ?? '—';
+                const familia = (it as any).familia ?? '—';
+                const key     = `${modelo}|${familia}`;
+                const prev    = materialesMap.get(key);
+                if (prev) prev.cantidad += (it as any).cantidad ?? 0;
+                else materialesMap.set(key, { modelo, familia, cantidad: (it as any).cantidad ?? 0 });
+            }
+            const materiales = Array.from(materialesMap.values());
 
             // Nombre del técnico que cierra
             const { data: agentProfile } = await supabase
