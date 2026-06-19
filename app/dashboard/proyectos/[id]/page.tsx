@@ -1,6 +1,7 @@
 import { getProyectoById, getTecnicosDisponibles } from './actions';
 import { getBitacoraEntradas } from './bitacora/actions';
 import { getBomConItems, getCatalogoEquipos } from './bom/actions';
+import { getHistorialRetirosProyectoAction } from './equipamiento/actions';
 import { getPlantillasChecklist, getPlantillasBOM } from '../actions';
 import { NuevaEntradaForm } from './bitacora/components/NuevaEntradaForm';
 import { BitacoraTimeline } from './bitacora/components/BitacoraTimeline';
@@ -19,7 +20,7 @@ export default async function ProyectoWorkspacePage({
     const { id } = await params;
 
     // Load all required data in parallel
-    const [proyecto, entradas, bom, catalogo, tecnicos, plantillas, recetasBOM] = await Promise.all([
+    const [proyecto, entradas, bom, catalogo, tecnicos, plantillas, recetasBOM, historial] = await Promise.all([
         getProyectoById(id),
         getBitacoraEntradas(id),
         getBomConItems(id),
@@ -27,6 +28,7 @@ export default async function ProyectoWorkspacePage({
         getTecnicosDisponibles(),
         getPlantillasChecklist(),
         getPlantillasBOM(),
+        getHistorialRetirosProyectoAction(id),
     ]);
 
     const participantes = (proyecto as any)?.participantes ?? [];
@@ -119,6 +121,7 @@ export default async function ProyectoWorkspacePage({
                         entradas={entradas as any}
                         plantillas={plantillas as any}
                         recetasBOM={recetasBOM as any}
+                        historialDespachos={historial.data}
                         currentUserRol={currentUserRol}
                         currentUserId={currentUserId}
                     />
