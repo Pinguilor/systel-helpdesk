@@ -30,11 +30,14 @@ export async function addStockAction(formData: FormData) {
 
     if (!bodegaId || !modelo || !familia) return { error: 'Datos incompletos.' };
 
-    // Validate bodega is INTERNA
+    // Validate bodega is INTERNA y está activa
     const { data: bodega } = await db
-        .from('bodegas').select('tipo').eq('id', bodegaId).maybeSingle();
+        .from('bodegas').select('tipo, activo').eq('id', bodegaId).maybeSingle();
     if (!bodega || bodega.tipo?.toUpperCase() !== 'INTERNA') {
         return { error: 'Bodega de destino inválida o no permitida.' };
+    }
+    if (bodega.activo === false) {
+        return { error: 'La bodega de destino está inactiva y no puede recibir stock.' };
     }
 
     if (esSerial) {

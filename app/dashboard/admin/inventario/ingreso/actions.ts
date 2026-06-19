@@ -36,6 +36,9 @@ export async function ingresoLoteAction(params: {
     if (!bodega || bodega.tipo?.toUpperCase() !== 'INTERNA') {
         return { error: 'Bodega de destino inválida.', inserted: 0 };
     }
+    if (bodega.activo === false) {
+        return { error: 'La bodega de destino está inactiva y no puede recibir stock.', inserted: 0 };
+    }
 
     // Final server-side duplicate check (defense in depth — client already filtered)
     const { data: existing } = await db

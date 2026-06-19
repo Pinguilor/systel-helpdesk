@@ -4,7 +4,7 @@ import React, { useState, useTransition, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import {
     Warehouse, Plus, Pencil, Loader2, AlertTriangle, CheckCircle2,
-    X, Search, ToggleLeft, ToggleRight, ChevronLeft, PackageSearch,
+    X, Search, ToggleLeft, ToggleRight, ChevronLeft, PackageSearch, CornerDownRight,
 } from 'lucide-react';
 import { crearBodegaAction, editarBodegaAction, toggleActivoBodegaAction } from './actions';
 import Link from 'next/link';
@@ -16,6 +16,7 @@ interface Bodega {
     tipo: string;
     descripcion: string | null;
     activo: boolean | null;
+    bodega_padre_id: string | null;
 }
 
 // ── Constants ──────────────────────────────────────────────────
@@ -138,16 +139,50 @@ function TextareaField({ label, name, defaultValue, placeholder }: {
     );
 }
 
+// ── SelectField ────────────────────────────────────────────────
+function SelectField({ label, name, defaultValue, options, disabled, helperText }: {
+    label: string; name: string; defaultValue?: string;
+    options: { value: string; label: string }[];
+    disabled?: boolean; helperText?: string;
+}) {
+    return (
+        <div>
+            <label className="block text-xs font-black text-slate-600 uppercase tracking-widest mb-1.5">
+                {label}
+            </label>
+            <select
+                name={name}
+                defaultValue={defaultValue ?? ''}
+                disabled={disabled}
+                className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed"
+            >
+                {options.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+            </select>
+            {helperText && (
+                <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">{helperText}</p>
+            )}
+        </div>
+    );
+}
+
 // ── BodegaFormModal ────────────────────────────────────────────
 function BodegaFormModal({
-    mode, bodega, onClose,
+    mode, bodega, bodegas, onClose,
 }: {
     mode: 'create' | 'edit';
     bodega?: Bodega;
+    bodegas: Bodega[];
     onClose: () => void;
 }) {
     const [isPending, startTransition] = useTransition();
     const [alert, setAlert] = useState<{ type: 'error' | 'success'; msg: string } | null>(null);
+
+    // Bodegas de nivel superior disponibles como "padre" (excluyendo la propia bodega en edición)
+    const opcionesPadre = bodegas.filter(b => !b.bodega_padre_id && b.id !== bodega?.id);
+    // Si esta bodega ya tiene sub-bodegas propias, no puede convertirse en sub-bodega de otra
+    const tieneSubBodegas = !!bodega && bodegas.some(b => b.bodega_padre_id === bodega.id);
 
     const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
@@ -206,6 +241,21 @@ function BodegaFormModal({
                         name="descripcion"
                         defaultValue={bodega?.descripcion ?? ''}
                         placeholder="Descripción breve de la bodega o su ubicación física…"
+                    />
+                    <SelectField
+                        label="Bodega Física Principal (opcional)"
+                        name="bodega_padre_id"
+                        defaultValue={bodega?.bodega_padre_id ?? ''}
+                        disabled={tieneSubBodegas}
+                        helperText={
+                            tieneSubBodegas
+                                ? 'Esta bodega ya tiene sub-bodegas asociadas; no puede asignársele una bodega física principal.'
+                                : 'Si esta bodega es un espacio dentro de otra (ej. una bodega de proyecto), selecciona aquí su bodega física principal.'
+                        }
+                        options={[
+                            { value: '', label: '— Ninguna (bodega física independiente) —' },
+                            ...opcionesPadre.map(b => ({ value: b.id, label: b.nombre })),
+                        ]}
                     />
 
                     <div className="flex justify-end gap-2 pt-1">
@@ -304,13 +354,124 @@ export function GestionBodegasClient({ bodegas }: { bodegas: Bodega[] }) {
     const [showCreate, setShowCreate] = useState(false);
     const [editBodega, setEditBodega] = useState<Bodega | null>(null);
     const [toggleBodega, setToggleBodega] = useState<Bodega | null>(null);
+    const [mostrarInactivas, setMostrarInactivas] = useState(false);
 
-    const filtered = bodegas.filter(b =>
+    const matchesSearch = (b: Bodega) =>
         b.nombre.toLowerCase().includes(search.toLowerCase()) ||
-        b.tipo?.toLowerCase().includes(search.toLowerCase())
-    );
+        b.tipo?.toLowerCase().includes(search.toLowerCase());
+
+    // Por defecto se ocultan las bodegas inactivas (y sus sub-bodegas inactivas).
+    const bodegasVisibles = mostrarInactivas ? bodegas : bodegas.filter(b => b.activo !== false);
+
+    // Agrupa cada bodega de nivel superior con sus sub-bodegas (1 solo nivel).
+    // Si hay búsqueda, se muestra el grupo completo cuando el padre o
+    // cualquiera de sus hijos coincide, para no romper la jerarquía visual.
+    const childrenByParent = new Map<string, Bodega[]>();
+    bodegasVisibles.forEach(b => {
+        if (b.bodega_padre_id) {
+            const arr = childrenByParent.get(b.bodega_padre_id) ?? [];
+            arr.push(b);
+            childrenByParent.set(b.bodega_padre_id, arr);
+        }
+    });
+
+    const groups = bodegasVisibles
+        .filter(b => !b.bodega_padre_id)
+        .map(parent => ({ parent, children: childrenByParent.get(parent.id) ?? [] }))
+        .filter(({ parent, children }) => !search || matchesSearch(parent) || children.some(matchesSearch));
+
+    const rows: { bodega: Bodega; isChild: boolean }[] = groups.flatMap(({ parent, children }) => [
+        { bodega: parent, isChild: false },
+        ...children.map(c => ({ bodega: c, isChild: true })),
+    ]);
 
     const activas = bodegas.filter(b => b.activo !== false).length;
+
+    const renderRow = (b: Bodega, idx: number, isChild: boolean) => (
+        <tr key={b.id} className={`hover:bg-slate-50/60 transition-colors ${isChild ? 'bg-slate-50/40' : idx % 2 === 0 ? '' : 'bg-slate-50/30'}`}>
+            {/* Nombre */}
+            <td className="px-5 py-4">
+                <div className={`flex items-center gap-2.5 ${isChild ? 'pl-6' : ''}`}>
+                    {isChild ? (
+                        <CornerDownRight className="w-4 h-4 text-slate-300 shrink-0" />
+                    ) : (
+                        <div className="h-8 w-8 rounded-lg bg-emerald-100 flex items-center justify-center shrink-0">
+                            <Warehouse className="w-4 h-4 text-emerald-600" />
+                        </div>
+                    )}
+                    <span className={isChild ? 'font-semibold text-slate-600 text-sm' : 'font-bold text-slate-800'}>
+                        {b.nombre}
+                    </span>
+                </div>
+            </td>
+
+            {/* Tipo */}
+            <td className="px-5 py-4">
+                <span className={`inline-flex items-center text-[11px] font-black uppercase tracking-wider px-2.5 py-1 rounded-lg border ${tipoBadgeClass(b.tipo)}`}>
+                    {b.tipo}
+                </span>
+            </td>
+
+            {/* Descripción */}
+            <td className="px-5 py-4 overflow-hidden">
+                {b.descripcion ? (
+                    <DescripcionTooltip text={b.descripcion}>
+                        <span className="text-xs text-slate-500 truncate block">{b.descripcion}</span>
+                    </DescripcionTooltip>
+                ) : (
+                    <span className="text-xs italic text-slate-300">Sin descripción</span>
+                )}
+            </td>
+
+            {/* Estado */}
+            <td className="px-5 py-4 text-center">
+                {b.activo !== false ? (
+                    <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+                        Activa
+                    </span>
+                ) : (
+                    <span className="inline-flex items-center gap-1 text-xs font-bold text-slate-500 bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-full">
+                        <span className="w-1.5 h-1.5 rounded-full bg-slate-400 inline-block" />
+                        Inactiva
+                    </span>
+                )}
+            </td>
+
+            {/* Acciones */}
+            <td className="px-5 py-4">
+                <div className="flex items-center justify-end gap-2">
+                    <Link
+                        href={`/dashboard/configuracion/bodegas/${b.id}`}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-200 text-xs font-bold text-emerald-700 hover:bg-emerald-50 transition-colors"
+                    >
+                        <PackageSearch className="w-3 h-3" />
+                        Gestionar
+                    </Link>
+                    <button
+                        onClick={() => setEditBodega(b)}
+                        title="Editar"
+                        className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                    >
+                        <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                        onClick={() => setToggleBodega(b)}
+                        title={b.activo !== false ? 'Desactivar' : 'Activar'}
+                        className={`p-1.5 rounded-lg border transition-colors ${
+                            b.activo !== false
+                                ? 'border-red-200 text-red-500 hover:bg-red-50'
+                                : 'border-emerald-200 text-emerald-600 hover:bg-emerald-50'
+                        }`}
+                    >
+                        {b.activo !== false
+                            ? <ToggleLeft className="w-3.5 h-3.5" />
+                            : <ToggleRight className="w-3.5 h-3.5" />}
+                    </button>
+                </div>
+            </td>
+        </tr>
+    );
 
     return (
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
@@ -360,18 +521,34 @@ export function GestionBodegasClient({ bodegas }: { bodegas: Bodega[] }) {
                 ))}
             </div>
 
-            {/* Search */}
-            <div className="relative">
-                <span className="absolute inset-y-0 left-3.5 flex items-center pointer-events-none">
-                    <Search className="w-4 h-4 text-slate-400" />
-                </span>
-                <input
-                    type="text"
-                    placeholder="Buscar por nombre o tipo…"
-                    value={search}
-                    onChange={e => setSearch(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent bg-white shadow-sm"
-                />
+            {/* Search + filtro de inactivas */}
+            <div className="flex flex-col sm:flex-row gap-3">
+                <div className="relative flex-1">
+                    <span className="absolute inset-y-0 left-3.5 flex items-center pointer-events-none">
+                        <Search className="w-4 h-4 text-slate-400" />
+                    </span>
+                    <input
+                        type="text"
+                        placeholder="Buscar por nombre o tipo…"
+                        value={search}
+                        onChange={e => setSearch(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent bg-white shadow-sm"
+                    />
+                </div>
+                <button
+                    type="button"
+                    onClick={() => setMostrarInactivas(v => !v)}
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-bold shadow-sm transition-colors shrink-0 ${
+                        mostrarInactivas
+                            ? 'border-slate-300 bg-slate-100 text-slate-700'
+                            : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
+                    }`}
+                >
+                    {mostrarInactivas
+                        ? <ToggleRight className="w-4 h-4 text-slate-600" />
+                        : <ToggleLeft className="w-4 h-4 text-slate-400" />}
+                    Mostrar Inactivas
+                </button>
             </div>
 
             {/* Table */}
@@ -387,7 +564,7 @@ export function GestionBodegasClient({ bodegas }: { bodegas: Bodega[] }) {
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                        {filtered.length === 0 ? (
+                        {rows.length === 0 ? (
                             <tr>
                                 <td colSpan={5} className="text-center py-16 text-slate-400">
                                     <Warehouse className="w-10 h-10 mx-auto mb-3 opacity-30" />
@@ -399,101 +576,23 @@ export function GestionBodegasClient({ bodegas }: { bodegas: Bodega[] }) {
                                     )}
                                 </td>
                             </tr>
-                        ) : filtered.map((b, idx) => (
-                            <tr key={b.id} className={`hover:bg-slate-50/60 transition-colors ${idx % 2 === 0 ? '' : 'bg-slate-50/30'}`}>
-                                {/* Nombre */}
-                                <td className="px-5 py-4">
-                                    <div className="flex items-center gap-2.5">
-                                        <div className="h-8 w-8 rounded-lg bg-emerald-100 flex items-center justify-center shrink-0">
-                                            <Warehouse className="w-4 h-4 text-emerald-600" />
-                                        </div>
-                                        <span className="font-bold text-slate-800">{b.nombre}</span>
-                                    </div>
-                                </td>
-
-                                {/* Tipo */}
-                                <td className="px-5 py-4">
-                                    <span className={`inline-flex items-center text-[11px] font-black uppercase tracking-wider px-2.5 py-1 rounded-lg border ${tipoBadgeClass(b.tipo)}`}>
-                                        {b.tipo}
-                                    </span>
-                                </td>
-
-                                {/* Descripción */}
-                                <td className="px-5 py-4 overflow-hidden">
-                                    {b.descripcion ? (
-                                        <DescripcionTooltip text={b.descripcion}>
-                                            <span className="text-xs text-slate-500 truncate block">{b.descripcion}</span>
-                                        </DescripcionTooltip>
-                                    ) : (
-                                        <span className="text-xs italic text-slate-300">Sin descripción</span>
-                                    )}
-                                </td>
-
-                                {/* Estado */}
-                                <td className="px-5 py-4 text-center">
-                                    {b.activo !== false ? (
-                                        <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full">
-                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
-                                            Activa
-                                        </span>
-                                    ) : (
-                                        <span className="inline-flex items-center gap-1 text-xs font-bold text-slate-500 bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-full">
-                                            <span className="w-1.5 h-1.5 rounded-full bg-slate-400 inline-block" />
-                                            Inactiva
-                                        </span>
-                                    )}
-                                </td>
-
-                                {/* Acciones */}
-                                <td className="px-5 py-4">
-                                    <div className="flex items-center justify-end gap-2">
-                                        <Link
-                                            href={`/dashboard/configuracion/bodegas/${b.id}`}
-                                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-200 text-xs font-bold text-emerald-700 hover:bg-emerald-50 transition-colors"
-                                        >
-                                            <PackageSearch className="w-3 h-3" />
-                                            Gestionar
-                                        </Link>
-                                        <button
-                                            onClick={() => setEditBodega(b)}
-                                            title="Editar"
-                                            className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors"
-                                        >
-                                            <Pencil className="w-3.5 h-3.5" />
-                                        </button>
-                                        <button
-                                            onClick={() => setToggleBodega(b)}
-                                            title={b.activo !== false ? 'Desactivar' : 'Activar'}
-                                            className={`p-1.5 rounded-lg border transition-colors ${
-                                                b.activo !== false
-                                                    ? 'border-red-200 text-red-500 hover:bg-red-50'
-                                                    : 'border-emerald-200 text-emerald-600 hover:bg-emerald-50'
-                                            }`}
-                                        >
-                                            {b.activo !== false
-                                                ? <ToggleLeft className="w-3.5 h-3.5" />
-                                                : <ToggleRight className="w-3.5 h-3.5" />}
-                                        </button>
-                                    </div>
-                                </td>
-                            </tr>
-                        ))}
+                        ) : rows.map((row, idx) => renderRow(row.bodega, idx, row.isChild))}
                     </tbody>
                 </table>
 
-                {filtered.length > 0 && (
+                {rows.length > 0 && (
                     <div className="px-5 py-3 border-t border-slate-100 bg-slate-50/50 text-xs text-slate-400 font-medium">
-                        Mostrando {filtered.length} de {bodegas.length} bodegas
+                        Mostrando {rows.length} de {bodegas.length} bodegas
                     </div>
                 )}
             </div>
 
             {/* Modals */}
             {showCreate && (
-                <BodegaFormModal mode="create" onClose={() => setShowCreate(false)} />
+                <BodegaFormModal mode="create" bodegas={bodegas} onClose={() => setShowCreate(false)} />
             )}
             {editBodega && (
-                <BodegaFormModal mode="edit" bodega={editBodega} onClose={() => setEditBodega(null)} />
+                <BodegaFormModal mode="edit" bodega={editBodega} bodegas={bodegas} onClose={() => setEditBodega(null)} />
             )}
             {toggleBodega && (
                 <ToggleConfirmModal bodega={toggleBodega} onClose={() => setToggleBodega(null)} />

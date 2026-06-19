@@ -22,7 +22,7 @@ export default async function BodegasConfigPage() {
 
     const { data: bodegas, error } = await supabase
         .from('bodegas')
-        .select('id, nombre, tipo, descripcion, activo')
+        .select('id, nombre, tipo, descripcion, activo, bodega_padre_id')
         .eq('tipo', 'INTERNA')
         .order('nombre', { ascending: true });
 

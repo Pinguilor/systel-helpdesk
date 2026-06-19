@@ -30,8 +30,10 @@ export default async function BodegasPage() {
         .select('id, nombre, tipo, activo')
         .eq('tipo', 'INTERNA')
         .order('nombre', { ascending: true });
-    const bodegas   = bodegasRaw ?? [];
-    const bodegaIds = bodegas.map(b => b.id);
+    const bodegas        = bodegasRaw ?? [];
+    const bodegaIds      = bodegas.map(b => b.id);
+    // Solo bodegas activas pueden recibir nuevo stock (selector de Ingreso de Stock)
+    const bodegasActivas = bodegas.filter(b => b.activo !== false);
 
     // ── Step 2: all remaining queries in parallel ────────────────────────────
     const [
@@ -180,7 +182,7 @@ export default async function BodegasPage() {
 
                 <div className="shrink-0">
                     <IngresoDropdown
-                        bodegas={bodegas}
+                        bodegas={bodegasActivas}
                         catalogo={catalogo}
                         familias={familias}
                     />
