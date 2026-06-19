@@ -5,10 +5,18 @@
 ALTER TABLE proyecto_equipamiento 
 ADD COLUMN IF NOT EXISTS cantidad_instalada INTEGER NOT NULL DEFAULT 0;
 
--- Asegurar que nunca se instale más de lo que se ha entregado (saldo lógico)
-ALTER TABLE proyecto_equipamiento 
-ADD CONSTRAINT chk_cantidad_instalada 
-CHECK (cantidad_instalada <= cantidad_entregada);
+-- Asegurar que nunca se instale más de lo que se ha entregado (saldo lógico).
+-- Idempotente: re-ejecutar este archivo no falla por "constraint ya existe".
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'chk_cantidad_instalada'
+    ) THEN
+        ALTER TABLE proyecto_equipamiento
+        ADD CONSTRAINT chk_cantidad_instalada
+        CHECK (cantidad_instalada <= cantidad_entregada);
+    END IF;
+END $$;
 
 -- =============================================================================
 --  2. Parche al RPC de Aprobación de Solicitudes (Bypass Mochila)
@@ -88,16 +96,27 @@ BEGIN
            AND si.id = ANY(p_approved_item_ids)
     LOOP
 
-        -- Extraer la bodega de origen asignada a este ítem desde el JSONB
-        SELECT (elem->>'bodega_id')::UUID
+        -- Extraer la bodega de origen asignada a este ítem desde el JSONB.
+        -- TOLERANTE a variaciones de llave entre versiones de frontend desplegadas:
+        --   • snake_case actual:  {"solicitud_item_id","bodega_id"}
+        --   • camelCase antiguo:  {"solicitudItemId","bodegaId"}   (bundles cacheados)
+        --   • alias corto:        {"id"}
+        -- Esto evita que un bundle viejo en el navegador del bodeguero rompa la
+        -- aprobación de tickets por un simple desajuste de nombre de llave.
+        SELECT (COALESCE(elem->>'bodega_id', elem->>'bodegaId'))::UUID
           INTO v_bodega_origen
           FROM jsonb_array_elements(p_item_bodegas) AS elem
-         WHERE (elem->>'solicitud_item_id')::UUID = v_item.id;
+         WHERE COALESCE(
+                   elem->>'solicitud_item_id',
+                   elem->>'solicitudItemId',
+                   elem->>'id'
+               )::UUID = v_item.id;
 
         IF v_bodega_origen IS NULL THEN
             RETURN json_build_object(
                 'error',
-                format('Ítem %s no tiene bodega de origen asignada.', v_item.id)
+                format('Ítem %s no tiene bodega de origen asignada. (items en payload: %s)',
+                       v_item.id, jsonb_array_length(p_item_bodegas))
             );
         END IF;
 

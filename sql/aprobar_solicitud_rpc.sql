@@ -78,16 +78,23 @@ BEGIN
            AND si.id = ANY(p_approved_item_ids)
     LOOP
 
-        -- Extraer la bodega de origen asignada a este ítem desde el JSONB
-        SELECT (elem->>'bodega_id')::UUID
+        -- Extraer la bodega de origen asignada a este ítem desde el JSONB.
+        -- TOLERANTE a variaciones de llave entre versiones de frontend desplegadas:
+        --   snake_case {"solicitud_item_id","bodega_id"} | camelCase {"solicitudItemId","bodegaId"} | {"id"}
+        SELECT (COALESCE(elem->>'bodega_id', elem->>'bodegaId'))::UUID
           INTO v_bodega_origen
           FROM jsonb_array_elements(p_item_bodegas) AS elem
-         WHERE (elem->>'solicitud_item_id')::UUID = v_item.id;
+         WHERE COALESCE(
+                   elem->>'solicitud_item_id',
+                   elem->>'solicitudItemId',
+                   elem->>'id'
+               )::UUID = v_item.id;
 
         IF v_bodega_origen IS NULL THEN
             RETURN json_build_object(
                 'error',
-                format('Ítem %s no tiene bodega de origen asignada.', v_item.id)
+                format('Ítem %s no tiene bodega de origen asignada. (items en payload: %s)',
+                       v_item.id, jsonb_array_length(p_item_bodegas))
             );
         END IF;
 

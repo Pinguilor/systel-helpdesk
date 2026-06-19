@@ -494,9 +494,13 @@ export function AdminTicketList({ initialTickets, currentAgentId, agentName, tot
                                             {ticket.titulo}
                                         </div>
                                         <div className="flex items-center gap-1.5 text-[10px] font-bold whitespace-nowrap overflow-hidden text-ellipsis">
-                                            {ticket.restaurantes?.nombre_restaurante && (
-                                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[10px] font-black tracking-widest bg-slate-50 text-slate-700 border border-slate-200 mr-1.5">
-                                                    📍 {ticket.restaurantes.nombre_restaurante.substring(0, 4).toUpperCase()}
+                                            {(ticket.restaurantes?.sigla || ticket.restaurantes?.nombre_restaurante) && (
+                                                <span
+                                                    title={ticket.restaurantes?.nombre_restaurante ?? undefined}
+                                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[10px] font-black tracking-widest bg-slate-50 text-slate-700 border border-slate-200 mr-1.5"
+                                                >
+                                                    {/* Prioriza la sigla oficial (ej. CMH); solo si está vacía recorta el nombre */}
+                                                    📍 {ticket.restaurantes?.sigla?.trim() || ticket.restaurantes.nombre_restaurante.substring(0, 4).toUpperCase()}
                                                 </span>
                                             )}
 
