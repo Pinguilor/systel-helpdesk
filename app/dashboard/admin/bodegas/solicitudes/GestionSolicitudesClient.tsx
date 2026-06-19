@@ -956,7 +956,11 @@ function SolicitudCard({
                     titulo="Rechazar Solicitud"
                     subtitulo={`De ${solicitud.tecnico?.full_name || 'Técnico'} · Ticket NC-${solicitud.ticket?.numero_ticket}`}
                     onClose={() => setModalRechazar(false)}
-                    onConfirm={async (motivo) => rechazarSolicitudAction(solicitud.id, motivo)}
+                    onConfirm={async (motivo) => {
+                        const res = await rechazarSolicitudAction(solicitud.id, motivo);
+                        if (!res.error) onRefresh();   // refresca la bandeja tras rechazar
+                        return res;
+                    }}
                 />
             )}
             {modalFirma && solicitud.url_firma && (
@@ -1107,7 +1111,11 @@ function DevolucionCard({
                     titulo="Rechazar Devolución"
                     subtitulo={`De ${devolucion.tecnico?.full_name || 'Técnico'} · ${devolucion.cantidad}x ${inv?.modelo ?? '—'}`}
                     onClose={() => setModalRechazar(false)}
-                    onConfirm={async (motivo) => rechazarDevolucionAction(devolucion.id, motivo)}
+                    onConfirm={async (motivo) => {
+                        const res = await rechazarDevolucionAction(devolucion.id, motivo);
+                        if (!res.error) onRefresh();   // refresca la bandeja tras rechazar
+                        return res;
+                    }}
                 />
             )}
             {modalFirma && devolucion.url_firma && (
@@ -1142,6 +1150,13 @@ export function GestionSolicitudesClient({
     const [allSolicitudes, setAllSolicitudes] = useState<Solicitud[]>(initialSolicitudes);
     const [allDevoluciones, setAllDevoluciones] = useState<Devolucion[]>(initialDevoluciones);
     const [loadingMore, setLoadingMore] = useState(false);
+
+    // Re-sincroniza el estado local cuando el servidor envía datos frescos
+    // (router.refresh() tras aprobar/rechazar dispara revalidatePath en el action).
+    // Sin esto, useState(initial...) ignora los props actualizados y la tarjeta
+    // procesada no desaparece de 'Pendientes' hasta recargar con F5.
+    useEffect(() => { setAllSolicitudes(initialSolicitudes); }, [initialSolicitudes]);
+    useEffect(() => { setAllDevoluciones(initialDevoluciones); }, [initialDevoluciones]);
 
     const handleRefresh = () => router.refresh();
 
