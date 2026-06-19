@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Ticket } from '@/types/database.types';
-import { loadMoreTicketsAction } from '@/app/dashboard/admin/ticketActions';
+import { loadMoreTicketsAction, searchTicketsAction } from '@/app/dashboard/admin/ticketActions';
 import { FileText, Image as ImageIcon, FileSpreadsheet, File, MessageSquare, Search, ChevronLeft, ChevronRight, User, CornerDownRight, Building2 } from 'lucide-react';
 import Link from 'next/link';
 import { ExportarMaestroButton } from '@/app/dashboard/admin/components/ExportarMaestroButton';
@@ -56,6 +56,13 @@ export function AdminTicketList({ initialTickets, currentAgentId, agentName, tot
     const [loadedPage, setLoadedPage] = useState(1);
     const [reachedEnd, setReachedEnd] = useState(!hasMore);
     const [isPending, startTransition] = useTransition();
+
+    // Búsqueda server-side: cuando hay término activo, traemos TODAS las
+    // coincidencias (no solo las páginas ya cargadas en allTickets).
+    const [serverSearchResults, setServerSearchResults] = useState<Ticket[] | null>(null);
+    const [isSearching, setIsSearching] = useState(false);
+    const [searchCapped, setSearchCapped] = useState(false);
+    const isSearchActive = searchTerm.trim().length > 0;
 
     // Si el servidor provee los conteos exactos los usamos; si no, calculamos desde el array cargado
     const displayTotal   = totalCount   ?? allTickets.length;
@@ -183,9 +190,36 @@ export function AdminTicketList({ initialTickets, currentAgentId, agentName, tot
         setCurrentPage(1);
     }, [searchTerm, filter]);
 
+    // Búsqueda server-side debounced: si hay término, consulta toda la tabla;
+    // si se limpia, volvemos al flujo paginado normal sobre allTickets.
+    useEffect(() => {
+        const q = searchTerm.trim();
+        if (!q) {
+            setServerSearchResults(null);
+            setIsSearching(false);
+            setSearchCapped(false);
+            return;
+        }
+        let active = true;
+        setIsSearching(true);
+        const handle = setTimeout(async () => {
+            const res = await searchTicketsAction(q);
+            if (!active) return;
+            setServerSearchResults((res.data as Ticket[]) ?? []);
+            setSearchCapped(res.capped);
+            setIsSearching(false);
+        }, 300);
+        return () => { active = false; clearTimeout(handle); };
+    }, [searchTerm]);
+
     const processedTickets = useMemo(() => {
+        // Fuente: si hay búsqueda activa, usamos los resultados server-side (toda la
+        // tabla); si no, el set paginado en memoria. El filtro de texto de abajo es
+        // redundante sobre los resultados del servidor (ya filtrados) pero inofensivo.
+        const source = isSearchActive && serverSearchResults !== null ? serverSearchResults : allTickets;
+
         // 1. Filter by Status/Role Tab
-        let filtered = allTickets.filter(ticket => {
+        let filtered = source.filter(ticket => {
             if (filter === 'TODOS') return true;
             if (filter === 'PENDIENTES') return !['anulado', 'resuelto', 'cerrado'].includes(ticket.estado);
             if (filter === 'RESUELTOS') return ['anulado', 'resuelto', 'cerrado'].includes(ticket.estado);
@@ -217,7 +251,7 @@ export function AdminTicketList({ initialTickets, currentAgentId, agentName, tot
         }
 
         return filtered;
-    }, [allTickets, filter, currentAgentId, searchTerm]);
+    }, [allTickets, filter, currentAgentId, searchTerm, isSearchActive, serverSearchResults]);
 
     // 3. Paginate
     const totalPages = Math.ceil(processedTickets.length / ITEMS_PER_PAGE);
@@ -414,7 +448,16 @@ export function AdminTicketList({ initialTickets, currentAgentId, agentName, tot
                         animate="show"
                         className="bg-white/40 divide-y divide-slate-100/60"
                     >
-                        {paginatedTickets.length === 0 ? (
+                        {isSearching ? (
+                            <tr>
+                                <td colSpan={6} className="px-6 py-16 text-center text-slate-400">
+                                    <div className="flex flex-col items-center justify-center gap-3">
+                                        <span className="w-6 h-6 border-2 border-slate-200 border-t-[#0e3187] rounded-full animate-spin" />
+                                        <p className="text-slate-500 font-bold text-sm">Buscando coincidencias…</p>
+                                    </div>
+                                </td>
+                            </tr>
+                        ) : paginatedTickets.length === 0 ? (
                             <tr>
                                 <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
                                     <div className="flex flex-col items-center justify-center">
@@ -549,7 +592,14 @@ export function AdminTicketList({ initialTickets, currentAgentId, agentName, tot
                 animate="show"
                 className="md:hidden flex flex-col p-4 gap-4 min-h-[50vh] bg-slate-50"
             >
-                {paginatedTickets.length === 0 ? (
+                {isSearching ? (
+                    <div className="px-6 py-16 text-center bg-white rounded-2xl border border-slate-200 shadow-sm mt-4">
+                        <div className="flex flex-col items-center justify-center gap-3">
+                            <span className="w-6 h-6 border-2 border-slate-200 border-t-[#0e3187] rounded-full animate-spin" />
+                            <p className="text-slate-500 font-bold text-sm">Buscando coincidencias…</p>
+                        </div>
+                    </div>
+                ) : paginatedTickets.length === 0 ? (
                     <div className="px-6 py-12 text-center text-slate-400 bg-white rounded-2xl border border-slate-200 shadow-sm mt-4">
                         <div className="flex flex-col items-center justify-center">
                             <MessageSquare className="w-12 h-12 text-slate-400 mb-3" />
@@ -666,8 +716,9 @@ export function AdminTicketList({ initialTickets, currentAgentId, agentName, tot
                 </div>
             )}
 
-            {/* Cargar más desde el servidor */}
-            {!reachedEnd && currentPage === totalPages && (
+            {/* Cargar más desde el servidor — oculto durante búsqueda (ya se trajeron
+                todas las coincidencias server-side, la paginación de 30 no aplica) */}
+            {!isSearchActive && !reachedEnd && currentPage === totalPages && (
                 <div className="px-6 py-5 border-t border-slate-100 bg-slate-50/30 flex justify-center">
                     <button
                         onClick={loadMore}
