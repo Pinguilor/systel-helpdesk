@@ -1,6 +1,7 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { revalidatePath } from 'next/cache';
 
 async function assertAdmin() {
@@ -38,7 +39,12 @@ export async function crearRestauranteAction(formData: FormData, clienteId: stri
         if (!sigla)              return { error: 'La sigla es obligatoria.' };
         if (!clienteId)          return { error: 'Cliente no identificado.' };
 
-        const { error } = await guard.supabase!
+        // Service-role: el INSERT en restaurantes dispara un trigger que auto-crea
+        // la bodega local del restaurante. Con el cliente de sesión, ese INSERT en
+        // bodegas viola el RLS. createAdminClient hace bypass del RLS (la autorización
+        // ya está garantizada por assertAdmin arriba).
+        const db = createAdminClient();
+        const { error } = await db
             .from('restaurantes')
             .insert({ nombre_restaurante, sigla, ip, correo, direccion, cliente_id: clienteId });
 
@@ -73,7 +79,8 @@ export async function actualizarRestauranteAction(formData: FormData, clienteId:
         if (!nombre_restaurante) return { error: 'El nombre del restaurante es obligatorio.' };
         if (!sigla)              return { error: 'La sigla es obligatoria.' };
 
-        const { error } = await guard.supabase!
+        const db = createAdminClient();
+        const { error } = await db
             .from('restaurantes')
             .update({ nombre_restaurante, sigla, ip, correo, direccion })
             .eq('id', id);
@@ -98,7 +105,8 @@ export async function eliminarRestauranteAction(restauranteId: string, clienteId
         const guard = await assertAdmin();
         if (guard.error) return { error: guard.error };
 
-        const { error } = await guard.supabase!
+        const db = createAdminClient();
+        const { error } = await db
             .from('restaurantes')
             .delete()
             .eq('id', restauranteId);
