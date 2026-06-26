@@ -1,6 +1,7 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { revalidatePath } from 'next/cache';
 import { TicketStatus } from '@/types/database.types';
 import { sendTicketResolvedEmail } from '@/lib/sendEmail';
@@ -584,54 +585,60 @@ export async function assignMaterialAction(ticketId: string, inventarioId: strin
         };
     }
 
+    const adminDb = createAdminClient();
     let newInventarioId = originalItem.id;
 
     if (originalItem.es_serializado || originalItem.cantidad === cantidad) {
-        // Mover todo
-        const { error: moveError } = await supabase.from('inventario')
+        const { error: moveError } = await adminDb.from('inventario')
             .update({ estado: ESTADO_EN_PROCESO, ticket_id: ticketId })
-            .eq('id', originalItem.id)
-            .select().single();
+            .eq('id', originalItem.id);
 
         if (moveError) return { error: 'Error moviendo inventario: ' + moveError.message };
     } else {
-        // Split genéricos (Cables, etc)
-        const { error: updateError } = await supabase.from('inventario')
+        // Split genérico: descontar primero, luego clonar.
+        // Si el INSERT del clon falla, se restaura la cantidad original (compensación).
+        const { error: updateError } = await adminDb.from('inventario')
             .update({ cantidad: originalItem.cantidad - cantidad })
             .eq('id', originalItem.id);
 
         if (updateError) return { error: 'Error descontando inventario origen: ' + updateError.message };
 
         const cloneData: any = {
-            bodega_id: originalItem.bodega_id,
-            modelo: originalItem.modelo,
-            familia: originalItem.familia,
+            bodega_id:      originalItem.bodega_id,
+            modelo:         originalItem.modelo,
+            familia:        originalItem.familia,
             es_serializado: false,
-            numero_serie: null,
-            estado: ESTADO_EN_PROCESO,
-            cantidad: cantidad,
-            ticket_id: ticketId
+            numero_serie:   null,
+            estado:         ESTADO_EN_PROCESO,
+            cantidad,
+            ticket_id:      ticketId,
         };
-
-        if (originalItem.tipo !== undefined) cloneData.tipo = originalItem.tipo;
+        if (originalItem.tipo !== undefined)        cloneData.tipo = originalItem.tipo;
         if (originalItem.descripcion !== undefined) cloneData.descripcion = originalItem.descripcion;
 
-        const { data: newItem, error: insertError } = await supabase.from('inventario').insert(cloneData).select().single();
+        const { data: newItem, error: insertError } = await adminDb.from('inventario').insert(cloneData).select().single();
 
-        if (insertError || !newItem) return { error: 'Error creando nuevo lote asignado: ' + insertError?.message };
+        if (insertError || !newItem) {
+            // Compensación: restaurar cantidad original si el clon falló
+            await adminDb.from('inventario')
+                .update({ cantidad: originalItem.cantidad })
+                .eq('id', originalItem.id);
+            return { error: 'Error creando nuevo lote asignado: ' + insertError?.message };
+        }
         newInventarioId = (newItem as any).id;
     }
 
-    // Create movimiento record
-    await supabase.from('movimientos_inventario').insert({
-        inventario_id: newInventarioId,
-        ticket_id: ticketId,
-        bodega_origen_id: originalItem.bodega_id,
-        bodega_destino_id: originalItem.bodega_id, // Aún no llega al local, sigue en origen virtualmente en tránsito
-        cantidad: cantidad,
-        fecha_movimiento: new Date().toISOString(),
-        realizado_por: user.id
+    // Movimiento de auditoría — fallo no revierte la mutación de inventario (ya confirmada)
+    const { error: movErr } = await adminDb.from('movimientos_inventario').insert({
+        inventario_id:     newInventarioId,
+        ticket_id:         ticketId,
+        bodega_origen_id:  originalItem.bodega_id,
+        bodega_destino_id: originalItem.bodega_id,
+        cantidad,
+        fecha_movimiento:  new Date().toISOString(),
+        realizado_por:     user.id,
     });
+    if (movErr) console.error('[assignMaterial] movimiento insert error:', movErr.message);
 
     const msgHtml = `
         <div class="bg-indigo-50 border border-indigo-100 rounded-xl p-4 flex items-start gap-4 mt-2 max-w-sm">
@@ -677,6 +684,7 @@ export async function assignMaterialsBatchAction(
     if (!isAllowed) return { error: 'No tienes permisos para asignar materiales.' };
     if (!items || items.length === 0) return { error: 'No hay ítems seleccionados.' };
 
+    const adminDb = createAdminClient();
     type Procesado = { modelo: string; familia: string; cantidad: number; es_serializado: boolean; numero_serie: string | null };
     const procesados: Procesado[] = [];
 
@@ -698,44 +706,50 @@ export async function assignMaterialsBatchAction(
         let newInventarioId = originalItem.id;
 
         if (originalItem.es_serializado || originalItem.cantidad === cantidad) {
-            // Al consumir el ítem completo, limpiar mora pendiente (si la hay) — el reloj muere con el stock.
-            const { error: moveError } = await supabase.from('inventario')
+            const { error: moveError } = await adminDb.from('inventario')
                 .update({ estado: ESTADO_EN_PROCESO, ticket_id: ticketId, fecha_limite_devolucion: null } as any)
-                .eq('id', originalItem.id).select().single();
+                .eq('id', originalItem.id);
             if (moveError) return { error: `Error moviendo "${originalItem.modelo}": ${moveError.message}` };
         } else {
-            const { error: updateError } = await supabase.from('inventario')
+            // Split genérico: descontar primero, clonar después con compensación.
+            const { error: updateError } = await adminDb.from('inventario')
                 .update({ cantidad: originalItem.cantidad - cantidad }).eq('id', originalItem.id);
             if (updateError) return { error: `Error descontando "${originalItem.modelo}": ${updateError.message}` };
 
             const cloneData: any = {
-                bodega_id:     originalItem.bodega_id,
-                modelo:        originalItem.modelo,
-                familia:       originalItem.familia,
+                bodega_id:      originalItem.bodega_id,
+                modelo:         originalItem.modelo,
+                familia:        originalItem.familia,
                 es_serializado: false,
-                numero_serie:  null,
-                estado:        ESTADO_EN_PROCESO,
+                numero_serie:   null,
+                estado:         ESTADO_EN_PROCESO,
                 cantidad,
-                ticket_id:     ticketId,
+                ticket_id:      ticketId,
             };
-            if (originalItem.tipo !== undefined)      cloneData.tipo = originalItem.tipo;
+            if (originalItem.tipo !== undefined)        cloneData.tipo = originalItem.tipo;
             if (originalItem.descripcion !== undefined) cloneData.descripcion = originalItem.descripcion;
 
-            const { data: newItem, error: insertError } = await supabase
+            const { data: newItem, error: insertError } = await adminDb
                 .from('inventario').insert(cloneData).select().single();
-            if (insertError || !newItem) return { error: `Error creando lote asignado: ${insertError?.message}` };
+            if (insertError || !newItem) {
+                // Compensación: restaurar cantidad si el clon falló
+                await adminDb.from('inventario')
+                    .update({ cantidad: originalItem.cantidad }).eq('id', originalItem.id);
+                return { error: `Error creando lote asignado para "${originalItem.modelo}": ${insertError?.message}` };
+            }
             newInventarioId = (newItem as any).id;
         }
 
-        await supabase.from('movimientos_inventario').insert({
-            inventario_id:    newInventarioId,
-            ticket_id:        ticketId,
-            bodega_origen_id: originalItem.bodega_id,
+        const { error: movErr } = await adminDb.from('movimientos_inventario').insert({
+            inventario_id:     newInventarioId,
+            ticket_id:         ticketId,
+            bodega_origen_id:  originalItem.bodega_id,
             bodega_destino_id: originalItem.bodega_id,
             cantidad,
-            fecha_movimiento: new Date().toISOString(),
-            realizado_por:    user.id,
+            fecha_movimiento:  new Date().toISOString(),
+            realizado_por:     user.id,
         });
+        if (movErr) console.error(`[assignMaterialsBatch] movimiento error (item ${inventarioId}):`, movErr.message);
 
         procesados.push({
             modelo:        originalItem.modelo,

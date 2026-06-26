@@ -837,53 +837,26 @@ export async function aprobarDevolucionAction(
 
             if (updErr) throw new Error(updErr.message);
         } else {
-            // ── Genérico: descontar de mochila y sumar a central ─────────────
-            const nuevaCantMochila = (inv.cantidad ?? 0) - dev.cantidad;
-            if (nuevaCantMochila < 0) {
+            // ── Genérico: RPC atómica (descuenta mochila + acredita central en
+            // una sola transacción PL/pgSQL para eliminar riesgo de pérdida de stock).
+            if ((inv.cantidad ?? 0) < dev.cantidad) {
                 return { error: `Stock insuficiente en mochila (disponible: ${inv.cantidad ?? 0}).` };
             }
 
-            const { error: mochilaUpdErr } = await adminDb
-                .from('inventario')
-                .update({ cantidad: nuevaCantMochila })
-                .eq('id', inv.id);
+            const { data: rpcResult, error: rpcErr } = await adminDb.rpc(
+                'aprobar_devolucion_generica_rpc',
+                {
+                    p_inventario_id:  inv.id,
+                    p_bodega_central: bodegaCentralId,
+                    p_cantidad:       dev.cantidad,
+                    p_modelo:         inv.modelo,
+                    p_familia:        inv.familia,
+                }
+            );
 
-            if (mochilaUpdErr) throw new Error(mochilaUpdErr.message);
-
-            // Buscar registro en bodega central con mismo modelo/familia.
-            // .neq('id', inv.id) evita que se actualice la fila de la mochila
-            // si por alguna razón su bodega_id coincide con bodegaCentralId.
-            const { data: centralInv } = await adminDb
-                .from('inventario')
-                .select('id, cantidad')
-                .eq('bodega_id', bodegaCentralId)
-                .eq('modelo', inv.modelo)
-                .eq('familia', inv.familia)
-                .neq('id', inv.id)
-                .maybeSingle();
-
-            if (centralInv) {
-                const { error: centralUpdErr } = await adminDb
-                    .from('inventario')
-                    .update({ cantidad: (centralInv as any).cantidad + dev.cantidad })
-                    .eq('id', (centralInv as any).id);
-
-                if (centralUpdErr) throw new Error(centralUpdErr.message);
-            } else {
-                // Crear nuevo registro en central
-                const { error: insertErr } = await adminDb
-                    .from('inventario')
-                    .insert({
-                        bodega_id:      bodegaCentralId,
-                        modelo:         inv.modelo,
-                        familia:        inv.familia,
-                        es_serializado: false,
-                        cantidad:       dev.cantidad,
-                        estado:         'Disponible',
-                    });
-
-                if (insertErr) throw new Error(insertErr.message);
-            }
+            if (rpcErr) throw new Error(rpcErr.message);
+            const rpc = rpcResult as { success?: boolean; error?: string } | null;
+            if (rpc?.error) throw new Error(rpc.error);
         }
 
         // 3. Registrar movimiento de inventario
@@ -899,8 +872,9 @@ export async function aprobarDevolucionAction(
         });
         if (movErr) console.error('[aprobarDevolucion] movimiento insert error:', movErr.message);
 
-        // 4. Actualizar estado de la devolución
-        const { error: stateErr } = await supabase
+        // 4. Actualizar estado de la devolución (adminDb: RLS podría bloquear
+        //    silenciosamente si el bodeguero no es propietario de la fila)
+        const { error: stateErr } = await adminDb
             .from('solicitudes_devoluciones')
             .update({
                 estado:            'aprobada',
