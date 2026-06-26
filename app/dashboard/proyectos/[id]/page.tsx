@@ -2,6 +2,9 @@ import { getProyectoById, getTecnicosDisponibles } from './actions';
 import { getBitacoraEntradas } from './bitacora/actions';
 import { getBomConItems, getCatalogoEquipos } from './bom/actions';
 import { getHistorialRetirosProyectoAction } from './equipamiento/actions';
+import { getRackData } from './rack/actions';
+import { RackBoard } from './rack/components/RackBoard';
+import { ProyectoTabs } from './components/ProyectoTabs';
 import { getPlantillasChecklist, getPlantillasBOM } from '../actions';
 import { NuevaEntradaForm } from './bitacora/components/NuevaEntradaForm';
 import { BitacoraTimeline } from './bitacora/components/BitacoraTimeline';
@@ -20,7 +23,7 @@ export default async function ProyectoWorkspacePage({
     const { id } = await params;
 
     // Load all required data in parallel
-    const [proyecto, entradas, bom, catalogo, tecnicos, plantillas, recetasBOM, historial] = await Promise.all([
+    const [proyecto, entradas, bom, catalogo, tecnicos, plantillas, recetasBOM, historial, rack] = await Promise.all([
         getProyectoById(id),
         getBitacoraEntradas(id),
         getBomConItems(id),
@@ -29,6 +32,7 @@ export default async function ProyectoWorkspacePage({
         getPlantillasChecklist(),
         getPlantillasBOM(),
         getHistorialRetirosProyectoAction(id),
+        getRackData(id),
     ]);
 
     const participantes = (proyecto as any)?.participantes ?? [];
@@ -83,8 +87,21 @@ export default async function ProyectoWorkspacePage({
 
     return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
+            <ProyectoTabs
+                rackCount={rack.switches.length}
+                rackContent={
+                    <RackBoard
+                        proyectoId={id}
+                        initialSwitches={rack.switches}
+                        initialPuertos={rack.puertos}
+                        receta={rack.receta}
+                        plantillas={rack.plantillas}
+                        canEdit={currentUserRol === 'admin' || currentUserRol === 'coordinador'}
+                    />
+                }
+                bitacoraContent={
             <div className="grid grid-cols-1 lg:grid-cols-10 gap-6">
-                
+
                 {/* ── Left Column (Main Content - 70%) ──────────────────────── */}
                 <div className="lg:col-span-7 space-y-6">
                     {/* Timeline Header */}
@@ -128,6 +145,8 @@ export default async function ProyectoWorkspacePage({
                 </div>
 
             </div>
+                }
+            />
         </div>
     );
 }

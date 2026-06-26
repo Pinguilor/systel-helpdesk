@@ -22,7 +22,13 @@
       "Bash(rm -f _schema_restaurantes.mjs)",
       "Bash(npx eslint *)",
       "Bash(node -e \"const s=require\\('next/server'\\); console.log\\('after' in s ? 'after OK' : Object.keys\\(s\\).filter\\(k=>k.toLowerCase\\(\\).includes\\('after'\\)\\)\\)\")",
-      "Bash(node -e \"const fs=require\\('fs'\\);const s=fs.readFileSync\\('src/app/dashboard/_components/sidebar-nav.tsx','utf8'\\);console.log\\('Truck imported:', /\\\\bTruck\\\\b[^']*from 'lucide-react'|import {[\\\\s\\\\S]*?\\\\bTruck\\\\b[\\\\s\\\\S]*?}/.test\\(s\\)\\);console.log\\('dispatch nav present:', s.includes\\('/dashboard/dispatch'\\)\\);\")"
+      "Bash(node -e \"const fs=require\\('fs'\\);const s=fs.readFileSync\\('src/app/dashboard/_components/sidebar-nav.tsx','utf8'\\);console.log\\('Truck imported:', /\\\\bTruck\\\\b[^']*from 'lucide-react'|import {[\\\\s\\\\S]*?\\\\bTruck\\\\b[\\\\s\\\\S]*?}/.test\\(s\\)\\);console.log\\('dispatch nav present:', s.includes\\('/dashboard/dispatch'\\)\\);\")",
+      "Bash(node _introspect_proyectos.mjs)",
+      "Bash(rm -f _introspect_proyectos.mjs)",
+      "Bash(node _check_tac_refs.mjs)",
+      "Bash(rm -f _check_tac_refs.mjs)",
+      "Bash(node _check_roles.mjs)",
+      "Bash(rm -f _check_roles.mjs)"
     ]
   }
 }
