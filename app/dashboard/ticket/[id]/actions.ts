@@ -1416,7 +1416,7 @@ export async function createChildTicketAction(formData: FormData) {
     // Get parent ticket info
     const { data: parentTicket, error: parentError } = await supabase
         .from('tickets')
-        .select('restaurante_id, zona_id, creado_por, numero_ticket')
+        .select('restaurante_id, zona_id, creado_por, numero_ticket, cliente_id')
         .eq('id', ticketPadreId)
         .single();
 
@@ -1443,6 +1443,8 @@ export async function createChildTicketAction(formData: FormData) {
             estado: 'abierto',
             agente_asignado_id: user.id,
             creado_por: parentTicket.creado_por,
+            cliente_id: (parentTicket as any).cliente_id ?? null,
+            fecha_creacion: new Date().toISOString(),
         });
 
     if (insertError) {

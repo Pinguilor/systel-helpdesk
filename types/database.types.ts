@@ -52,6 +52,7 @@ export interface TicketInsert {
   restaurante_id: string; // References restaurantes
   catalogo_servicio_id: string; // References catalogo_servicios
   zona_id: string; // References zonas
+  fecha_creacion?: string;
   fecha_programada?: string | null; // Timestamp for scheduled visit
   ticket_padre_id?: string | null;
   sufijo_hijo?: string | null;

@@ -166,8 +166,20 @@ export async function exportTicketsMaestroAction(
         .order('fecha_creacion', { ascending: false });
 
     // ── 2. Aplicar filtros dinámicamente ──────────────────────────────────────
-    if (filtros.fechaDesde)  query = query.gte('fecha_creacion', filtros.fechaDesde);
-    if (filtros.fechaHasta)  query = query.lte('fecha_creacion', `${filtros.fechaHasta}T23:59:59.999Z`);
+    // Los tickets adicionales/derivados pueden tener fecha_creacion = NULL (bug pre-fix).
+    // Los incluimos siempre en el OR para que no queden excluidos por el filtro de fechas.
+    // Una vez ejecutado el backfill en Supabase, todos tendrán fecha_creacion seteada y
+    // este fallback ya no afecta el resultado.
+    const _desde = filtros.fechaDesde;
+    const _hasta = filtros.fechaHasta ? `${filtros.fechaHasta}T23:59:59.999Z` : '';
+    if (_desde || _hasta) {
+        const parts: string[] = [];
+        if (_desde && _hasta) parts.push(`and(fecha_creacion.gte.${_desde},fecha_creacion.lte.${_hasta})`);
+        else if (_desde)      parts.push(`fecha_creacion.gte.${_desde}`);
+        else                  parts.push(`fecha_creacion.lte.${_hasta}`);
+        parts.push('fecha_creacion.is.null');
+        query = (query as any).or(parts.join(','));
+    }
     if (filtros.clienteId)   query = (query as any).eq('cliente_id', filtros.clienteId);
     if (filtros.usuarioId)   query = query.eq('creado_por', filtros.usuarioId);
     if (filtros.estado)      query = query.eq('estado', filtros.estado);
