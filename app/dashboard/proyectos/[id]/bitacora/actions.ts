@@ -133,6 +133,63 @@ export async function agregarFoto(
     return { error: null };
 }
 
+// ── subirFotoBitacora: sube UN archivo y devuelve la URL pública ───────────
+// Llamada N veces en secuencia desde el cliente para mostrar progreso.
+
+export async function subirFotoBitacora(
+    formData: FormData
+): Promise<{ url: string | null; error: string | null }> {
+    const user = await requireAccess();
+    if (!user) return { url: null, error: 'No autorizado.' };
+
+    const proyectoId = (formData.get('proyecto_id') as string)?.trim();
+    const file = formData.get('foto') as File | null;
+    if (!file || file.size === 0) return { url: null, error: 'Archivo vacío.' };
+
+    const ext  = file.name.split('.').pop()?.toLowerCase() ?? 'jpg';
+    const path = `bitacora/${proyectoId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+
+    const supabase = await createClient();
+    const { error: uploadError } = await supabase.storage
+        .from('proyectos-assets')
+        .upload(path, file, { contentType: file.type });
+    if (uploadError) return { url: null, error: `Error al subir imagen: ${uploadError.message}` };
+
+    const { data: { publicUrl } } = supabase.storage
+        .from('proyectos-assets')
+        .getPublicUrl(path);
+
+    return { url: publicUrl, error: null };
+}
+
+// ── crearEntradaFotos: inserta UNA entrada con todas las URLs ──────────────
+// Llamada una sola vez después de que todas las fotos subieron.
+
+export async function crearEntradaFotos(
+    proyectoId: string,
+    contenido: string,
+    urls: string[]
+): Promise<{ error: string | null }> {
+    const user = await requireAccess();
+    if (!user) return { error: 'No autorizado.' };
+    if (!contenido.trim()) return { error: 'El texto de la entrada es obligatorio.' };
+    if (!urls.length) return { error: 'Sin fotos para guardar.' };
+
+    const db = createAdminClient();
+    const { error } = await db.from('bitacora_entradas').insert({
+        proyecto_id: proyectoId,
+        autor_id:    user.id,
+        tipo:        'foto',
+        contenido:   contenido.trim(),
+        adjuntos:    urls,
+    });
+    if (error) return { error: error.message };
+
+    revalidatePath(`/dashboard/proyectos/${proyectoId}/bitacora`);
+    revalidatePath(`/dashboard/proyectos/${proyectoId}`);
+    return { error: null };
+}
+
 // ── agregarNota (sin cambios — sigue disponible) ───────────────────────────
 
 export async function agregarNota(
