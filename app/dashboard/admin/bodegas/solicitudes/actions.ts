@@ -121,7 +121,11 @@ const SOLICITUD_DEVOLUCION_SELECT = `
     tecnico:tecnico_id ( id, full_name ),
     bodeguero:bodeguero_id ( full_name ),
     ticket:ticket_id ( id, numero_ticket, titulo ),
-    inventario:inventario_id ( id, modelo, familia, es_serializado, numero_serie, cantidad )
+    bodega_destino:bodega_destino_id ( nombre ),
+    inventario:inventario_id (
+        id, modelo, familia, es_serializado, numero_serie, cantidad,
+        bodega_actual:bodegas( nombre )
+    )
 ` as const;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -813,11 +817,22 @@ export async function aprobarDevolucionAction(
 
         if (mochilaErr || !mochila) return { error: 'No se encontró la mochila del técnico.' };
 
+        // Usamos adminDb para todas las mutaciones de inventario:
+        // el cliente RLS (supabase) puede bloquear silenciosamente filas cuyo
+        // bodega_id pertenece a la mochila de otro usuario, retornando success
+        // con 0 rows afectadas y sin error — lo que deja el ítem "atrapado".
+        const adminDb = getAdminSupabase();
+
         if (inv.es_serializado) {
-            // ── Serializado: cambiar bodega_id directamente ──────────────────
-            const { error: updErr } = await supabase
+            // ── Serializado: mover a bodega destino y resetear estado ────────
+            const { error: updErr } = await adminDb
                 .from('inventario')
-                .update({ bodega_id: bodegaCentralId })
+                .update({
+                    bodega_id:              bodegaCentralId,
+                    estado:                 'Disponible',
+                    ticket_id:              null,
+                    fecha_limite_devolucion: null,
+                })
                 .eq('id', inv.id);
 
             if (updErr) throw new Error(updErr.message);
@@ -828,39 +843,43 @@ export async function aprobarDevolucionAction(
                 return { error: `Stock insuficiente en mochila (disponible: ${inv.cantidad ?? 0}).` };
             }
 
-            const { error: mochilaUpdErr } = await supabase
+            const { error: mochilaUpdErr } = await adminDb
                 .from('inventario')
                 .update({ cantidad: nuevaCantMochila })
                 .eq('id', inv.id);
 
             if (mochilaUpdErr) throw new Error(mochilaUpdErr.message);
 
-            // Buscar registro en bodega central con mismo modelo/familia
-            const { data: centralInv } = await supabase
+            // Buscar registro en bodega central con mismo modelo/familia.
+            // .neq('id', inv.id) evita que se actualice la fila de la mochila
+            // si por alguna razón su bodega_id coincide con bodegaCentralId.
+            const { data: centralInv } = await adminDb
                 .from('inventario')
                 .select('id, cantidad')
                 .eq('bodega_id', bodegaCentralId)
                 .eq('modelo', inv.modelo)
                 .eq('familia', inv.familia)
+                .neq('id', inv.id)
                 .maybeSingle();
 
             if (centralInv) {
-                const { error: centralUpdErr } = await supabase
+                const { error: centralUpdErr } = await adminDb
                     .from('inventario')
-                    .update({ cantidad: centralInv.cantidad + dev.cantidad })
-                    .eq('id', centralInv.id);
+                    .update({ cantidad: (centralInv as any).cantidad + dev.cantidad })
+                    .eq('id', (centralInv as any).id);
 
                 if (centralUpdErr) throw new Error(centralUpdErr.message);
             } else {
                 // Crear nuevo registro en central
-                const { error: insertErr } = await supabase
+                const { error: insertErr } = await adminDb
                     .from('inventario')
                     .insert({
-                        bodega_id:     bodegaCentralId,
-                        modelo:        inv.modelo,
-                        familia:       inv.familia,
+                        bodega_id:      bodegaCentralId,
+                        modelo:         inv.modelo,
+                        familia:        inv.familia,
                         es_serializado: false,
-                        cantidad:      dev.cantidad,
+                        cantidad:       dev.cantidad,
+                        estado:         'Disponible',
                     });
 
                 if (insertErr) throw new Error(insertErr.message);
@@ -868,24 +887,26 @@ export async function aprobarDevolucionAction(
         }
 
         // 3. Registrar movimiento de inventario
-        await supabase.from('movimientos_inventario').insert({
-            inventario_id:    inv.id,
-            ticket_id:        null,
-            bodega_origen_id: mochila.id,
+        const { error: movErr } = await adminDb.from('movimientos_inventario').insert({
+            inventario_id:     inv.id,
+            ticket_id:         null,
+            bodega_origen_id:  mochila.id,
             bodega_destino_id: bodegaCentralId,
-            cantidad:         dev.cantidad,
-            tipo_movimiento:  'DEVOLUCION',
-            fecha_movimiento: new Date().toISOString(),
-            realizado_por:    user.id,
+            cantidad:          dev.cantidad,
+            tipo_movimiento:   'DEVOLUCION',
+            fecha_movimiento:  new Date().toISOString(),
+            realizado_por:     user.id,
         });
+        if (movErr) console.error('[aprobarDevolucion] movimiento insert error:', movErr.message);
 
         // 4. Actualizar estado de la devolución
         const { error: stateErr } = await supabase
             .from('solicitudes_devoluciones')
             .update({
-                estado:        'aprobada',
-                bodeguero_id:  user.id,
-                gestionado_en: new Date().toISOString(),
+                estado:            'aprobada',
+                bodeguero_id:      user.id,
+                gestionado_en:     new Date().toISOString(),
+                bodega_destino_id: bodegaCentralId,
                 ...(comentario ? { motivo: comentario } : {}),
             })
             .eq('id', devolucionId);

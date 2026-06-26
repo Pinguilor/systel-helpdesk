@@ -32,6 +32,7 @@ interface InvItem {
     es_serializado: boolean;
     numero_serie: string | null;
     cantidad: number;
+    bodega_actual?: { nombre: string } | null;
 }
 
 interface SolicitudItem { 
@@ -74,6 +75,7 @@ interface Devolucion {
     tecnico: { id: string; full_name: string | null } | null;
     bodeguero: { full_name: string | null } | null;
     ticket: { id: string; numero_ticket: number; titulo: string } | null;
+    bodega_destino: { nombre: string } | null;
     inventario: InvItem | null;
 }
 
@@ -1069,19 +1071,29 @@ function DevolucionCard({
                         </div>
                     )}
 
-                    {/* Gestionado por */}
+                    {/* Gestionado por + Bodega Destino */}
                     {devolucion.estado !== 'pendiente' && devolucion.bodeguero?.full_name && (
-                        <div className="flex items-center justify-between mb-4">
-                            <p className="text-[10px] text-slate-400 font-medium">
-                                Gestionado por <span className="font-black text-slate-600">{devolucion.bodeguero.full_name}</span>
-                                {devolucion.gestionado_en && <> · {timeAgo(devolucion.gestionado_en)}</>}
-                            </p>
-                            {devolucion.estado === 'aprobada' && devolucion.url_firma && (
-                                <button onClick={() => setModalFirma(true)}
-                                    className="inline-flex items-center gap-1.5 text-[10px] font-black text-indigo-600 hover:text-indigo-800 uppercase tracking-wider transition-colors">
-                                    <ShieldCheck className="w-3.5 h-3.5" />
-                                    Ver Firma
-                                </button>
+                        <div className="mb-4 space-y-2">
+                            <div className="flex items-center justify-between">
+                                <p className="text-[10px] text-slate-400 font-medium">
+                                    Gestionado por <span className="font-black text-slate-600">{devolucion.bodeguero.full_name}</span>
+                                    {devolucion.gestionado_en && <> · {timeAgo(devolucion.gestionado_en)}</>}
+                                </p>
+                                {devolucion.estado === 'aprobada' && devolucion.url_firma && (
+                                    <button onClick={() => setModalFirma(true)}
+                                        className="inline-flex items-center gap-1.5 text-[10px] font-black text-indigo-600 hover:text-indigo-800 uppercase tracking-wider transition-colors">
+                                        <ShieldCheck className="w-3.5 h-3.5" />
+                                        Ver Firma
+                                    </button>
+                                )}
+                            </div>
+                            {devolucion.estado === 'aprobada' && devolucion.bodega_destino?.nombre && (
+                                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 border border-emerald-200 rounded-lg">
+                                    <Warehouse className="w-3 h-3 text-emerald-600 shrink-0" />
+                                    <span className="text-[10px] text-slate-500 font-medium">
+                                        Ingresado a: <span className="font-black text-emerald-700">{devolucion.bodega_destino.nombre}</span>
+                                    </span>
+                                </div>
                             )}
                         </div>
                     )}
