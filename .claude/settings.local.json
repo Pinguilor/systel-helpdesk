@@ -28,7 +28,10 @@
       "Bash(node _check_tac_refs.mjs)",
       "Bash(rm -f _check_tac_refs.mjs)",
       "Bash(node _check_roles.mjs)",
-      "Bash(rm -f _check_roles.mjs)"
+      "Bash(rm -f _check_roles.mjs)",
+      "Bash(ls C:/ 2>/dev/null | grep -i serm; ls \"C:/Users/mauri\" 2>/dev/null | grep -i serm)",
+      "mcp__visualize__read_me",
+      "mcp__visualize__show_widget"
     ]
   }
 }
