@@ -875,10 +875,6 @@ export async function closeTicketWithActaAction(
             // Unión de ambas fuentes — sin duplicados
             const allIds = [...new Set([...idsDesdeMovs, ...idsDirectos])];
 
-            console.log(`--- LOGÍSTICA closeTicketWithActaAction ---`);
-            console.log(`Equipos vía movimientos: ${idsDesdeMovs.size} | vía ticket_id directo: ${idsDirectos.length} | total único: ${allIds.length}`);
-            console.log(`bodegaId destino (local restaurante): ${bodegaId}`);
-
             if (allIds.length > 0) {
                 // Fetch estado actual para saber qué mover y cuánto
                 const { data: equipos } = await adminDb
@@ -908,11 +904,9 @@ export async function closeTicketWithActaAction(
                         fecha_movimiento:  new Date().toISOString(),
                         realizado_por:     user.id,
                     });
-                    if (movErr) console.error(`❌ movimiento cierre error (${eq.id}):`, movErr.message);
-                    else        console.log(`✅ Instalado: inventario_id=${eq.id} → bodega=${bodegaId}`);
+                    if (movErr) console.error(`movimiento cierre error (${eq.id}):`, movErr.message);
                 }
             }
-            console.log(`--- FIN LOGÍSTICA ---`);
         }
 
         // 2b. Reloj de 72 horas: si quedan ítems en la mochila del técnico, marcarlos
@@ -940,9 +934,6 @@ export async function closeTicketWithActaAction(
                         .from('inventario')
                         .update({ fecha_limite_devolucion: fechaLimite } as any)
                         .in('id', sobrantes.map((s: any) => s.id));
-                    console.log(`⏰ Reloj 72hr activado para ${sobrantes.length} sobrante(s) del ticket ${ticketId}.`);
-                } else {
-                    console.log(`⏰ Sin sobrantes para el ticket ${ticketId} — reloj 72hr no aplicado.`);
                 }
             }
         } catch (relojErr: any) {
@@ -1039,7 +1030,6 @@ export async function closeTicketWithActaAction(
                 agenteNombre: agentProfile?.full_name ?? 'Técnico Autorizado',
                 ayudantesNombres,
             });
-            console.log(`✅ PDF Acta de Cierre NC-${ticketFull?.numero_ticket} generado (${pdfBuffer.byteLength} bytes)`);
         } catch (pdfError: any) {
             console.error('⚠️ Error generando PDF del Acta (ticket igual cerrado):', pdfError?.message ?? pdfError);
         }
@@ -1153,8 +1143,6 @@ export async function smartCloseAction(formData: FormData) {
             }
         }
 
-        console.log('--- EMPEZANDO CIERRE DE TICKET Y LOGÍSTICA INVERSA ---');
-
         // 1. Obtener Ticket y el bodega_id del restaurante mediante JOIN
         const { data: ticketData, error: ticketErr } = await supabase
             .from('tickets')
@@ -1178,18 +1166,12 @@ export async function smartCloseAction(formData: FormData) {
             throw new Error('El Restaurante del ticket no tiene una Bodega asignada en la base de datos (bodega_id es nulo).');
         }
 
-        console.log('✅ Bodega Local Encontrada:', bodegaLocalId);
-
         // 2. Transferencia de Equipos: instalar en la bodega del local
         // Fuente primaria: IDs que el técnico marcó como instalados en el modal (flujo solicitud→mochila→campo).
         // Fallback: items con ticket_id + estado En Tránsito (flujo de asignación directa legacy).
-        console.log(`Procesando instalación de equipos para ticket ${ticketId}...`);
         let equiposActualizados = 0;
 
         let equiposAInstalar: any[] = [];
-
-        console.log(`materialInstaladoIds recibidos: ${JSON.stringify(materialInstaladoIds)}`);
-        console.log(`bodegaLocalId (destino del restaurante): ${bodegaLocalId}`);
 
         if (materialInstaladoIds.length > 0) {
             // Flujo principal: el técnico seleccionó los equipos explícitamente en el modal
@@ -1200,7 +1182,6 @@ export async function smartCloseAction(formData: FormData) {
 
             if (formErr) throw new Error(`Error al obtener equipos seleccionados: ${formErr.message}`);
             equiposAInstalar = itemsFromForm || [];
-            console.log(`${equiposAInstalar.length} equipos seleccionados por el técnico para instalar.`);
         } else {
             // Flujo legacy: buscar por ticket_id + estado En proceso (apartado por técnico)
             const { data: enTransito, error: invErr } = await supabase
@@ -1211,12 +1192,10 @@ export async function smartCloseAction(formData: FormData) {
 
             if (invErr) throw new Error(`Error al buscar inventario en tránsito: ${invErr.message}`);
             equiposAInstalar = enTransito || [];
-            console.log(`Flujo legacy: ${equiposAInstalar.length} equipos en tránsito encontrados.`);
         }
 
         if (equiposAInstalar.length > 0) {
             const idsAActualizar = equiposAInstalar.map(eq => eq.id);
-            console.log(`Ejecutando UPDATE de ${idsAActualizar.length} equipos → Operativo en bodega local...`);
 
             // 2.A: Mover al local y marcar como Operativo.
             // ticket_id se conserva (no se pone null) para que la packing list
@@ -1248,20 +1227,13 @@ export async function smartCloseAction(formData: FormData) {
                     realizado_por: user.id
                 });
                 if (movErr) {
-                    console.error(`❌ ERROR insertando movimiento para inventario_id ${eq.id}:`, movErr.message);
-                } else {
-                    console.log(`✅ Movimiento LOCAL creado: inventario_id=${eq.id} → bodega_destino=${bodegaLocalId}`);
+                    console.error(`ERROR insertando movimiento para inventario_id ${eq.id}:`, movErr.message);
                 }
             }
-        } else {
-            console.log('No se encontraron equipos para instalar en este ticket.');
         }
-
-        console.log(`✅ ${equiposActualizados} equipos transferidos exitosamente a 'Operativo' en la Bodega ${bodegaLocalId}.`);
 
         // 3. Logística Inversa (Equipos Dañados)
         if (equiposDañados.length > 0) {
-            console.log(`Verificando ${equiposDañados.length} equipos dañados reportados...`);
             const { data: bodegaDanados } = await supabase.from('bodegas').select('id').eq('tipo', 'Dañados').limit(1).maybeSingle();
 
             if (!bodegaDanados) {
@@ -1311,7 +1283,6 @@ export async function smartCloseAction(formData: FormData) {
                         }
                     }
                 }
-                console.log(`✅ Equipos dañados procesados enviándolos a la Bodega ${bodegaDanados.id}.`);
             }
         }
 
@@ -1524,7 +1495,6 @@ export async function anularTicketAction(ticketId: string, motivo: string) {
             }
         }
 
-        console.log('--- EMPEZANDO ANULACIÓN DE TICKET ---');
 
         // 1. Cambiar estado a Anulado
         const { error: updateError } = await supabase
@@ -1602,7 +1572,6 @@ export async function anularTicketAction(ticketId: string, motivo: string) {
         revalidatePath('/dashboard/solicitante');
         revalidatePath('/dashboard/agente');
 
-        console.log('✅ Ticket anulado exitosamente.');
         return { success: true };
 
     } catch (error: any) {

@@ -211,19 +211,10 @@ export default function TicketList({ limit }: { limit?: number }) {
                     return;
                 }
 
-                // Obtener todos los usuarios del mismo cliente
-                const { data: companyProfiles } = await supabase
-                    .from('profiles')
-                    .select('id')
-                    .eq('cliente_id', clienteId);
-
-                const userIds = (companyProfiles || []).map((p: any) => p.id);
-
-                if (userIds.length === 0) {
-                    setTickets([]);
-                    return;
-                }
-
+                // Tickets de todos los usuarios de la misma empresa.
+                // Se filtra sobre el recurso embebido (creador.cliente_id) con !inner,
+                // lo que genera un WHERE en SQL en lugar de un IN(...) gigante en la URL
+                // (mismo anti-patrón que colapsaba trazabilidad-materiales con HTTP 400).
                 const { data, error } = await supabase
                     .from('tickets')
                     .select(`
@@ -231,9 +222,9 @@ export default function TicketList({ limit }: { limit?: number }) {
                         restaurantes(nombre_restaurante, sigla),
                         catalogo_servicios!catalogo_servicio_id(categoria, subcategoria, elemento),
                         padre:ticket_padre_id(numero_ticket),
-                        profiles:creado_por(full_name)
+                        profiles:creado_por!inner(full_name, cliente_id)
                     `)
-                    .in('creado_por', userIds)
+                    .eq('profiles.cliente_id', clienteId)
                     .order('fecha_creacion', { ascending: false });
 
                 if (error) {

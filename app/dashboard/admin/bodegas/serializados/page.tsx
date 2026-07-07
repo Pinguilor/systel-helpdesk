@@ -76,27 +76,7 @@ export default async function TrazabilidadPage() {
         `)
         .order('fecha_movimiento', { ascending: false });
 
-    // ── DEBUG ─────────────────────────────────────────────────────────────────
-    console.log('=== TRAZABILIDAD DEBUG ===');
-    console.log('ERROR SUPABASE:', error);
-    console.log('TOTAL MOVIMIENTOS ENCONTRADOS:', movimientos?.length ?? 0);
-    if (movimientos && movimientos.length > 0) {
-        const sample = movimientos[0] as any;
-        console.log('MUESTRA PRIMER MOVIMIENTO:', JSON.stringify({
-            id: sample.id,
-            inventario_id: sample.inventario_id,
-            ticket_id: sample.ticket_id,
-            bodega_destino_id: sample.bodega_destino_id,
-            inventario_es_serializado: sample.inventario?.es_serializado,
-            bodega_tipo: sample.bodega_destino?.tipo,
-            ticket_numero: sample.tickets?.numero_ticket,
-            restaurante: sample.tickets?.restaurantes?.nombre_restaurante ?? null,
-        }, null, 2));
-        // Todos los tipos de bodega destino distintos que existen en la tabla
-        const tiposUnicos = [...new Set((movimientos as any[]).map(m => m.bodega_destino?.tipo ?? 'NULL'))];
-        console.log('TODOS LOS TIPOS DE BODEGA DESTINO EN LA TABLA:', tiposUnicos);
-    }
-    console.log('=========================');
+    if (error) console.error('[serializados] Error al cargar movimientos:', error.message);
 
     // ── Filtrar: serializados cuyo destino sea bodega tipo Local ──────────────
     const soloLocales = (movimientos || []).filter((m: any) => {
@@ -142,8 +122,6 @@ export default async function TrazabilidadPage() {
             } satisfies SerializadoInstalado;
         })
         .filter(Boolean) as SerializadoInstalado[];
-
-    console.log('SERIALIZADOS DESPUÉS DE FILTRO:', serializados.length);
 
     return <TrazabilidadClient serializados={serializados} />;
 }
