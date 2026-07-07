@@ -20,7 +20,7 @@ export default async function TrazabilidadMaterialesPage() {
         .eq('id', user.id)
         .maybeSingle();
 
-    const rol = profile?.rol?.toUpperCase() || '';
+    const rol       = profile?.rol?.toUpperCase() || '';
     const esCliente = rol === 'USUARIO';
     const esStaff   = STAFF_ROLES.includes(rol);
 
@@ -29,63 +29,16 @@ export default async function TrazabilidadMaterialesPage() {
         redirect('/dashboard');
     }
 
-    // ── Para clientes: filtro multi-tenant por empresa ──────────────────────
-    //
-    // La relación en BD es:
-    //   profiles.cliente_id  (empresa del usuario logueado)
-    //     → profiles.id      (todos los usuarios de la misma empresa)
-    //       → tickets.creado_por
-    //         → inventario.ticket_id
-    //
-    // Este es el mismo patrón que usa TicketList.tsx (scope 'equipo').
-    // NOTA: restaurantes NO tiene columna cliente_id → no usar ese camino.
-    //
-    let clienteTicketIds: string[] | null = null;
+    // Multi-tenant: para el rol USUARIO limitamos vía filtro en el join de ticket,
+    // no con un array de IDs en la URL (evita HTTP 400 por URL demasiado larga).
+    const clienteId: string | null = esCliente ? ((profile as any)?.cliente_id ?? null) : null;
 
-    if (esCliente) {
-        const clienteId = (profile as any)?.cliente_id ?? null;
-
-        if (!clienteId) {
-            // Usuario sin empresa asignada → solo sus propios tickets
-            const { data: ownTickets } = await supabase
-                .from('tickets')
-                .select('id')
-                .eq('creado_por', user.id);
-            clienteTicketIds = (ownTickets ?? []).map((t: any) => t.id);
-        } else {
-            // 1. Todos los usuarios de la misma empresa
-            const { data: companyProfiles } = await supabase
-                .from('profiles')
-                .select('id')
-                .eq('cliente_id', clienteId);
-            const userIds = (companyProfiles ?? []).map((p: any) => p.id);
-
-            if (userIds.length === 0) {
-                return <ConsumoMaterialesClient rows={[]} tecnicos={[]} locales={[]} esCliente={true} />;
-            }
-
-            // 2. Tickets creados por esos usuarios
-            const { data: companyTickets } = await supabase
-                .from('tickets')
-                .select('id')
-                .in('creado_por', userIds);
-            clienteTicketIds = (companyTickets ?? []).map((t: any) => t.id);
-        }
-
-        if (clienteTicketIds !== null && clienteTicketIds.length === 0) {
-            return <ConsumoMaterialesClient rows={[]} tecnicos={[]} locales={[]} esCliente={true} />;
-        }
-    }
-
-    // ── Consulta principal ───────────────────────────────────────────────────
-    // Usamos el admin client (service role) para bypassear RLS.
-    // La seguridad multi-tenant se aplica en código: el filtro ticket_id garantiza
-    // que cada rol solo ve sus propios datos.
     const supabaseAdmin = createAdminClient();
 
     try {
-        // ── Fuente: inventario en estado Operativo vinculado a un ticket ─────────
-        // Operativo + ticket_id != null = material instalado en terreno via Acta de Cierre.
+        // !inner: solo devuelve filas de inventario que tengan un ticket asociado.
+        // El filtro de cliente (si aplica) se inyecta sobre el recurso embebido,
+        // lo que genera un WHERE en SQL en lugar de un IN(...) en la URL.
         let query = supabaseAdmin
             .from('inventario')
             .select(`
@@ -93,12 +46,14 @@ export default async function TrazabilidadMaterialesPage() {
                 modelo,
                 familia,
                 cantidad,
-                ticket:ticket_id (
+                ticket:ticket_id!inner (
                     id,
                     numero_ticket,
                     titulo,
                     estado,
                     fecha_resolucion,
+                    cliente_id,
+                    creado_por,
                     agente:agente_asignado_id ( full_name ),
                     restaurantes ( sigla )
                 )
@@ -107,9 +62,15 @@ export default async function TrazabilidadMaterialesPage() {
             .not('ticket_id', 'is', null)
             .limit(2000);
 
-        // Filtro estricto: clientes solo ven inventario de sus tickets
-        if (esCliente && clienteTicketIds !== null) {
-            query = query.in('ticket_id', clienteTicketIds);
+        // Filtro multi-tenant estricto para USUARIO
+        if (esCliente) {
+            if (clienteId) {
+                // Empresa asignada → todos los tickets de la empresa
+                query = query.eq('ticket.cliente_id', clienteId);
+            } else {
+                // Sin empresa → solo los tickets propios del usuario
+                query = query.eq('ticket.creado_por', user.id);
+            }
         }
 
         const { data: rawData, error } = await query;
@@ -125,27 +86,31 @@ export default async function TrazabilidadMaterialesPage() {
             );
         }
 
+        if (!rawData || rawData.length === 0) {
+            return <ConsumoMaterialesClient rows={[]} tecnicos={[]} locales={[]} esCliente={esCliente} />;
+        }
+
         const rows: ConsumoRow[] = [];
-        for (const item of (rawData ?? []) as any[]) {
+        for (const item of rawData as any[]) {
             const ticket = item.ticket;
             rows.push({
                 inventarioId: item.id,
-                nc: ticket?.numero_ticket ? String(ticket.numero_ticket) : '—',
-                ticketId: ticket?.id ?? null,
-                local: ticket?.restaurantes?.sigla ?? ticket?.titulo ?? '—',
-                localSigla: ticket?.restaurantes?.sigla ?? '—',
-                localTitulo: ticket?.titulo ?? '—',
-                fecha: ticket?.fecha_resolucion ?? ticket?.fecha_creacion ?? '',
-                tecnico: ticket?.agente?.full_name ?? '—',
-                modelo: item.modelo ?? '—',
-                familia: item.familia ?? '—',
-                cantidad: item.cantidad ?? 1,
+                nc:           ticket?.numero_ticket ? String(ticket.numero_ticket) : '—',
+                ticketId:     ticket?.id ?? null,
+                local:        ticket?.restaurantes?.sigla ?? ticket?.titulo ?? '—',
+                localSigla:   ticket?.restaurantes?.sigla ?? '—',
+                localTitulo:  ticket?.titulo ?? '—',
+                fecha:        ticket?.fecha_resolucion ?? '',
+                tecnico:      ticket?.agente?.full_name ?? '—',
+                modelo:       item.modelo ?? '—',
+                familia:      item.familia ?? '—',
+                cantidad:     item.cantidad ?? 1,
                 estadoTicket: ticket?.estado ?? '—',
             });
         }
 
         const tecnicos = [...new Set(rows.map(r => r.tecnico).filter(t => t !== '—'))].sort();
-        const locales = [...new Set(rows.map(r => r.local).filter(l => l !== '—'))].sort();
+        const locales  = [...new Set(rows.map(r => r.local).filter(l => l !== '—'))].sort();
 
         return (
             <ConsumoMaterialesClient

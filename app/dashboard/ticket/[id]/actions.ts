@@ -850,83 +850,67 @@ export async function closeTicketWithActaAction(
         // 2. Actualización Logística (Inventario + Movimientos)
         // bodegaId garantizado no-nulo por el pre-flight (paso 0).
         {
-            // Obtener todos los inventario_ids vinculados a este ticket
-            // vía movimientos_inventario (cubre tanto flujo directo como solicitud→mochila)
+            const adminDb = createAdminClient();
+
+            // Fuente A: inventario_ids registrados en movimientos_inventario
             const { data: movsPrevios } = await supabase
                 .from('movimientos_inventario')
                 .select('inventario_id')
                 .eq('ticket_id', ticketId);
 
-            const inventarioIds = [...new Set(
-                (movsPrevios || []).map((m: any) => m.inventario_id).filter(Boolean) as string[]
-            )];
+            const idsDesdeMovs = new Set<string>(
+                (movsPrevios || []).map((m: any) => m.inventario_id).filter(Boolean)
+            );
+
+            // Fuente B: filas de inventario con ticket_id + estado 'En proceso'
+            // (cubre ítems cuyo movimiento no se registró — p.ej. antes del parche adminDb)
+            const { data: directos } = await adminDb
+                .from('inventario')
+                .select('id')
+                .eq('ticket_id', ticketId)
+                .eq('estado', ESTADO_EN_PROCESO);
+
+            const idsDirectos = (directos || []).map((d: any) => d.id as string);
+
+            // Unión de ambas fuentes — sin duplicados
+            const allIds = [...new Set([...idsDesdeMovs, ...idsDirectos])];
 
             console.log(`--- LOGÍSTICA closeTicketWithActaAction ---`);
-            console.log(`Equipos vinculados al ticket (via movimientos): ${inventarioIds.length}`);
+            console.log(`Equipos vía movimientos: ${idsDesdeMovs.size} | vía ticket_id directo: ${idsDirectos.length} | total único: ${allIds.length}`);
             console.log(`bodegaId destino (local restaurante): ${bodegaId}`);
 
-            if (inventarioIds.length > 0) {
-                // Obtener datos actuales de esos items (bodega_id actual = origen del movimiento)
-                const { data: equipos } = await supabase
+            if (allIds.length > 0) {
+                // Fetch estado actual para saber qué mover y cuánto
+                const { data: equipos } = await adminDb
                     .from('inventario')
-                    .select('id, cantidad, bodega_id')
-                    .in('id', inventarioIds);
+                    .select('id, cantidad, bodega_id, estado')
+                    .in('id', allIds);
 
-                // Mover al local y marcar como Operativo (instalado).
-                // Solo los apartados (En proceso) se mueven; sobrantes (Disponible) quedan en mochila.
-                // ticket_id se preserva para que la packing list pueda contarlos post-cierre.
-                const { error: invError } = await supabase.from('inventario')
+                // Solo pasan a Operativo los que están 'En proceso' (apartados por el técnico).
+                // Los 'Disponible' en mochila son sobrantes → se activa el reloj 72h (paso 2b).
+                const { error: invError } = await adminDb
+                    .from('inventario')
                     .update({ estado: ESTADO_OPERATIVO, bodega_id: bodegaId })
-                    .in('id', inventarioIds)
+                    .in('id', allIds)
                     .eq('estado', ESTADO_EN_PROCESO);
 
                 if (invError) throw new Error(`Error en actualización logística: ${invError.message}`);
 
-                // Crear movimiento de instalación (origen→local) para cada equipo
-                for (const eq of (equipos || [])) {
-                    const { error: movErr } = await supabase.from('movimientos_inventario').insert({
-                        inventario_id: eq.id,
-                        ticket_id: ticketId,
-                        tipo_movimiento: 'salida',
-                        bodega_origen_id: eq.bodega_id,
+                // Movimientos de instalación (mochila → local del restaurante)
+                for (const eq of (equipos || []).filter((e: any) => e.estado === ESTADO_EN_PROCESO)) {
+                    const { error: movErr } = await adminDb.from('movimientos_inventario').insert({
+                        inventario_id:     eq.id,
+                        ticket_id:         ticketId,
+                        tipo_movimiento:   'salida',
+                        bodega_origen_id:  eq.bodega_id,
                         bodega_destino_id: bodegaId,
-                        cantidad: eq.cantidad,
-                        fecha_movimiento: new Date().toISOString(),
-                        realizado_por: user.id
+                        cantidad:          eq.cantidad,
+                        fecha_movimiento:  new Date().toISOString(),
+                        realizado_por:     user.id,
                     });
-                    if (movErr) {
-                        console.error(`❌ Error insertando movimiento para ${eq.id}:`, movErr.message);
-                    } else {
-                        console.log(`✅ Movimiento LOCAL creado: inventario_id=${eq.id} → bodega_destino=${bodegaId}`);
-                    }
+                    if (movErr) console.error(`❌ movimiento cierre error (${eq.id}):`, movErr.message);
+                    else        console.log(`✅ Instalado: inventario_id=${eq.id} → bodega=${bodegaId}`);
                 }
-            } else {
-                // Fallback: flujo legacy por ticket_id + estado En proceso (apartado por técnico)
-                const { data: equiposLegacy } = await supabase.from('inventario')
-                    .select('id, cantidad, bodega_id')
-                    .eq('ticket_id', ticketId)
-                    .eq('estado', ESTADO_EN_PROCESO);
-
-                if (equiposLegacy && equiposLegacy.length > 0) {
-                    // ticket_id se preserva (filtrados a En proceso = en terreno, listos para instalar).
-                    await supabase.from('inventario')
-                        .update({ estado: ESTADO_OPERATIVO, bodega_id: bodegaId })
-                        .in('id', equiposLegacy.map(e => e.id));
-
-                    for (const eq of equiposLegacy) {
-                        await supabase.from('movimientos_inventario').insert({
-                            inventario_id: eq.id,
-                            ticket_id: ticketId,
-                            tipo_movimiento: 'salida',
-                            bodega_origen_id: eq.bodega_id,
-                            bodega_destino_id: bodegaId,
-                            cantidad: eq.cantidad,
-                            fecha_movimiento: new Date().toISOString(),
-                            realizado_por: user.id
-                        });
-                    }
-                }
-                console.log(`Flujo legacy: ${equiposLegacy?.length ?? 0} equipos en tránsito procesados.`);
             }
             console.log(`--- FIN LOGÍSTICA ---`);
         }
