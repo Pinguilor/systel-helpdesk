@@ -1,12 +1,33 @@
+import { createServerClient } from '@supabase/ssr'
 import { type NextRequest, NextResponse } from 'next/server'
-import { updateSession } from '@/lib/supabase/middleware'
 
 export async function proxy(request: NextRequest) {
-    const { supabaseResponse, user, supabase } = await updateSession(request)
+    let supabaseResponse = NextResponse.next({ request })
+
+    const supabase = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        {
+            cookies: {
+                getAll() { return request.cookies.getAll() },
+                setAll(cookiesToSet) {
+                    cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
+                    supabaseResponse = NextResponse.next({ request })
+                    cookiesToSet.forEach(({ name, value, options }) =>
+                        supabaseResponse.cookies.set(name, value, options)
+                    )
+                },
+            },
+        }
+    )
+
+    // getSession() valida el JWT localmente desde la cookie — sin round-trip a Supabase Auth.
+    // Las páginas y Server Actions usan getUser() para validación remota completa.
+    const { data: { session } } = await supabase.auth.getSession()
+    const user = session?.user ?? null
 
     const url = request.nextUrl.clone()
 
-    // Define redirect helper to preserve cookies
     const redirect = (destination: URL) => {
         const redirectResponse = NextResponse.redirect(destination)
         supabaseResponse.cookies.getAll().forEach((cookie) => {
@@ -21,25 +42,10 @@ export async function proxy(request: NextRequest) {
     }
 
     if (user) {
-        // Query the database directly for the real rol
-        const { data: profile, error: dbError } = await supabase
-            .from('profiles')
-            .select('rol')
-            .eq('id', user.id)
-            .maybeSingle()
-
-        // Fallback to metadata if profile is not found for some reason,
-        // but prefer database source of truth.
-        const rawRol = profile?.rol || user.user_metadata?.rol;
+        // Rol desde el JWT (user_metadata) — sin query a la BD.
+        // Cambios de rol toman efecto en el próximo refresh del token (~1h) o re-login.
+        const rawRol = user.user_metadata?.rol
         const rol = typeof rawRol === 'string' ? rawRol.toLowerCase() : '';
-
-        console.log('-----------------------------------');
-        console.log('MID-WARE ERROR DB:', dbError?.message);
-        console.log('MID-WARE ROL EN BD:', profile?.rol);
-        console.log('MID-WARE ROL EN METADATA:', user.user_metadata?.rol);
-        console.log('MID-WARE ROL DECIDIDO:', rol);
-        console.log('MID-WARE URL INTENTO:', url.pathname);
-        console.log('-----------------------------------');
 
         if (url.pathname === '/login' || url.pathname === '/' || url.pathname === '/dashboard') {
             if (rol === 'tecnico') url.pathname = '/dashboard/tecnico'
@@ -129,12 +135,9 @@ export async function proxy(request: NextRequest) {
 export const config = {
     matcher: [
         /*
-         * Match all request paths except for the ones starting with:
-         * - _next/static (static files)
-         * - _next/image (image optimization files)
-         * - favicon.ico (favicon file)
-         * Feel free to modify this pattern to include more paths.
+         * Excluye recursos estáticos para evitar conexiones a Supabase innecesarias:
+         * _next/static, _next/image, favicon, imágenes, fuentes, CSS, mapas de source.
          */
-        '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+        '/((?!_next/static|_next/image|favicon\\.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|woff2?|ttf|eot|map)$).*)',
     ],
 }
