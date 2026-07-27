@@ -24,10 +24,12 @@ export default async function ProyectoLayout({
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     let currentUserRol = '';
+    let currentUserId  = user?.id ?? '';
     if (user) {
         const { data: profile } = await supabase.from('profiles').select('rol').eq('id', user.id).single();
         currentUserRol = profile?.rol?.toUpperCase() || '';
     }
+    const responsableId: string | null = (proyecto as any)?.responsable_id ?? null;
 
     return (
         <div className="pb-12">
@@ -43,7 +45,12 @@ export default async function ProyectoLayout({
             </div>
 
             {/* Header del proyecto (nombre, estado, metadatos) */}
-            <ProyectoHeader proyecto={proyecto as any} currentUserRol={currentUserRol} />
+            <ProyectoHeader
+                proyecto={proyecto as any}
+                currentUserRol={currentUserRol}
+                currentUserId={currentUserId}
+                responsableId={responsableId}
+            />
 
             {/* Contenido de cada sub-ruta */}
             {children}

@@ -18,7 +18,7 @@ export async function getBitacoraEntradas(proyectoId: string) {
     const { data, error } = await supabase
         .from('bitacora_entradas')
         .select(`
-            id, tipo, contenido, adjuntos, created_at,
+            id, tipo, contenido, adjuntos, created_at, parent_id,
             autor:profiles(full_name),
             firma:bitacora_firmas(
                 id, firmante_nombre, firmante_cargo,

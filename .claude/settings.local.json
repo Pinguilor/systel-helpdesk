@@ -31,7 +31,8 @@
       "Bash(rm -f _check_roles.mjs)",
       "Bash(ls C:/ 2>/dev/null | grep -i serm; ls \"C:/Users/mauri\" 2>/dev/null | grep -i serm)",
       "mcp__visualize__read_me",
-      "mcp__visualize__show_widget"
+      "mcp__visualize__show_widget",
+      "Bash(git commit -m ' *)"
     ]
   }
 }

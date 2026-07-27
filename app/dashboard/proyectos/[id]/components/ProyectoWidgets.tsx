@@ -1,22 +1,23 @@
 'use client';
 
 import React, { useState, useMemo, useTransition, useOptimistic } from 'react';
-import { 
-    Users, UserPlus, Trash2, Package, X, 
+import {
+    Users, UserPlus, Trash2, Package, X,
     DollarSign, Plus, Eye, Loader2, AlertCircle,
     Map, FileDown, UploadCloud, CheckSquare, Check,
-    Zap, Clipboard
+    Zap, Clipboard, Crown, ShieldCheck
 } from 'lucide-react';
-import { 
-    agregarParticipanteAction, 
-    eliminarParticipanteAction, 
+import {
+    agregarParticipanteAction,
+    eliminarParticipanteAction,
     registrarViaticoAction,
     subirPlanimetriaAction,
     crearChecklistItemAction,
     toggleChecklistItemAction,
     eliminarChecklistItemAction,
     aplicarPlantillaChecklistAction,
-    asignarResponsableChecklistAction
+    asignarResponsableChecklistAction,
+    asignarResponsableAction
 } from '../actions';
 import { BomResumen } from '../bom/components/BomResumen';
 import { BomTable } from '../bom/components/BomTable';
@@ -42,6 +43,7 @@ interface Participante {
 
 interface ProyectoWidgetsProps {
     proyectoId: string;
+    proyectoEstado?: string;
     participantes: Participante[];
     tecnicosDisponibles: Profile[];
     bomItems: any[];
@@ -52,10 +54,12 @@ interface ProyectoWidgetsProps {
     historialDespachos?: DespachoProyecto[];
     currentUserRol?: string;
     currentUserId?: string;
+    responsableId?: string | null;
 }
 
 export function ProyectoWidgets({
     proyectoId,
+    proyectoEstado = 'planificacion',
     participantes,
     tecnicosDisponibles,
     bomItems,
@@ -66,8 +70,22 @@ export function ProyectoWidgets({
     historialDespachos = [],
     currentUserRol = 'tecnico',
     currentUserId = '',
+    responsableId = null,
 }: ProyectoWidgetsProps) {
     const [isPending, startTransition] = useTransition();
+
+    // Modo solo-lectura cuando el proyecto está completado
+    const isReadOnly = proyectoEstado === 'completado';
+
+    // Gestores (admin/coord) y el técnico designado responsable pueden operar el checklist
+    const canManage = currentUserRol !== 'tecnico' || currentUserId === responsableId;
+
+    // ── Confirmation Dialog State ────────────────────────────────────────
+    const [confirmDialog, setConfirmDialog] = useState<{
+        titulo: string;
+        mensaje: string;
+        onConfirm: () => void;
+    } | null>(null);
 
     // ── BOM Modal State ──────────────────────────────────────────────────
     const [isBomModalOpen, setIsBomModalOpen] = useState(false);
@@ -223,6 +241,31 @@ export function ProyectoWidgets({
         });
     }
 
+    // ── Responsable Action ───────────────────────────────────────────────
+    function handleToggleResponsable(perfilId: string, nombre: string) {
+        const esActualResponsable = responsableId === perfilId;
+        setConfirmDialog({
+            titulo: esActualResponsable
+                ? `Quitar Responsable`
+                : `Designar Responsable`,
+            mensaje: esActualResponsable
+                ? `¿Estás seguro de quitar a ${nombre} como Responsable del proyecto? Perderá los privilegios operativos (asignar tareas, cargar plantillas) para este proyecto.`
+                : `¿Estás seguro de designar a ${nombre} como Responsable del proyecto? Este técnico obtendrá privilegios operativos exclusivos para este proyecto: podrá asignar tareas y cargar plantillas de checklist.`,
+            onConfirm: () => {
+                setConfirmDialog(null);
+                startTransition(async () => {
+                    const nuevoId = esActualResponsable ? null : perfilId;
+                    const res = await asignarResponsableAction(proyectoId, nuevoId);
+                    if (res.error) setConfirmDialog({
+                        titulo: 'Error',
+                        mensaje: res.error,
+                        onConfirm: () => setConfirmDialog(null),
+                    });
+                });
+            },
+        });
+    }
+
     // ── Viático Action ───────────────────────────────────────────────────
     function handleAddViatico(e: React.FormEvent) {
         e.preventDefault();
@@ -294,23 +337,43 @@ export function ProyectoWidgets({
                     <div className="divide-y divide-slate-100 max-h-40 overflow-y-auto space-y-2 pr-1">
                         {activeParticipantes.map(p => {
                             const name = p.perfil?.full_name ?? 'Sin nombre';
+                            const isResponsable = p.perfil?.id === responsableId;
                             return (
                                 <div key={p.id} className="flex items-center justify-between py-1.5 first:pt-0 last:pb-0 group">
                                     <div className="flex items-center gap-2 min-w-0">
-                                        <div className="w-6 h-6 rounded-full bg-indigo-50 border border-indigo-100 text-[10px] font-black text-indigo-600 flex items-center justify-center shrink-0 uppercase">
+                                        <div className={`w-6 h-6 rounded-full text-[10px] font-black flex items-center justify-center shrink-0 uppercase ${isResponsable ? 'bg-amber-50 border border-amber-200 text-amber-600' : 'bg-indigo-50 border border-indigo-100 text-indigo-600'}`}>
                                             {name.slice(0, 2)}
                                         </div>
                                         <span className="text-xs font-semibold text-slate-800 truncate">{name}</span>
+                                        {isResponsable && (
+                                            <span title="Responsable del proyecto">
+                                                <Crown className="w-3 h-3 text-amber-500 shrink-0" />
+                                            </span>
+                                        )}
                                     </div>
-                                    {currentUserRol !== 'tecnico' && (
-                                        <button
-                                            onClick={() => handleRemoveParticipant(p.id, name)}
-                                            disabled={isPending}
-                                            className="text-slate-300 hover:text-red-500 transition-colors p-1 opacity-0 group-hover:opacity-100 focus:opacity-100"
-                                            title="Eliminar técnico"
-                                        >
-                                            <Trash2 className="w-3.5 h-3.5" />
-                                        </button>
+                                    {!isReadOnly && (
+                                        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                                            {currentUserRol === 'admin' && p.perfil?.id && (
+                                                <button
+                                                    onClick={() => handleToggleResponsable(p.perfil!.id, name)}
+                                                    disabled={isPending}
+                                                    className={`p-1 transition-colors ${isResponsable ? 'text-amber-500 hover:text-amber-600' : 'text-slate-300 hover:text-amber-400'}`}
+                                                    title={isResponsable ? 'Quitar como Responsable' : 'Designar como Responsable'}
+                                                >
+                                                    <Crown className="w-3.5 h-3.5" />
+                                                </button>
+                                            )}
+                                            {currentUserRol !== 'tecnico' && (
+                                                <button
+                                                    onClick={() => handleRemoveParticipant(p.id, name)}
+                                                    disabled={isPending}
+                                                    className="text-slate-300 hover:text-red-500 transition-colors p-1"
+                                                    title="Eliminar técnico"
+                                                >
+                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                </button>
+                                            )}
+                                        </div>
                                     )}
                                 </div>
                             );
@@ -319,7 +382,7 @@ export function ProyectoWidgets({
                 )}
 
                 {/* Formulario / selector de técnicos (Dropdown Customizado) */}
-                {currentUserRol !== 'tecnico' && (
+                {currentUserRol !== 'tecnico' && !isReadOnly && (
                     <div className="relative pt-2 border-t border-slate-150/40">
                         {showAddTechDropdown ? (
                             <div className="space-y-2">
@@ -617,13 +680,26 @@ export function ProyectoWidgets({
             </div>
 
             {/* ── WIDGET 4: CHECKLIST DE TAREAS ─────────────────────────────── */}
-            <WidgetChecklist 
-                proyectoId={proyectoId} 
-                entradas={entradas} 
-                currentUserRol={currentUserRol} 
-                currentUserId={currentUserId} 
+            <WidgetChecklist
+                proyectoId={proyectoId}
+                entradas={entradas}
+                currentUserRol={currentUserRol}
+                currentUserId={currentUserId}
+                canManage={canManage}
+                isReadOnly={isReadOnly}
                 onOpenModal={() => setIsGestorTareasOpen(true)}
             />
+
+            {/* ── WIDGET 5: BANNER SOLO LECTURA ─────────────────────────────── */}
+            {isReadOnly && (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex items-center gap-3">
+                    <ShieldCheck className="w-5 h-5 text-emerald-500 shrink-0" strokeWidth={1.5} />
+                    <div>
+                        <p className="text-xs font-black text-emerald-800">Proyecto Completado</p>
+                        <p className="text-[11px] text-emerald-600 mt-0.5">Este proyecto está en modo solo lectura. No se permiten modificaciones.</p>
+                    </div>
+                </div>
+            )}
 
             {/* ── MODAL COMPLETO: MOTOR LOGÍSTICO (BOM) ──────────────────────── */}
             {isBomModalOpen && (
@@ -849,6 +925,34 @@ export function ProyectoWidgets({
             )}
 
             {/* ── MODAL COMPLETO: GESTOR DE TAREAS (CHECKLIST) ──────────────── */}
+            {/* ── MODAL: CONFIRMACIÓN GENÉRICA ──────────────────────────────── */}
+            {confirmDialog && (
+                <div className="fixed inset-0 z-[60] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl border border-slate-200/60 shadow-2xl w-full max-w-sm p-6 space-y-4">
+                        <h4 className="text-sm font-black text-slate-900">{confirmDialog.titulo}</h4>
+                        <p className="text-xs text-slate-600 leading-relaxed">{confirmDialog.mensaje}</p>
+                        <div className="flex gap-2 pt-1">
+                            <button
+                                type="button"
+                                onClick={() => setConfirmDialog(null)}
+                                className="flex-1 py-2 border border-slate-200 text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-50 transition-colors"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                type="button"
+                                onClick={confirmDialog.onConfirm}
+                                disabled={isPending}
+                                className="flex-1 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 disabled:opacity-50 transition-colors flex items-center justify-center gap-1.5"
+                            >
+                                {isPending && <Loader2 className="w-3 h-3 animate-spin" />}
+                                Confirmar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {isGestorTareasOpen && (
                 <GestorTareasModal
                     proyectoId={proyectoId}
@@ -856,6 +960,8 @@ export function ProyectoWidgets({
                     plantillas={plantillas}
                     currentUserRol={currentUserRol}
                     currentUserId={currentUserId}
+                    canManage={canManage}
+                    isReadOnly={isReadOnly}
                     participantes={activeParticipantes}
                     onClose={() => setIsGestorTareasOpen(false)}
                 />
@@ -880,12 +986,16 @@ export function WidgetChecklist({
     entradas,
     currentUserRol = 'tecnico',
     currentUserId = '',
+    canManage,
+    isReadOnly = false,
     onOpenModal
 }: {
     proyectoId: string;
     entradas: any[];
     currentUserRol?: string;
     currentUserId?: string;
+    canManage?: boolean;
+    isReadOnly?: boolean;
     onOpenModal: () => void;
 }) {
     const [isPending, startTransition] = useTransition();
@@ -927,11 +1037,13 @@ export function WidgetChecklist({
         });
     }
 
+    const isManager = canManage ?? (currentUserRol !== 'tecnico');
+
     const tareasVisiblesBase = useMemo(() => {
-        return currentUserRol === 'tecnico' 
-            ? optimisticTasks.filter(t => t.asignado_a?.id === currentUserId) 
+        return !isManager && currentUserRol === 'tecnico'
+            ? optimisticTasks.filter(t => t.asignado_a?.id === currentUserId)
             : optimisticTasks;
-    }, [optimisticTasks, currentUserRol, currentUserId]);
+    }, [optimisticTasks, isManager, currentUserRol, currentUserId]);
 
     const filteredTasks = useMemo(() => {
         const pendientes = tareasVisiblesBase.filter(t => !t.completado);
@@ -985,9 +1097,9 @@ export function WidgetChecklist({
                         <div key={task.id} className="flex items-start gap-2.5 group">
                             <button
                                 type="button"
-                                onClick={() => handleToggle(task.id, !task.completado, task.titulo)}
-                                disabled={isPending}
-                                className={`w-4 h-4 rounded-md border flex items-center justify-center shrink-0 mt-0.5 transition-all cursor-pointer ${
+                                onClick={() => !isReadOnly && handleToggle(task.id, !task.completado, task.titulo)}
+                                disabled={isPending || isReadOnly}
+                                className={`w-4 h-4 rounded-md border flex items-center justify-center shrink-0 mt-0.5 transition-all ${isReadOnly ? 'cursor-default' : 'cursor-pointer'} ${
                                     task.completado
                                         ? 'bg-emerald-500 border-emerald-500 text-white shadow-sm shadow-emerald-100'
                                         : 'border-slate-350 hover:border-slate-400 bg-slate-50'

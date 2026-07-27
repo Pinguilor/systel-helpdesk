@@ -35,7 +35,9 @@ export default async function ProyectoWorkspacePage({
         getRackData(id),
     ]);
 
-    const participantes = (proyecto as any)?.participantes ?? [];
+    const participantes  = (proyecto as any)?.participantes  ?? [];
+    const responsableId: string | null = (proyecto as any)?.responsable_id ?? null;
+    const proyectoEstado: string       = (proyecto as any)?.estado          ?? 'planificacion';
     const bomItems = (bom?.items ?? []) as any[];
 
     // --- ACCESSIBILITY AND SECURITY LAYER ---
@@ -131,6 +133,7 @@ export default async function ProyectoWorkspacePage({
                 <div className="lg:col-span-3 space-y-6 lg:border-l lg:border-slate-200/60 lg:pl-6">
                     <ProyectoWidgets
                         proyectoId={id}
+                        proyectoEstado={proyectoEstado}
                         participantes={participantes}
                         tecnicosDisponibles={tecnicos}
                         bomItems={bomItems}
@@ -141,6 +144,7 @@ export default async function ProyectoWorkspacePage({
                         historialDespachos={historial.data}
                         currentUserRol={currentUserRol}
                         currentUserId={currentUserId}
+                        responsableId={responsableId}
                     />
                 </div>
 
