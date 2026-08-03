@@ -1,9 +1,10 @@
 import { getBomConItems, getCatalogoEquipos } from './actions';
-import { getHistorialRetirosProyectoAction } from '../equipamiento/actions';
+import { getHistorialRetirosProyectoAction, getHistorialIncidenciasProyecto } from '../equipamiento/actions';
 import { BomTable } from './components/BomTable';
 import { AgregarItemModal } from './components/AgregarItemModal';
 import { HistorialRetirosProyecto } from '../equipamiento/components/HistorialRetirosProyecto';
 import { HardwareLogisticaTabs } from '../equipamiento/components/HardwareLogisticaTabs';
+import { HistorialIncidenciasTab } from '../equipamiento/components/HistorialIncidenciasTab';
 import { Package } from 'lucide-react';
 
 export default async function BomPage({
@@ -13,10 +14,11 @@ export default async function BomPage({
 }) {
     const { id } = await params;
 
-    const [bom, catalogo, historial] = await Promise.all([
+    const [bom, catalogo, historial, incidencias] = await Promise.all([
         getBomConItems(id),
         getCatalogoEquipos(),
         getHistorialRetirosProyectoAction(id),
+        getHistorialIncidenciasProyecto(id),
     ]);
 
     const items = (bom?.items ?? []) as any[];
@@ -50,8 +52,10 @@ export default async function BomPage({
             {/* Navegación por pestañas: Receta Maestra / Historial de Despachos */}
             <HardwareLogisticaTabs
                 totalDespachos={historial.data.length}
+                totalIncidencias={incidencias.data.length}
                 recetaContent={<BomTable items={items} proyectoId={id} />}
                 historialContent={<HistorialRetirosProyecto despachos={historial.data} />}
+                incidenciasContent={<HistorialIncidenciasTab incidencias={incidencias.data} />}
             />
         </div>
     );

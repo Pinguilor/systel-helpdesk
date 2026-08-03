@@ -25,8 +25,10 @@ import { AgregarItemModal } from '../bom/components/AgregarItemModal';
 import { aplicarRecetaBOMAction } from '../bom/actions';
 import { HistorialRetirosProyecto } from '../equipamiento/components/HistorialRetirosProyecto';
 import { HardwareLogisticaTabs } from '../equipamiento/components/HardwareLogisticaTabs';
-import type { DespachoProyecto } from '../equipamiento/actions';
+import { HistorialIncidenciasTab } from '../equipamiento/components/HistorialIncidenciasTab';
+import type { DespachoProyecto, IncidenciaCustodia } from '../equipamiento/actions';
 import { GestorTareasModal } from './GestorTareasModal';
+import { MaterialesEnCustodiaPanel } from './MaterialesEnCustodiaPanel';
 
 interface Profile {
     id: string;
@@ -51,7 +53,8 @@ interface ProyectoWidgetsProps {
     entradas: any[];
     plantillas: any[];
     recetasBOM: any[];
-    historialDespachos?: DespachoProyecto[];
+    historialDespachos?:   DespachoProyecto[];
+    historialIncidencias?: IncidenciaCustodia[];
     currentUserRol?: string;
     currentUserId?: string;
     responsableId?: string | null;
@@ -67,7 +70,8 @@ export function ProyectoWidgets({
     entradas,
     plantillas,
     recetasBOM,
-    historialDespachos = [],
+    historialDespachos   = [],
+    historialIncidencias = [],
     currentUserRol = 'tecnico',
     currentUserId = '',
     responsableId = null,
@@ -304,12 +308,12 @@ export function ProyectoWidgets({
 
     // ── BOM Stats Calculations ──────────────────────────────────────────
     const bomStats = useMemo(() => {
-        const total = bomItems.reduce((acc: number, item: any) => acc + (item.cantidad_total || 0), 0);
-        const instalado = bomItems.reduce((acc: number, item: any) => acc + (item.cantidad_entregada || 0), 0);
-        // Pendiente = saldo por entregar (cantidad_total − cantidad_entregada), nunca negativo.
-        // Se reconcilia: total = instalado + pendiente.
+        const total     = bomItems.reduce((acc: number, item: any) => acc + (item.cantidad_total     || 0), 0);
+        // instalado: usa cantidad_instalada (no cantidad_entregada, que solo refleja despachos)
+        const instalado = bomItems.reduce((acc: number, item: any) => acc + (item.cantidad_instalada || 0), 0);
+        // pendiente = unidades aún no instaladas (presupuestadas - instaladas)
         const pendiente = bomItems.reduce(
-            (acc: number, item: any) => acc + Math.max(0, (item.cantidad_total || 0) - (item.cantidad_entregada || 0)),
+            (acc: number, item: any) => acc + Math.max(0, (item.cantidad_total || 0) - (item.cantidad_instalada || 0)),
             0,
         );
         return { total, instalado, pendiente };
@@ -559,6 +563,16 @@ export function ProyectoWidgets({
                 </button>
             </div>
 
+            {/* ── WIDGET 2b: CUSTODIA INVERSA (solo gestores) ───────────────── */}
+            {currentUserRol !== 'tecnico' && !isReadOnly && (
+                <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-sm">
+                    <MaterialesEnCustodiaPanel
+                        proyectoId={proyectoId}
+                        currentUserRol={currentUserRol}
+                    />
+                </div>
+            )}
+
             {/* ── WIDGET 3: VIÁTICOS ─────────────────────────────────────────── */}
             <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-sm space-y-4">
                 <div className="flex items-center justify-between">
@@ -715,7 +729,7 @@ export function ProyectoWidgets({
                                 <div>
                                     <h3 className="text-lg font-black text-slate-900">Hardware y Logística</h3>
                                     <p className="text-xs text-slate-400">
-                                        {bomStats.total === 0 ? 'Sin ítems registrados' : `${bomStats.instalado} de ${bomStats.total} equipos entregados`}
+                                        {bomStats.total === 0 ? 'Sin ítems registrados' : `${bomStats.instalado} de ${bomStats.total} equipos instalados`}
                                     </p>
                                 </div>
                             </div>
@@ -837,8 +851,10 @@ export function ProyectoWidgets({
                         {/* Modal Body: navegación por pestañas Receta Maestra / Historial de Despachos */}
                         <HardwareLogisticaTabs
                             totalDespachos={historialDespachos.length}
-                            recetaContent={<BomTable items={bomItems} proyectoId={proyectoId} />}
+                            totalIncidencias={historialIncidencias.length}
+                            recetaContent={<BomTable items={bomItems} proyectoId={proyectoId} currentUserRol={currentUserRol} />}
                             historialContent={<HistorialRetirosProyecto despachos={historialDespachos} />}
+                            incidenciasContent={<HistorialIncidenciasTab incidencias={historialIncidencias} />}
                         />
                     </div>
                 </div>

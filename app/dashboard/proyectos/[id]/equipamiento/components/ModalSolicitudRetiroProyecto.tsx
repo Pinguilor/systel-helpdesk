@@ -10,6 +10,10 @@ export interface RecetaItem {
     inventario_id: string;
     cantidad_total: number;
     cantidad_entregada: number;
+    cantidad_instalada?:   number | null;
+    cantidad_estacionada?: number | null;
+    cantidad_en_transito?: number | null;
+    cantidad_reingresada?: number | null;
     inventario?: {
         modelo: string;
         familia: string;
@@ -34,7 +38,9 @@ export function ModalSolicitudRetiroProyecto({ proyectoId, isOpen, onClose, rece
     if (!isOpen) return null;
 
     const handleIncrement = (item: RecetaItem) => {
-        const saldo = item.cantidad_total - item.cantidad_entregada;
+        // Saldo = Presupuestado - (Entregado - Reingresado): permite re-despachar materiales devueltos
+        const reingresada = item.cantidad_reingresada ?? 0;
+        const saldo = item.cantidad_total - (item.cantidad_entregada - reingresada);
         const current = carrito[item.id] || 0;
         if (current < saldo) {
             setCarrito(prev => ({ ...prev, [item.id]: current + 1 }));
@@ -143,9 +149,11 @@ export function ModalSolicitudRetiroProyecto({ proyectoId, isOpen, onClose, rece
                             ) : (
                                 <div className="grid gap-4">
                                     {receta.map((item) => {
-                                        const saldo = item.cantidad_total - item.cantidad_entregada;
+                                        // Saldo = Presupuestado - (Entregado - Reingresado)
+                                        const reingresada = item.cantidad_reingresada ?? 0;
+                                        const saldo = item.cantidad_total - (item.cantidad_entregada - reingresada);
                                         const current = carrito[item.id] || 0;
-                                        const agotado = saldo === 0;
+                                        const agotado = saldo <= 0;
 
                                         return (
                                             <div 
@@ -162,15 +170,20 @@ export function ModalSolicitudRetiroProyecto({ proyectoId, isOpen, onClose, rece
                                                     <p className="text-xs text-slate-500 uppercase tracking-wider font-semibold mt-1">
                                                         Familia: {item.inventario?.familia || 'N/A'}
                                                     </p>
-                                                    <div className="flex items-center gap-3 mt-3">
+                                                    <div className="flex flex-wrap items-center gap-2 mt-3">
                                                         <span className="text-xs font-bold px-2 py-1 bg-slate-100 text-slate-600 rounded-md">
                                                             Total: {item.cantidad_total}
                                                         </span>
                                                         <span className="text-xs font-bold px-2 py-1 bg-emerald-50 text-emerald-600 rounded-md">
                                                             Entregado: {item.cantidad_entregada}
                                                         </span>
+                                                        {reingresada > 0 && (
+                                                            <span className="text-xs font-bold px-2 py-1 bg-violet-50 text-violet-600 rounded-md">
+                                                                Reingresado: {reingresada}
+                                                            </span>
+                                                        )}
                                                         <span className={`text-xs font-bold px-2 py-1 rounded-md ${agotado ? 'bg-rose-50 text-rose-600' : 'bg-indigo-50 text-indigo-600'}`}>
-                                                            Saldo: {saldo}
+                                                            Disponible: {Math.max(0, saldo)}
                                                         </span>
                                                     </div>
                                                 </div>

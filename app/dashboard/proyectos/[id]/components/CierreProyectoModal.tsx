@@ -108,7 +108,9 @@ export function CierreProyectoModal({
 
     // ── Devolución masiva de materiales sobrantes ────────────────────────
     async function handleDevolucionMasiva() {
-        if (!validacion?.materialesPendientes.length) return;
+        // Solo aplica a ítems con saldo libre (no en tránsito — esos son handshake pendiente)
+        const ajustables = validacion?.materialesPendientes.filter(m => !m.en_transito && m.saldo > 0) ?? [];
+        if (!ajustables.length) return;
 
         setIsDevolucionPending(true);
         setDevolucionError(null);
@@ -116,7 +118,7 @@ export function CierreProyectoModal({
 
         const result = await generarDevolucionMasivaCierre(
             proyectoId,
-            validacion.materialesPendientes.map(m => ({
+            ajustables.map(m => ({
                 id:                m.id,
                 modelo:            m.modelo,
                 cantidad_instalada: m.cantidad_instalada,
@@ -213,56 +215,88 @@ export function CierreProyectoModal({
                                 </div>
                             )}
 
-                            {validacion.materialesPendientes.length > 0 && (
-                                <div className="space-y-2">
-                                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                                        <Package className="w-3.5 h-3.5" />
-                                        Materiales con saldo logístico pendiente ({validacion.materialesPendientes.length})
-                                    </p>
-                                    <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden">
-                                        {validacion.materialesPendientes.map(m => (
-                                            <div key={m.id} className="flex items-center justify-between px-3 py-2.5 bg-white">
-                                                <span className="text-xs text-slate-700 font-medium">{m.modelo}</span>
-                                                <span className="text-[10px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
-                                                    {m.saldo} u. sin declarar
-                                                </span>
-                                            </div>
-                                        ))}
-                                    </div>
+                            {validacion.materialesPendientes.length > 0 && (() => {
+                                const enTransito  = validacion.materialesPendientes.filter(m => m.en_transito);
+                                const sinDeclararItems = validacion.materialesPendientes.filter(m => !m.en_transito && m.saldo > 0);
+                                return (
+                                    <div className="space-y-3">
+                                        {/* Ítems sin declarar → devolución masiva */}
+                                        {sinDeclararItems.length > 0 && (
+                                            <div className="space-y-2">
+                                                <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                                                    <Package className="w-3.5 h-3.5" />
+                                                    Materiales sin declarar ({sinDeclararItems.length})
+                                                </p>
+                                                <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden">
+                                                    {sinDeclararItems.map(m => (
+                                                        <div key={m.id} className="flex items-center justify-between px-3 py-2.5 bg-white">
+                                                            <span className="text-xs text-slate-700 font-medium">{m.modelo}</span>
+                                                            <span className="text-[10px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                                                                {m.saldo} u. pendientes
+                                                            </span>
+                                                        </div>
+                                                    ))}
+                                                </div>
 
-                                    {/* ── Acción rápida: devolución masiva ── */}
-                                    <div className="pt-1 space-y-2">
-                                        <button
-                                            type="button"
-                                            onClick={handleDevolucionMasiva}
-                                            disabled={isDevolucionPending}
-                                            className="w-full flex items-center justify-center gap-2 py-2.5 bg-amber-50 hover:bg-amber-100 active:bg-amber-200 border border-amber-300 text-amber-800 rounded-xl text-xs font-bold transition-colors disabled:opacity-50"
-                                        >
-                                            {isDevolucionPending ? (
-                                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                            ) : (
-                                                <PackageMinus className="w-3.5 h-3.5" />
-                                            )}
-                                            {isDevolucionPending ? 'Procesando ajuste...' : 'Generar Devolución por Pendientes'}
-                                        </button>
-                                        <p className="text-[10px] text-slate-400 text-center leading-snug">
-                                            Reconcilia el BOM ajustando a las unidades instaladas y genera solicitudes de devolución al inventario.
-                                        </p>
-                                        {devolucionError && (
-                                            <div className="flex items-start gap-2 bg-red-50 border border-red-100 rounded-xl px-3 py-2">
-                                                <AlertTriangle className="w-3.5 h-3.5 text-red-500 shrink-0 mt-0.5" />
-                                                <p className="text-xs text-red-700">{devolucionError}</p>
+                                                {/* Acción rápida: devolución masiva */}
+                                                <div className="pt-1 space-y-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleDevolucionMasiva}
+                                                        disabled={isDevolucionPending}
+                                                        className="w-full flex items-center justify-center gap-2 py-2.5 bg-amber-50 hover:bg-amber-100 active:bg-amber-200 border border-amber-300 text-amber-800 rounded-xl text-xs font-bold transition-colors disabled:opacity-50"
+                                                    >
+                                                        {isDevolucionPending ? (
+                                                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                        ) : (
+                                                            <PackageMinus className="w-3.5 h-3.5" />
+                                                        )}
+                                                        {isDevolucionPending ? 'Procesando ajuste...' : 'Generar Devolución por Pendientes'}
+                                                    </button>
+                                                    <p className="text-[10px] text-slate-400 text-center leading-snug">
+                                                        Reconcilia el BOM ajustando a las unidades instaladas y genera solicitudes de devolución al inventario.
+                                                    </p>
+                                                    {devolucionError && (
+                                                        <div className="flex items-start gap-2 bg-red-50 border border-red-100 rounded-xl px-3 py-2">
+                                                            <AlertTriangle className="w-3.5 h-3.5 text-red-500 shrink-0 mt-0.5" />
+                                                            <p className="text-xs text-red-700">{devolucionError}</p>
+                                                        </div>
+                                                    )}
+                                                    {devolucionMsg && (
+                                                        <div className="flex items-start gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2">
+                                                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                                                            <p className="text-xs text-emerald-700">{devolucionMsg}</p>
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
                                         )}
-                                        {devolucionMsg && (
-                                            <div className="flex items-start gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2">
-                                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
-                                                <p className="text-xs text-emerald-700">{devolucionMsg}</p>
+
+                                        {/* Ítems en tránsito → requieren handshake de logística */}
+                                        {enTransito.length > 0 && (
+                                            <div className="space-y-2">
+                                                <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                                                    <Package className="w-3.5 h-3.5 text-blue-500" />
+                                                    En tránsito — handshake pendiente ({enTransito.length})
+                                                </p>
+                                                <div className="divide-y divide-slate-100 border border-blue-200 rounded-xl overflow-hidden bg-blue-50/30">
+                                                    {enTransito.map(m => (
+                                                        <div key={m.id} className="flex items-center justify-between px-3 py-2.5">
+                                                            <span className="text-xs text-slate-700 font-medium">{m.modelo}</span>
+                                                            <span className="text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">
+                                                                {m.cantidad_en_transito} u. en tránsito
+                                                            </span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                                <p className="text-[10px] text-blue-600 bg-blue-50 border border-blue-200 rounded-xl px-3 py-2 leading-relaxed">
+                                                    El encargado de Logística debe confirmar la recepción de estos materiales en el <strong>Panel de Custodia</strong> del proyecto antes de poder cerrar.
+                                                </p>
                                             </div>
                                         )}
                                     </div>
-                                </div>
-                            )}
+                                );
+                            })()}
 
                             {validacion.error && (
                                 <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">

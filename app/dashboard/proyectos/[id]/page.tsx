@@ -1,7 +1,7 @@
 import { getProyectoById, getTecnicosDisponibles } from './actions';
 import { getBitacoraEntradas } from './bitacora/actions';
 import { getBomConItems, getCatalogoEquipos } from './bom/actions';
-import { getHistorialRetirosProyectoAction } from './equipamiento/actions';
+import { getHistorialRetirosProyectoAction, getHistorialIncidenciasProyecto } from './equipamiento/actions';
 import { getRackData } from './rack/actions';
 import { RackBoard } from './rack/components/RackBoard';
 import { ProyectoTabs } from './components/ProyectoTabs';
@@ -23,7 +23,7 @@ export default async function ProyectoWorkspacePage({
     const { id } = await params;
 
     // Load all required data in parallel
-    const [proyecto, entradas, bom, catalogo, tecnicos, plantillas, recetasBOM, historial, rack] = await Promise.all([
+    const [proyecto, entradas, bom, catalogo, tecnicos, plantillas, recetasBOM, historial, incidencias, rack] = await Promise.all([
         getProyectoById(id),
         getBitacoraEntradas(id),
         getBomConItems(id),
@@ -32,6 +32,7 @@ export default async function ProyectoWorkspacePage({
         getPlantillasChecklist(),
         getPlantillasBOM(),
         getHistorialRetirosProyectoAction(id),
+        getHistorialIncidenciasProyecto(id),
         getRackData(id),
     ]);
 
@@ -142,6 +143,7 @@ export default async function ProyectoWorkspacePage({
                         plantillas={plantillas as any}
                         recetasBOM={recetasBOM as any}
                         historialDespachos={historial.data}
+                        historialIncidencias={incidencias.data}
                         currentUserRol={currentUserRol}
                         currentUserId={currentUserId}
                         responsableId={responsableId}

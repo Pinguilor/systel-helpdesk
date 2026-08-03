@@ -537,7 +537,15 @@ export async function asignarResponsableChecklistAction(
 export interface ValidacionCierre {
     puedesCerrar: boolean;
     tareasPendientes:     { id: string; titulo: string }[];
-    materialesPendientes: { id: string; modelo: string; cantidad_entregada: number; cantidad_instalada: number; saldo: number }[];
+    materialesPendientes: {
+        id:                   string;
+        modelo:               string;
+        cantidad_entregada:   number;
+        cantidad_instalada:   number;
+        cantidad_en_transito: number;
+        en_transito:          boolean;
+        saldo:                number;
+    }[];
     resumen: {
         diasProyecto:    number | null;
         fechaInicioStr:  string | null;
@@ -642,6 +650,17 @@ export async function completarYFirmarProyecto(
         return { error: 'El proyecto aún tiene tareas o materiales pendientes. Ciérrelos antes de continuar.' };
     }
 
+    // Bloqueo estricto: materiales en tránsito (handshake incompleto) impiden el cierre
+    const { data: enTransito } = await db
+        .from('proyecto_equipamiento')
+        .select('id')
+        .eq('proyecto_id', proyectoId)
+        .gt('cantidad_en_transito', 0)
+        .limit(1);
+    if (enTransito && enTransito.length > 0) {
+        return { error: 'No se puede cerrar el proyecto. Existen materiales en tránsito que deben ser recibidos por logística.' };
+    }
+
     // Subir firma a Storage
     const storagePath = `cierres/${proyectoId}/${Date.now()}-cierre.png`;
     const { error: uploadError } = await supabase.storage
@@ -675,6 +694,255 @@ export async function completarYFirmarProyecto(
     revalidatePath(`/dashboard/proyectos/${proyectoId}`);
     revalidatePath('/dashboard/proyectos');
     return { error: null };
+}
+
+// ── Protocolo de Custodia Inversa ────────────────────────────────────────────
+
+export type AccionCustodia = 'Estacionado_Obra' | 'En_Transito_Devolucion';
+export type EstadoCustodia = AccionCustodia | 'Reingresado_Logistica';
+
+export interface MaterialEnCustodia {
+    custodiaId:               string;
+    proyectoEquipamientoId:   string;
+    modelo:                   string;
+    cantidad:                 number;
+    estado:                   EstadoCustodia;
+    motivoIncidencia:         string;
+    evidenciaFotograficaUrl:  string | null;
+    firmaCustodiaUrl:         string | null;
+    responsableNombre:        string | null;
+    responsableId:            string | null;
+    createdAt:                string;
+}
+
+/**
+ * Acción del técnico en terreno.
+ * Registra que N unidades de un ítem no pudieron instalarse y declara su destino:
+ *   - 'Estacionado_Obra'       → quedan físicamente en el sitio
+ *   - 'En_Transito_Devolucion' → el técnico las trae de regreso (handshake pendiente)
+ */
+export async function reportarIncidenciaMaterial(params: {
+    proyectoId:             string;
+    proyectoEquipamientoId: string;
+    accion:                 AccionCustodia;
+    cantidad:               number;
+    motivo:                 string;
+    evidenciaFotoUrl:       string;
+    firmaCustodiaUrl:       string;
+}): Promise<{ error: string | null; custodiaId?: string }> {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: 'No autorizado.' };
+
+    const { proyectoId, proyectoEquipamientoId, accion, cantidad, motivo } = params;
+    if (cantidad <= 0) return { error: 'La cantidad debe ser mayor a cero.' };
+    if (!motivo.trim()) return { error: 'El motivo es obligatorio.' };
+    if (!params.evidenciaFotoUrl) return { error: 'La fotografía de evidencia es obligatoria.' };
+    if (!params.firmaCustodiaUrl) return { error: 'La firma de custodia es obligatoria.' };
+
+    const db = createAdminClient();
+
+    // Verificar estado del proyecto y participación activa del técnico
+    const [{ data: proyecto }, { data: participacion }] = await Promise.all([
+        db.from('proyectos').select('estado, responsable_id').eq('id', proyectoId).single(),
+        db.from('proyecto_participantes')
+            .select('id')
+            .eq('proyecto_id', proyectoId)
+            .eq('perfil_id', user.id)
+            .eq('activo', true)
+            .single(),
+    ]);
+
+    if (!proyecto) return { error: 'Proyecto no encontrado.' };
+    if (proyecto.estado === 'completado') return { error: 'El proyecto ya está cerrado.' };
+    if (!participacion) return { error: 'No estás asignado como participante activo de este proyecto.' };
+
+    // Leer contadores actuales y calcular unidades libres (entregadas sin estado)
+    const { data: equip } = await db
+        .from('proyecto_equipamiento')
+        .select('id, cantidad_entregada, cantidad_instalada, cantidad_estacionada, cantidad_en_transito, cantidad_reingresada')
+        .eq('id', proyectoEquipamientoId)
+        .eq('proyecto_id', proyectoId)
+        .single();
+
+    if (!equip) return { error: 'Ítem de material no encontrado en este proyecto.' };
+
+    const totalDeclarado =
+        (equip.cantidad_instalada    ?? 0) +
+        (equip.cantidad_estacionada  ?? 0) +
+        (equip.cantidad_en_transito  ?? 0) +
+        (equip.cantidad_reingresada  ?? 0);
+    const libres = (equip.cantidad_entregada ?? 0) - totalDeclarado;
+
+    if (cantidad > libres) {
+        return { error: `Solo hay ${libres} unidad(es) sin estado declarado. No puedes reportar ${cantidad}.` };
+    }
+
+    // Crear el registro de custodia (audit trail permanente)
+    const { data: custodia, error: custodiaErr } = await db
+        .from('proyecto_material_custodia')
+        .insert({
+            proyecto_id:               proyectoId,
+            proyecto_equipamiento_id:  proyectoEquipamientoId,
+            cantidad,
+            estado:                    accion,
+            motivo_incidencia:         motivo.trim(),
+            evidencia_fotografica_url: params.evidenciaFotoUrl ?? null,
+            firma_custodia_url:        params.firmaCustodiaUrl ?? null,
+            responsable_actual_id:     accion === 'En_Transito_Devolucion' ? user.id : null,
+            reportado_por_id:          user.id,
+        })
+        .select('id')
+        .single();
+
+    if (custodiaErr) return { error: `Error al registrar incidencia: ${custodiaErr.message}` };
+
+    // Actualizar contadores en la línea del BOM
+    const counterPatch = accion === 'Estacionado_Obra'
+        ? { cantidad_estacionada: (equip.cantidad_estacionada ?? 0) + cantidad }
+        : {
+            cantidad_en_transito:  (equip.cantidad_en_transito ?? 0) + cantidad,
+            responsable_actual_id: user.id,
+          };
+
+    const { error: updErr } = await db
+        .from('proyecto_equipamiento')
+        .update({
+            ...counterPatch,
+            motivo_incidencia:         motivo.trim(),
+            evidencia_fotografica_url: params.evidenciaFotoUrl ?? null,
+            firma_custodia_url:        params.firmaCustodiaUrl ?? null,
+        })
+        .eq('id', proyectoEquipamientoId);
+
+    if (updErr) return { error: `Error al actualizar contadores del BOM: ${updErr.message}` };
+
+    // Bitácora de auditoría
+    const etiqueta = accion === 'Estacionado_Obra'
+        ? `Estacionado en Obra (${cantidad} u.) — sin retorno previsto`
+        : `En Tránsito de Devolución (${cantidad} u.) — handshake pendiente`;
+
+    await registrarEntradaAuditoria(
+        proyectoId, user.id,
+        `[CUSTODIA] ${etiqueta}. Motivo: ${motivo.trim()}`,
+        'hito'
+    );
+
+    revalidatePath(`/dashboard/proyectos/${proyectoId}`);
+    return { error: null, custodiaId: custodia.id };
+}
+
+/**
+ * Acción del encargado de Logística / Proyecto.
+ * Confirma la recepción física del material en tránsito — completa el Handshake.
+ * Estado: 'En_Transito_Devolucion' → 'Reingresado_Logistica'
+ */
+export async function aceptarDevolucionLogistica(
+    custodiaId: string,
+    proyectoId:  string
+): Promise<{ error: string | null }> {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: 'No autorizado.' };
+
+    const db = createAdminClient();
+
+    // Verificar permisos de gestión (admin, coordinador o responsable)
+    const [{ data: profile }, { data: proyecto }] = await Promise.all([
+        db.from('profiles').select('rol').eq('id', user.id).single(),
+        db.from('proyectos').select('estado, responsable_id').eq('id', proyectoId).single(),
+    ]);
+
+    if (!proyecto) return { error: 'Proyecto no encontrado.' };
+    if (proyecto.estado === 'completado') return { error: 'El proyecto ya está cerrado.' };
+
+    const rol      = (profile?.rol ?? '').toLowerCase();
+    const esGestor = rol === 'admin' || rol === 'coordinador' || user.id === proyecto.responsable_id;
+    if (!esGestor) {
+        return { error: 'Solo el administrador, coordinador o responsable puede confirmar recepciones de material.' };
+    }
+
+    // Obtener y validar el registro de custodia
+    const { data: custodia } = await db
+        .from('proyecto_material_custodia')
+        .select('id, estado, cantidad, proyecto_equipamiento_id')
+        .eq('id', custodiaId)
+        .eq('proyecto_id', proyectoId)
+        .single();
+
+    if (!custodia) return { error: 'Registro de custodia no encontrado.' };
+    if (custodia.estado !== 'En_Transito_Devolucion') {
+        return {
+            error: `Este material está en estado "${custodia.estado.replace(/_/g, ' ')}" y no puede recibirse en este paso.`,
+        };
+    }
+
+    // Leer contadores actuales
+    const { data: equip } = await db
+        .from('proyecto_equipamiento')
+        .select('cantidad_en_transito, cantidad_reingresada')
+        .eq('id', custodia.proyecto_equipamiento_id)
+        .single();
+
+    if (!equip) return { error: 'Ítem de equipamiento no encontrado.' };
+
+    // Handshake atómico (ambas tablas en paralelo)
+    const [{ error: eCustodia }, { error: eEquip }] = await Promise.all([
+        db.from('proyecto_material_custodia').update({
+            estado:                'Reingresado_Logistica',
+            aceptado_por_id:       user.id,
+            aceptado_en:           new Date().toISOString(),
+            responsable_actual_id: null,   // responsabilidad liberada
+        }).eq('id', custodiaId),
+
+        db.from('proyecto_equipamiento').update({
+            cantidad_en_transito:  Math.max(0, (equip.cantidad_en_transito ?? 0) - custodia.cantidad),
+            cantidad_reingresada:  (equip.cantidad_reingresada ?? 0) + custodia.cantidad,
+            responsable_actual_id: null,
+        }).eq('id', custodia.proyecto_equipamiento_id),
+    ]);
+
+    if (eCustodia) return { error: `Error al confirmar recepción: ${eCustodia.message}` };
+    if (eEquip)    return { error: `Error al actualizar contadores: ${eEquip.message}` };
+
+    await registrarEntradaAuditoria(
+        proyectoId, user.id,
+        `[CUSTODIA] ✓ Handshake completado — ${custodia.cantidad} u. reingresadas a Logística del Proyecto.`,
+        'hito'
+    );
+
+    revalidatePath(`/dashboard/proyectos/${proyectoId}`);
+    return { error: null };
+}
+
+/**
+ * Obtiene todos los materiales en custodia activa (Estacionado u En Tránsito).
+ * Para uso en el panel de Logística del proyecto.
+ */
+export async function getMaterialesEnCustodia(
+    proyectoId: string
+): Promise<{ data: MaterialEnCustodia[]; error: string | null }> {
+    const db = createAdminClient();
+    const { data, error } = await db.rpc('get_materiales_en_custodia', { p_proyecto_id: proyectoId });
+
+    if (error) return { data: [], error: error.message };
+
+    return {
+        data: (data ?? []).map((row: any): MaterialEnCustodia => ({
+            custodiaId:              row.custodia_id,
+            proyectoEquipamientoId:  row.proyecto_equipamiento_id,
+            modelo:                  row.modelo,
+            cantidad:                row.cantidad,
+            estado:                  row.estado as EstadoCustodia,
+            motivoIncidencia:        row.motivo_incidencia,
+            evidenciaFotograficaUrl: row.evidencia_fotografica_url ?? null,
+            firmaCustodiaUrl:        row.firma_custodia_url ?? null,
+            responsableNombre:       row.responsable_nombre ?? null,
+            responsableId:           row.responsable_id ?? null,
+            createdAt:               row.created_at,
+        })),
+        error: null,
+    };
 }
 
 // ── Devolución Masiva por Cierre ──────────────────────────────────────────────

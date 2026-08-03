@@ -28,6 +28,28 @@ export async function crearSolicitudProyectoAction(
 
         const db = createAdminClient();
 
+        // Validar saldo disponible con la fórmula correcta:
+        // Disponible = Presupuestado - (Entregado - Reingresado)
+        const equipIds = items.map(i => i.proyectoEquipamientoId).filter(Boolean);
+        const { data: equipRows } = await db
+            .from('proyecto_equipamiento')
+            .select('id, cantidad_total, cantidad_entregada, cantidad_reingresada, tipo_item')
+            .in('id', equipIds);
+
+        const equipMap = Object.fromEntries((equipRows ?? []).map(e => [e.id, e]));
+        for (const item of items) {
+            const equip = equipMap[item.proyectoEquipamientoId];
+            if (equip) {
+                const reingresada = (equip.cantidad_reingresada as number) ?? 0;
+                const saldo = (equip.cantidad_total as number) - ((equip.cantidad_entregada as number) - reingresada);
+                if (item.cantidad > saldo) {
+                    return {
+                        error: `"${(equip.tipo_item as string) ?? 'Ítem'}" sólo tiene ${saldo} unidad(es) disponible(s) para solicitar.`,
+                    };
+                }
+            }
+        }
+
         // 1. Insertar la cabecera
         const { data: solicitud, error: headerError } = await db
             .from('solicitudes_materiales')
@@ -70,6 +92,63 @@ export async function crearSolicitudProyectoAction(
     } catch (error: any) {
         console.error('Error en crearSolicitudProyectoAction:', error);
         return { error: error.message || 'Error interno del servidor.' };
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Historial de Incidencias: registros de proyecto_material_custodia
+// ─────────────────────────────────────────────────────────────────────────────
+export interface IncidenciaCustodia {
+    id:                      string;
+    createdAt:               string;
+    materialNombre:          string;
+    cantidad:                number;
+    estado:                  string;
+    motivoIncidencia:        string | null;
+    registradoPorNombre:     string | null;
+    evidenciaFotograficaUrl: string | null;
+    firmaCustodiaUrl:        string | null;
+}
+
+export async function getHistorialIncidenciasProyecto(
+    proyectoId: string
+): Promise<{ data: IncidenciaCustodia[]; error?: string }> {
+    try {
+        const db = createAdminClient();
+
+        const { data, error } = await db
+            .from('proyecto_material_custodia')
+            .select(`
+                id, created_at, cantidad, estado, motivo_incidencia,
+                evidencia_fotografica_url, firma_custodia_url,
+                registrado_por:reportado_por_id ( full_name ),
+                equipamiento:proyecto_equipamiento_id (
+                    tipo_item,
+                    catalogo:catalogo_equipos!inventario_id ( modelo )
+                )
+            `)
+            .eq('proyecto_id', proyectoId)
+            .order('created_at', { ascending: false });
+
+        if (error) return { data: [], error: error.message };
+
+        const incidencias: IncidenciaCustodia[] = (data ?? []).map((r: any) => ({
+            id:                      r.id,
+            createdAt:               r.created_at,
+            materialNombre:          r.equipamiento?.catalogo?.modelo
+                                     ?? r.equipamiento?.tipo_item
+                                     ?? 'Material sin nombre',
+            cantidad:                r.cantidad ?? 0,
+            estado:                  r.estado ?? '',
+            motivoIncidencia:        r.motivo_incidencia ?? null,
+            registradoPorNombre:     r.registrado_por?.full_name ?? null,
+            evidenciaFotograficaUrl: r.evidencia_fotografica_url ?? null,
+            firmaCustodiaUrl:        r.firma_custodia_url ?? null,
+        }));
+
+        return { data: incidencias };
+    } catch (e: any) {
+        return { data: [], error: e.message };
     }
 }
 

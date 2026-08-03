@@ -21,30 +21,53 @@ async function requireAccess() {
 
 export async function getBomConItems(proyectoId: string) {
     const supabase = await createClient();
-    // Reemplazado para usar la nueva Receta Maestra (proyecto_equipamiento)
-    // Se asume que el frontend ahora mapea sobre "items" que vendrá directamente como array
-    const { data, error } = await supabase
+    const db       = createAdminClient();
+
+    // Query principal: Receta Maestra con datos de custodia
+    const { data } = await supabase
         .from('proyecto_equipamiento')
         .select(`
-            id, proyecto_id, tipo_item, inventario_id, cantidad_total, cantidad_entregada, created_at,
+            id, proyecto_id, tipo_item, inventario_id,
+            cantidad_total, cantidad_entregada, cantidad_instalada,
+            cantidad_estacionada, cantidad_en_transito, cantidad_reingresada,
+            created_at,
             inventario:catalogo_equipos!inventario_id(
-                modelo, 
-                es_serializado, 
+                modelo,
+                es_serializado,
                 familia_obj:familias_hardware(nombre)
             )
         `)
         .eq('proyecto_id', proyectoId)
         .order('created_at');
-        
-    // Flatten la familia para que el frontend la lea fácil. Si inventario es null (ej. manual), usar tipo_item
+
+    // Query histórica: ítems instalados en el sistema antiguo (proyecto_bom_items)
+    // Necesario para proyectos donde cantidad_instalada era 0 por ser campo nuevo.
+    // Admin client bypasses RLS de proyecto_bom_items (solo admin/coordinador vía RLS normal).
+    const { data: bomLegacy } = await db
+        .from('proyecto_bom_items')
+        .select('modelo')
+        .eq('proyecto_id', proyectoId)
+        .eq('estado', 'instalado');
+
+    // Mapa modelo → conteo histórico de instalaciones
+    const historicoInstalados = new Map<string, number>();
+    for (const row of (bomLegacy ?? [])) {
+        const m = row.modelo as string;
+        historicoInstalados.set(m, (historicoInstalados.get(m) ?? 0) + 1);
+    }
+
+    // Flatten la familia y COALESCE cantidad_instalada con datos históricos
     const items = (data || []).map(item => {
-        const inv = item.inventario as any;
+        const inv    = item.inventario as any;
+        const modelo = inv?.modelo || item.tipo_item || 'Manual';
+        const historicoCount = historicoInstalados.get(modelo) ?? 0;
         return {
             ...item,
+            cantidad_instalada: Math.max(item.cantidad_instalada ?? 0, historicoCount),
             inventario: {
                 ...inv,
-                modelo: inv?.modelo || item.tipo_item || 'Manual',
-                familia: inv?.familia_obj?.nombre || 'Manual/Sin familia',
+                modelo,
+                familia:        inv?.familia_obj?.nombre || 'Manual/Sin familia',
                 es_serializado: inv?.es_serializado || false
             }
         };
@@ -302,6 +325,110 @@ export async function eliminarItemBom(
     revalidatePath(`/dashboard/proyectos/${proyectoId}`);
     return { error: null };
 }
+
+// ── Marcar unidades como instaladas (Acción directa desde BOM) ───────────────
+
+export async function instalarMaterial(
+    proyectoEquipamientoId: string,
+    cantidad: number,
+    proyectoId: string
+): Promise<{ error: string | null }> {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: 'No autenticado.' };
+    if (cantidad <= 0) return { error: 'Cantidad inválida.' };
+
+    const db = createAdminClient();
+
+    const { data: equip, error: fetchError } = await db
+        .from('proyecto_equipamiento')
+        .select('cantidad_instalada, cantidad_estacionada, cantidad_en_transito, cantidad_reingresada, cantidad_entregada, tipo_item')
+        .eq('id', proyectoEquipamientoId)
+        .single();
+
+    if (fetchError || !equip) return { error: 'Material no encontrado.' };
+
+    const libres = Math.max(0,
+        (equip.cantidad_entregada   as number)
+        - (equip.cantidad_instalada  as number ?? 0)
+        - (equip.cantidad_estacionada as number ?? 0)
+        - (equip.cantidad_en_transito as number ?? 0)
+        - (equip.cantidad_reingresada as number ?? 0)
+    );
+
+    if (cantidad > libres) {
+        return { error: `Solo hay ${libres} unidad(es) disponible(s) para instalar.` };
+    }
+
+    const { error: updateError } = await db
+        .from('proyecto_equipamiento')
+        .update({ cantidad_instalada: (equip.cantidad_instalada as number ?? 0) + cantidad })
+        .eq('id', proyectoEquipamientoId);
+
+    if (updateError) return { error: updateError.message };
+
+    await registrarEntradaAuditoria(
+        proyectoId,
+        user.id,
+        `[SISTEMA] Se marcaron ${cantidad} unidad(es) como INSTALADAS: ${(equip.tipo_item as string) ?? 'material'}.`,
+        'hito'
+    );
+
+    revalidatePath(`/dashboard/proyectos/${proyectoId}/bom`);
+    revalidatePath(`/dashboard/proyectos/${proyectoId}`);
+    return { error: null };
+}
+
+// ── Mover unidades estacionadas en obra → instaladas ─────────────────────────
+
+export async function instalarMaterialEstacionado(
+    proyectoEquipamientoId: string,
+    cantidad: number,
+    proyectoId: string
+): Promise<{ error: string | null }> {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: 'No autenticado.' };
+    if (cantidad <= 0) return { error: 'Cantidad inválida.' };
+
+    const db = createAdminClient();
+
+    const { data: equip, error: fetchError } = await db
+        .from('proyecto_equipamiento')
+        .select('cantidad_instalada, cantidad_estacionada, tipo_item')
+        .eq('id', proyectoEquipamientoId)
+        .single();
+
+    if (fetchError || !equip) return { error: 'Material no encontrado.' };
+
+    const estacionada = (equip.cantidad_estacionada as number) ?? 0;
+    if (cantidad > estacionada) {
+        return { error: `Solo hay ${estacionada} unidad(es) estacionada(s) en obra.` };
+    }
+
+    const { error: updateError } = await db
+        .from('proyecto_equipamiento')
+        .update({
+            cantidad_instalada:   ((equip.cantidad_instalada  as number) ?? 0) + cantidad,
+            cantidad_estacionada: ((equip.cantidad_estacionada as number) ?? 0) - cantidad,
+        })
+        .eq('id', proyectoEquipamientoId);
+
+    if (updateError) return { error: updateError.message };
+
+    await registrarEntradaAuditoria(
+        proyectoId,
+        user.id,
+        `[SISTEMA] ${cantidad} unidad(es) estacionadas en obra pasaron a INSTALADAS: ${(equip.tipo_item as string) ?? 'material'}.`,
+        'hito'
+    );
+
+    revalidatePath(`/dashboard/proyectos/${proyectoId}/bom`);
+    revalidatePath(`/dashboard/proyectos/${proyectoId}`);
+    return { error: null };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 export async function aplicarRecetaBOMAction(
     proyectoId: string,
