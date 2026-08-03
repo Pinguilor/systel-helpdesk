@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import TopNav from './components/TopNav';
 import { redirect } from 'next/navigation';
+import { ModalCelebracion1100 } from './components/ModalCelebracion1100';
 import { AdminSegmentedNav } from './admin/components/AdminSegmentedNav';
 import { UserSegmentedNav } from './usuario/components/UserSegmentedNav';
 import { TecnicoSegmentedNav } from './tecnico/components/TecnicoSegmentedNav';
@@ -34,6 +35,19 @@ export default async function DashboardLayout({
     const isStaff = ['ADMIN', 'COORDINADOR', 'ADMIN_BODEGA'].includes(rolUpper);
     const isUsuario = rolUpper === 'USUARIO';
     const isTecnico = rolUpper === 'TECNICO';
+
+    // Verificar si el usuario (rol 'usuario') ya respondió la encuesta de celebración
+    let mostrarEncuesta = false;
+    if (isUsuario && user) {
+        const { data: respuestaPrevia, error: encuestaError } = await supabase
+            .from('encuestas_respuestas')
+            .select('id')
+            .eq('usuario_id', user.id)
+            .eq('encuesta_id', 'encuesta_1100_tickets_030826')
+            .maybeSingle();
+        // Solo mostrar si la tabla existe (sin error) y el usuario NO ha respondido
+        mostrarEncuesta = !encuestaError && !respuestaPrevia;
+    }
 
     let tecnicoHasProjects = false;
     if (isTecnico) {
@@ -69,6 +83,9 @@ export default async function DashboardLayout({
             <main>
                 {children}
             </main>
+
+            {/* Modal de celebración — solo para usuarios finales que no han respondido */}
+            {mostrarEncuesta && <ModalCelebracion1100 />}
         </div>
     );
 }

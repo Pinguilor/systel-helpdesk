@@ -4,7 +4,7 @@ import Link from 'next/link';
 import {
     Settings, Users, Backpack,
     ChevronRight, ShieldCheck, Eye,
-    Layers, Wrench, Building2, Warehouse
+    Layers, Wrench, Building2, Warehouse, MessageSquareHeart
 } from 'lucide-react';
 
 export const metadata = {
@@ -61,6 +61,18 @@ const MODULOS = [
         iconBg:      'bg-emerald-100 text-emerald-600',
         rolesAllow:  ['admin'],
         items:       ['Control de locaciones', 'Activar / Desactivar', 'Categorías de equipos'],
+    },
+    {
+        href:        '/dashboard/configuracion/encuesta',
+        icon:        MessageSquareHeart,
+        title:       'Encuesta 1.100 Tickets',
+        description: 'Revisa las respuestas de satisfacción de la encuesta de celebración enviada a usuarios finales el 03/08/2026.',
+        badge:       'Celebración',
+        badgeColor:  'bg-yellow-100 text-yellow-700 border-yellow-200',
+        gradient:    'from-yellow-400 via-pink-400 to-purple-500',
+        iconBg:      'bg-yellow-100 text-yellow-600',
+        rolesAllow:  ['admin'],
+        items:       ['Respuestas en tiempo real', 'Satisfacción promedio', 'Filtro por usuario/empresa'],
     },
 ];
 
