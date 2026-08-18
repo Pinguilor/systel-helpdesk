@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { PackagePlus, ChevronDown, Package, Scan, FileSpreadsheet } from 'lucide-react';
+import { PackagePlus, ChevronDown, Package, Scan, FileSpreadsheet, ClipboardList, Building2 } from 'lucide-react';
 import { AddStockModal, type AddStockModalHandle, type CatalogoItem } from './AddStockModal';
 
 interface Props {
@@ -103,6 +103,47 @@ export function IngresoDropdown({ bodegas, catalogo, familias }: Props) {
                             <div>
                                 <p className="text-sm font-bold text-slate-800">Importar Excel</p>
                                 <p className="text-xs text-slate-400">Carga masiva desde archivo</p>
+                            </div>
+                        </button>
+
+                        <div className="h-px bg-slate-100 mx-2 my-1" />
+
+                        {/* Guía de Despacho */}
+                        <button
+                            onClick={() => {
+                                setOpen(false);
+                                router.push('/dashboard/admin/inventario/guias');
+                            }}
+                            className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-slate-50 transition-colors text-left"
+                        >
+                            <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
+                                <ClipboardList className="w-4 h-4 text-emerald-600" strokeWidth={1.75} />
+                            </div>
+                            <div>
+                                <p className="text-sm font-bold text-slate-800">Guía de Despacho</p>
+                                <p className="text-xs text-slate-400">Ingreso con trazabilidad documental</p>
+                            </div>
+                        </button>
+
+                        <div className="h-px bg-slate-100 mx-2 my-1" />
+                        <p className="px-4 pt-2 pb-1 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                            Catálogos
+                        </p>
+
+                        {/* Proveedores */}
+                        <button
+                            onClick={() => {
+                                setOpen(false);
+                                router.push('/dashboard/admin/inventario/proveedores');
+                            }}
+                            className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-slate-50 transition-colors text-left"
+                        >
+                            <div className="w-9 h-9 rounded-xl bg-violet-100 flex items-center justify-center shrink-0">
+                                <Building2 className="w-4 h-4 text-violet-600" strokeWidth={1.75} />
+                            </div>
+                            <div>
+                                <p className="text-sm font-bold text-slate-800">Gestión de Proveedores</p>
+                                <p className="text-xs text-slate-400">Catálogo y datos de contacto</p>
                             </div>
                         </button>
 

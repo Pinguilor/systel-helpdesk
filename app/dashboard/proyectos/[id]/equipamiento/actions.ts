@@ -28,23 +28,37 @@ export async function crearSolicitudProyectoAction(
 
         const db = createAdminClient();
 
-        // Validar saldo disponible con la fórmula correcta:
-        // Disponible = Presupuestado - (Entregado - Reingresado)
+        // Validar saldo disponible descontando solicitudes PENDIENTES:
+        // Disponible = Presupuestado - (Entregado - Reingresado) - EnVuelo
         const equipIds = items.map(i => i.proyectoEquipamientoId).filter(Boolean);
         const { data: equipRows } = await db
             .from('proyecto_equipamiento')
             .select('id, cantidad_total, cantidad_entregada, cantidad_reingresada, tipo_item')
             .in('id', equipIds);
 
+        // Sumar cantidades en solicitudes pendientes por equip_id
+        const { data: pendientesRaw } = await db
+            .from('solicitud_items')
+            .select('proyecto_equipamiento_id, cantidad, solicitud:solicitud_id!inner(estado)')
+            .in('proyecto_equipamiento_id', equipIds)
+            .eq('solicitud.estado', 'pendiente');
+
+        const enVuelo = new Map<string, number>();
+        for (const p of pendientesRaw ?? []) {
+            const peId = p.proyecto_equipamiento_id as string;
+            enVuelo.set(peId, (enVuelo.get(peId) ?? 0) + (p.cantidad as number));
+        }
+
         const equipMap = Object.fromEntries((equipRows ?? []).map(e => [e.id, e]));
         for (const item of items) {
             const equip = equipMap[item.proyectoEquipamientoId];
             if (equip) {
                 const reingresada = (equip.cantidad_reingresada as number) ?? 0;
-                const saldo = (equip.cantidad_total as number) - ((equip.cantidad_entregada as number) - reingresada);
+                const pendiente = enVuelo.get(equip.id as string) ?? 0;
+                const saldo = (equip.cantidad_total as number) - ((equip.cantidad_entregada as number) - reingresada) - pendiente;
                 if (item.cantidad > saldo) {
                     return {
-                        error: `"${(equip.tipo_item as string) ?? 'Ítem'}" sólo tiene ${saldo} unidad(es) disponible(s) para solicitar.`,
+                        error: `"${(equip.tipo_item as string) ?? 'Ítem'}" sólo tiene ${Math.max(0, saldo)} unidad(es) disponible(s) para solicitar${pendiente > 0 ? ` (${pendiente} en solicitudes pendientes)` : ''}.`,
                     };
                 }
             }

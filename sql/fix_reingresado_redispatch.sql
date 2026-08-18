@@ -336,20 +336,46 @@ BEGIN
         END IF;
 
         -- ── Actualizar cantidad_entregada en la Receta Maestra ────────────────
-        --
-        -- CAMBIO CLAVE: el tope ahora es cantidad_total + cantidad_reingresada
-        -- para permitir que unidades devueltas a logística puedan volver a
-        -- despacharse sin superar el presupuesto original.
-        --
-        -- Invariante: cantidad_entregada_neta = entregada − reingresada ≤ cantidad_total
         IF COALESCE(v_tipo_solicitud, '') = 'proyecto'
            AND v_item.proyecto_equipamiento_id IS NOT NULL THEN
-            UPDATE proyecto_equipamiento
-               SET cantidad_entregada = LEAST(
-                       cantidad_total + COALESCE(cantidad_reingresada, 0),
-                       cantidad_entregada + v_item.cantidad
-                   )
-             WHERE id = v_item.proyecto_equipamiento_id;
+
+            -- Pre-validación: abortar si el despacho excedería el presupuesto.
+            -- Esto evita que el inventario salga de bodega sin contabilizarse.
+            DECLARE
+                v_pe_total       INTEGER;
+                v_pe_entregada   INTEGER;
+                v_pe_reingresada INTEGER;
+                v_pe_tope        INTEGER;
+                v_pe_tipo        TEXT;
+            BEGIN
+                SELECT cantidad_total,
+                       cantidad_entregada,
+                       COALESCE(cantidad_reingresada, 0),
+                       tipo_item
+                  INTO v_pe_total, v_pe_entregada, v_pe_reingresada, v_pe_tipo
+                  FROM proyecto_equipamiento
+                 WHERE id = v_item.proyecto_equipamiento_id
+                   FOR UPDATE;
+
+                v_pe_tope := v_pe_total + v_pe_reingresada;
+
+                IF v_pe_entregada + v_item.cantidad > v_pe_tope THEN
+                    RETURN json_build_object(
+                        'error',
+                        format(
+                            'El despacho de %s ud. de "%s" excedería el presupuesto (%s/%s). Posible solicitud duplicada.',
+                            v_item.cantidad,
+                            COALESCE(v_pe_tipo, 'Material'),
+                            v_pe_entregada,
+                            v_pe_tope
+                        )
+                    );
+                END IF;
+
+                UPDATE proyecto_equipamiento
+                   SET cantidad_entregada = v_pe_entregada + v_item.cantidad
+                 WHERE id = v_item.proyecto_equipamiento_id;
+            END;
         END IF;
 
         UPDATE solicitud_items

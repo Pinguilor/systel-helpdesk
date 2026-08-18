@@ -6,6 +6,8 @@ import { HistorialRetirosProyecto } from '../equipamiento/components/HistorialRe
 import { HardwareLogisticaTabs } from '../equipamiento/components/HardwareLogisticaTabs';
 import { HistorialIncidenciasTab } from '../equipamiento/components/HistorialIncidenciasTab';
 import { Package } from 'lucide-react';
+import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 export default async function BomPage({
     params,
@@ -13,6 +15,24 @@ export default async function BomPage({
     params: Promise<{ id: string }>;
 }) {
     const { id } = await params;
+
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    let currentUserRol = 'tecnico';
+    if (user) {
+        const { data: profile } = await supabase
+            .from('profiles').select('rol').eq('id', user.id).single();
+        if (profile?.rol) currentUserRol = profile.rol;
+    }
+
+    const db = createAdminClient();
+    const { data: proyecto } = await db
+        .from('proyectos').select('responsable_id').eq('id', id).single();
+    const responsableId = proyecto?.responsable_id ?? null;
+
+    const rolUp = currentUserRol.toUpperCase();
+    const canManage = rolUp === 'ADMIN' || rolUp === 'COORDINADOR' || user?.id === responsableId;
 
     const [bom, catalogo, historial, incidencias] = await Promise.all([
         getBomConItems(id),
@@ -46,7 +66,7 @@ export default async function BomPage({
                     </div>
                 </div>
 
-                <AgregarItemModal proyectoId={id} catalogo={catalogo} />
+                {canManage && <AgregarItemModal proyectoId={id} catalogo={catalogo} />}
             </div>
 
             {/* Navegación por pestañas: Receta Maestra / Historial de Despachos */}

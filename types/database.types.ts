@@ -176,4 +176,5 @@ export interface MovimientoInventario {
     cantidad: number;
     fecha_movimiento: string;
     realizado_por: string; // ref profiles
+    guia_ingreso_id?: string | null;
 }

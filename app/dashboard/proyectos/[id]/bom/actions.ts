@@ -6,15 +6,22 @@ import { revalidatePath } from 'next/cache';
 import { BOM_ESTADO_CONFIG, type BomItemEstado } from '@/types/proyectos.types';
 import { registrarEntradaAuditoria } from '../actions';
 
-async function requireAccess() {
+async function requireAccess(proyectoId?: string) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
     const { data: profile } = await supabase
         .from('profiles').select('rol').eq('id', user.id).single();
     const rol = profile?.rol?.toUpperCase();
-    if (rol !== 'ADMIN' && rol !== 'COORDINADOR') return null;
-    return user;
+    if (rol === 'ADMIN' || rol === 'COORDINADOR') return user;
+    // Permitir al responsable designado del proyecto
+    if (proyectoId) {
+        const db = createAdminClient();
+        const { data: proyecto } = await db
+            .from('proyectos').select('responsable_id').eq('id', proyectoId).single();
+        if (proyecto?.responsable_id === user.id) return user;
+    }
+    return null;
 }
 
 // ── Reads ─────────────────────────────────────────────────────────────────
@@ -40,6 +47,22 @@ export async function getBomConItems(proyectoId: string) {
         .eq('proyecto_id', proyectoId)
         .order('created_at');
 
+    // Cantidades en vuelo: solicitudes pendientes no aprobadas aún
+    const equipIds = (data ?? []).map(d => d.id as string);
+    const { data: pendientesRaw } = equipIds.length > 0
+        ? await db
+            .from('solicitud_items')
+            .select('proyecto_equipamiento_id, cantidad, solicitud:solicitud_id!inner(estado)')
+            .in('proyecto_equipamiento_id', equipIds)
+            .eq('solicitud.estado', 'pendiente')
+        : { data: [] };
+
+    const enVuelo = new Map<string, number>();
+    for (const p of pendientesRaw ?? []) {
+        const peId = p.proyecto_equipamiento_id as string;
+        enVuelo.set(peId, (enVuelo.get(peId) ?? 0) + (p.cantidad as number));
+    }
+
     // Query histórica: ítems instalados en el sistema antiguo (proyecto_bom_items)
     // Necesario para proyectos donde cantidad_instalada era 0 por ser campo nuevo.
     // Admin client bypasses RLS de proyecto_bom_items (solo admin/coordinador vía RLS normal).
@@ -64,6 +87,7 @@ export async function getBomConItems(proyectoId: string) {
         return {
             ...item,
             cantidad_instalada: Math.max(item.cantidad_instalada ?? 0, historicoCount),
+            cantidad_pendiente_solicitud: enVuelo.get(item.id as string) ?? 0,
             inventario: {
                 ...inv,
                 modelo,
@@ -176,10 +200,10 @@ export async function agregarItemsBom(
     _prevState: { error: string | null },
     formData: FormData
 ): Promise<{ error: string | null }> {
-    const user = await requireAccess();
+    const proyectoId = (formData.get('proyecto_id') as string)?.trim();
+    const user = await requireAccess(proyectoId);
     if (!user) return { error: 'No autorizado.' };
 
-    const proyectoId = (formData.get('proyecto_id') as string)?.trim();
     const itemsJson  =  formData.get('items')       as string;
 
     let items: Array<{ id?: string; familia: string; modelo: string; cantidad: number; es_serializado: boolean }>;
@@ -233,7 +257,7 @@ export async function cambiarEstadoBomItem(
     proyectoId: string,
     opts?: { inventarioId?: string; bodegaId?: string; notas?: string }
 ): Promise<{ error: string | null }> {
-    const user = await requireAccess();
+    const user = await requireAccess(proyectoId);
     if (!user) return { error: 'No autorizado.' };
 
     const supabase = await createClient();
@@ -294,7 +318,7 @@ export async function eliminarItemBom(
     itemId: string,
     proyectoId: string
 ): Promise<{ error: string | null }> {
-    const user = await requireAccess();
+    const user = await requireAccess(proyectoId);
     if (!user) return { error: 'No autorizado.' };
 
     const supabase = await createClient();
@@ -434,7 +458,7 @@ export async function aplicarRecetaBOMAction(
     proyectoId: string,
     plantillaId: string
 ): Promise<{ error: string | null }> {
-    const user = await requireAccess();
+    const user = await requireAccess(proyectoId);
     if (!user) return { error: 'No autorizado.' };
 
     const db = createAdminClient();

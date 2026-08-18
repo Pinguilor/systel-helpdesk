@@ -6,7 +6,8 @@
 import { useActionState, useEffect, useRef, useState } from 'react';
 import { X, Plus, Loader2, Clock, Calendar, Briefcase, UserCheck } from 'lucide-react';
 import { crearProyecto, editarProyecto } from '../actions';
-import { CustomSelect } from '@/app/dashboard/components/CustomSelect';
+import { CustomSelect }    from '@/app/dashboard/components/CustomSelect';
+import { SucursalCombobox } from './SucursalCombobox';
 
 interface Empresa    { id: string; nombre_fantasia: string }
 interface Sucursal   { id: string; nombre_restaurante: string; sigla: string; cliente_id: string | null }
@@ -143,10 +144,6 @@ export function ProyectoFormModal({
     // ── Options para CustomSelect ─────────────────────────────
     const empresaOptions = empresas.map(e => ({ value: e.id, label: e.nombre_fantasia }));
 
-    const sucursalOptions = selectedEmpresaId
-        ? sucursalesFiltradas.map(s => ({ value: s.id, label: `[${s.sigla}] ${s.nombre_restaurante}` }))
-        : [];
-
     const selectedCoordinador = coordinadores.find(c => c.id === coordinadorId);
 
     // Form validation checks per step
@@ -280,21 +277,12 @@ export function ProyectoFormModal({
                                     </span>
                                 )}
                             </label>
-                            <CustomSelect
-                                id="sucursal-select"
-                                name="cliente_id"
+                            <SucursalCombobox
+                                key={selectedEmpresaId}
+                                sucursales={sucursalesFiltradas}
                                 value={selectedSucursalId}
                                 onChange={setSelectedSucursalId}
-                                options={sucursalOptions}
-                                placeholder={
-                                    !selectedEmpresaId
-                                        ? '— Esperando empresa... —'
-                                        : sucursalOptions.length === 0
-                                            ? '— Sin sucursales registradas —'
-                                            : '— Selecciona una sucursal —'
-                                }
                                 disabled={!selectedEmpresaId}
-                                strategy="fixed"
                             />
                         </div>
                     </div>

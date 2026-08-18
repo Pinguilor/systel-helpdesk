@@ -151,6 +151,7 @@ export function AdminSegmentedNav({ rol }: { rol: string }) {
                         </span>
                     </button>
                 )}
+
             </div>
         </div>
     );

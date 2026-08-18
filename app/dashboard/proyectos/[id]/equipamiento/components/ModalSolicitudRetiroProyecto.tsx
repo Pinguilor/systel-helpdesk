@@ -14,6 +14,7 @@ export interface RecetaItem {
     cantidad_estacionada?: number | null;
     cantidad_en_transito?: number | null;
     cantidad_reingresada?: number | null;
+    cantidad_pendiente_solicitud?: number | null;
     inventario?: {
         modelo: string;
         familia: string;
@@ -37,10 +38,14 @@ export function ModalSolicitudRetiroProyecto({ proyectoId, isOpen, onClose, rece
 
     if (!isOpen) return null;
 
-    const handleIncrement = (item: RecetaItem) => {
-        // Saldo = Presupuestado - (Entregado - Reingresado): permite re-despachar materiales devueltos
+    const getSaldo = (item: RecetaItem) => {
         const reingresada = item.cantidad_reingresada ?? 0;
-        const saldo = item.cantidad_total - (item.cantidad_entregada - reingresada);
+        const enVuelo = item.cantidad_pendiente_solicitud ?? 0;
+        return item.cantidad_total - (item.cantidad_entregada - reingresada) - enVuelo;
+    };
+
+    const handleIncrement = (item: RecetaItem) => {
+        const saldo = getSaldo(item);
         const current = carrito[item.id] || 0;
         if (current < saldo) {
             setCarrito(prev => ({ ...prev, [item.id]: current + 1 }));
@@ -149,9 +154,9 @@ export function ModalSolicitudRetiroProyecto({ proyectoId, isOpen, onClose, rece
                             ) : (
                                 <div className="grid gap-4">
                                     {receta.map((item) => {
-                                        // Saldo = Presupuestado - (Entregado - Reingresado)
                                         const reingresada = item.cantidad_reingresada ?? 0;
-                                        const saldo = item.cantidad_total - (item.cantidad_entregada - reingresada);
+                                        const enVuelo = item.cantidad_pendiente_solicitud ?? 0;
+                                        const saldo = getSaldo(item);
                                         const current = carrito[item.id] || 0;
                                         const agotado = saldo <= 0;
 
@@ -180,6 +185,11 @@ export function ModalSolicitudRetiroProyecto({ proyectoId, isOpen, onClose, rece
                                                         {reingresada > 0 && (
                                                             <span className="text-xs font-bold px-2 py-1 bg-violet-50 text-violet-600 rounded-md">
                                                                 Reingresado: {reingresada}
+                                                            </span>
+                                                        )}
+                                                        {enVuelo > 0 && (
+                                                            <span className="text-xs font-bold px-2 py-1 bg-amber-50 text-amber-600 rounded-md">
+                                                                Pendiente: {enVuelo}
                                                             </span>
                                                         )}
                                                         <span className={`text-xs font-bold px-2 py-1 rounded-md ${agotado ? 'bg-rose-50 text-rose-600' : 'bg-indigo-50 text-indigo-600'}`}>

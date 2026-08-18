@@ -834,7 +834,7 @@ export function ProyectoWidgets({
                                     )}
                                 </div>
 
-                                <AgregarItemModal proyectoId={proyectoId} catalogo={catalogo} />
+                                {canManage && <AgregarItemModal proyectoId={proyectoId} catalogo={catalogo} />}
                                 <button
                                     onClick={() => {
                                         setIsBomModalOpen(false);
