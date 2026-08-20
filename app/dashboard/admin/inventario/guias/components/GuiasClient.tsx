@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Plus, History, Building2 } from 'lucide-react';
 import { NuevaGuiaForm }   from './NuevaGuiaForm';
 import { HistorialGuias }  from './HistorialGuias';
-import type { GuiaResumen, Proveedor } from '../actions';
+import type { GuiaResumen, Proveedor, KPIsGuias } from '../actions';
 
 type Tab = 'nueva' | 'historial';
 
@@ -15,9 +15,10 @@ interface Props {
     bodegas:        { id: string; nombre: string }[];
     catalogo:       { modelo: string; familia: string; es_serializado: boolean; bodega_id: string }[];
     proveedores:    Proveedor[];
+    kpis:           KPIsGuias;
 }
 
-export function GuiasClient({ guiasIniciales, totalGuias, bodegas, catalogo, proveedores }: Props) {
+export function GuiasClient({ guiasIniciales, totalGuias, bodegas, catalogo, proveedores, kpis }: Props) {
     const [tab, setTab] = useState<Tab>('nueva');
 
     const tabs: { key: Tab; label: string; icon: typeof Plus }[] = [
@@ -79,6 +80,8 @@ export function GuiasClient({ guiasIniciales, totalGuias, bodegas, catalogo, pro
                 <HistorialGuias
                     guiasIniciales={guiasIniciales}
                     totalGuias={totalGuias}
+                    proveedores={proveedores}
+                    kpis={kpis}
                 />
             </div>
         </div>

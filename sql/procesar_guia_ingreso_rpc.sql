@@ -1,29 +1,34 @@
 -- =============================================================================
---  procesar_guia_ingreso_rpc  ·  Systel Loop  ·  v3
+--  procesar_guia_ingreso_rpc  ·  Systel Loop  ·  v4
 --  Ejecutar en: Supabase Dashboard → SQL Editor → New query → Run
 --
---  CAMBIOS v3:
+--  CAMBIOS v4:
+--    • p_tipo_documento TEXT DEFAULT 'GD'  (nuevo parámetro)
+--    • Inserta tipo_documento en guias_ingreso
+--
+--  CAMBIOS v3 (incluidos):
 --    • p_proveedor TEXT → p_proveedor_id UUID (FK a tabla proveedores)
 --    • Valida que el proveedor exista antes de insertar
---    • Requiere ejecutar proveedores_setup.sql primero
 --
 --  CAMBIOS v2 (incluidos):
 --    • p_documento_url TEXT DEFAULT NULL
 --    • Soporte multi-serial: p_items con "seriales":["SN1","SN2",...]
 -- =============================================================================
 
--- Eliminar función antigua (firma cambió: TEXT → UUID en segundo parámetro)
+-- Eliminar versiones anteriores
+DROP FUNCTION IF EXISTS procesar_guia_ingreso_rpc(TEXT, UUID, UUID, DATE, TEXT, UUID, JSONB, TEXT);
 DROP FUNCTION IF EXISTS procesar_guia_ingreso_rpc(TEXT, TEXT, UUID, DATE, TEXT, UUID, JSONB, TEXT);
 
 CREATE OR REPLACE FUNCTION procesar_guia_ingreso_rpc(
     p_numero_guia       TEXT,
-    p_proveedor_id      UUID,           -- ← antes era TEXT
+    p_proveedor_id      UUID,
     p_bodega_destino_id UUID,
     p_fecha_guia        DATE,
     p_observaciones     TEXT,
     p_registrado_por    UUID,
     p_items             JSONB,
-    p_documento_url     TEXT DEFAULT NULL
+    p_documento_url     TEXT    DEFAULT NULL,
+    p_tipo_documento    TEXT    DEFAULT 'GD'
 )
 RETURNS JSON
 LANGUAGE plpgsql
@@ -42,11 +47,17 @@ DECLARE
     v_cantidad      INTEGER;
     v_seriales      JSONB;
     v_serial_elem   JSONB;
+    v_tipo          TEXT;
 BEGIN
 
     -- ── Validaciones básicas ─────────────────────────────────────────────────
     IF p_numero_guia IS NULL OR trim(p_numero_guia) = '' THEN
         RETURN json_build_object('error', 'El número de guía es obligatorio.');
+    END IF;
+
+    v_tipo := COALESCE(NULLIF(trim(p_tipo_documento), ''), 'GD');
+    IF v_tipo NOT IN ('GD', 'FC') THEN
+        RETURN json_build_object('error', 'Tipo de documento inválido. Use GD o FC.');
     END IF;
 
     IF NOT EXISTS (SELECT 1 FROM proveedores WHERE id = p_proveedor_id) THEN
@@ -63,9 +74,10 @@ BEGIN
 
     -- ── 1. Cabecera ──────────────────────────────────────────────────────────
     INSERT INTO guias_ingreso
-        (numero_guia, proveedor_id, bodega_destino_id, fecha_guia, observaciones, documento_url, registrado_por)
+        (numero_guia, tipo_documento, proveedor_id, bodega_destino_id,
+         fecha_guia, observaciones, documento_url, registrado_por)
     VALUES
-        (trim(p_numero_guia), p_proveedor_id, p_bodega_destino_id, p_fecha_guia,
+        (trim(p_numero_guia), v_tipo, p_proveedor_id, p_bodega_destino_id, p_fecha_guia,
          nullif(trim(p_observaciones), ''), nullif(trim(p_documento_url), ''), p_registrado_por)
     RETURNING id INTO v_guia_id;
 
@@ -169,12 +181,11 @@ BEGIN
     RETURN json_build_object('success', true, 'guia_id', v_guia_id);
 
 EXCEPTION WHEN unique_violation THEN
-    RETURN json_build_object('error', 'Ya existe una guía con ese número.');
+    RETURN json_build_object('error', 'Ya existe un documento con ese tipo y número.');
 WHEN OTHERS THEN
     RETURN json_build_object('error', SQLERRM);
 END;
 $$;
 
--- Nuevo GRANT con firma v3 (UUID en segundo parámetro)
-GRANT EXECUTE ON FUNCTION procesar_guia_ingreso_rpc(TEXT, UUID, UUID, DATE, TEXT, UUID, JSONB, TEXT)
+GRANT EXECUTE ON FUNCTION procesar_guia_ingreso_rpc(TEXT, UUID, UUID, DATE, TEXT, UUID, JSONB, TEXT, TEXT)
     TO authenticated;

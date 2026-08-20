@@ -26,7 +26,7 @@ interface Props {
     onSuccess:   () => void;
 }
 
-type ItemLocal = GuiaIngresoItem & { _searchOpen?: boolean };
+type ItemLocal = GuiaIngresoItem;
 
 function newEmptyItem(): ItemLocal {
     return { familia: '', modelo: '', es_serializado: false, seriales: [], cantidad: 1 };
@@ -37,6 +37,7 @@ export function NuevaGuiaForm({ bodegas, catalogo, proveedores, onSuccess }: Pro
     const [isPending, startTransition] = useTransition();
 
     // ── Cabecera ─────────────────────────────────────────────────
+    const [tipoDoc,         setTipoDoc]         = useState<'GD' | 'FC'>('GD');
     const [numeroGuia,      setNumeroGuia]      = useState('');
     const [proveedorId,     setProveedorId]     = useState<string | null>(null);
     const [proveedorNombre, setProveedorNombre] = useState('');
@@ -81,6 +82,22 @@ export function NuevaGuiaForm({ bodegas, catalogo, proveedores, onSuccess }: Pro
 
     // ── Combobox search per item ─────────────────────────────────
     const [searchQueries, setSearchQueries] = useState<Record<number, string>>({});
+
+    // Catálogo dropdown: índice abierto + coords fixed (escapa cualquier overflow)
+    const [openCatalogIdx,  setOpenCatalogIdx]  = useState<number | null>(null);
+    const [catalogDropStyle, setCatalogDropStyle] = useState<React.CSSProperties>({});
+    const catalogDropRef = useRef<HTMLDivElement>(null);
+
+    // Cerrar dropdown de catálogo al hacer clic fuera
+    useEffect(() => {
+        if (openCatalogIdx === null) return;
+        function handler(e: MouseEvent) {
+            if (catalogDropRef.current && catalogDropRef.current.contains(e.target as Node)) return;
+            setOpenCatalogIdx(null);
+        }
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, [openCatalogIdx]);
 
     // ── Modal de seriales ────────────────────────────────────────
     const [serialModalIdx, setSerialModalIdx] = useState<number | null>(null);
@@ -210,16 +227,22 @@ export function NuevaGuiaForm({ bodegas, catalogo, proveedores, onSuccess }: Pro
             es_serializado: entry.es_serializado,
             cantidad:       1,
             seriales:       [],
-            _searchOpen:    false,
         });
         setSearchQueries(prev => ({ ...prev, [idx]: '' }));
+        setOpenCatalogIdx(null);
     }
 
-    function toggleSearch(idx: number) {
-        updateItem(idx, { _searchOpen: !items[idx]._searchOpen });
-        if (!items[idx]._searchOpen) {
-            setSearchQueries(prev => ({ ...prev, [idx]: '' }));
-        }
+    function openCatalog(idx: number, trigger: HTMLButtonElement) {
+        const rect = trigger.getBoundingClientRect();
+        setCatalogDropStyle({
+            position: 'fixed',
+            top:      rect.bottom + 4,
+            left:     rect.left,
+            width:    rect.width,
+            zIndex:   99999,
+        });
+        setOpenCatalogIdx(prev => (prev === idx ? null : idx));
+        setSearchQueries(prev => ({ ...prev, [idx]: '' }));
     }
 
     const totalUnidades = items.reduce((s, i) => s + i.cantidad, 0);
@@ -267,12 +290,13 @@ export function NuevaGuiaForm({ bodegas, catalogo, proveedores, onSuccess }: Pro
         startTransition(async () => {
             const result = await procesarGuiaIngresoAction({
                 numero_guia:       numeroGuia,
+                tipo_documento:    tipoDoc,
                 proveedor_id:      proveedorId!,
                 bodega_destino_id: bodegaDestinoId,
                 fecha_guia:        fechaGuia,
                 observaciones,
                 documento_url:     documentoUrl,
-                items:             items.map(({ _searchOpen, ...rest }) => rest),
+                items,
             });
             if (result.error) {
                 setErrorMsg(result.error);
@@ -282,6 +306,7 @@ export function NuevaGuiaForm({ bodegas, catalogo, proveedores, onSuccess }: Pro
             router.refresh();
             setTimeout(() => {
                 setExito(false);
+                setTipoDoc('GD');
                 setNumeroGuia('');
                 setProveedorId(null);
                 setProveedorNombre('');
@@ -323,17 +348,57 @@ export function NuevaGuiaForm({ bodegas, catalogo, proveedores, onSuccess }: Pro
                         Datos de la guía
                     </p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                        <div>
-                            <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">
-                                N° Guía <span className="text-red-400">*</span>
-                            </label>
-                            <input
-                                type="text"
-                                value={numeroGuia}
-                                onChange={e => setNumeroGuia(e.target.value)}
-                                placeholder="Ej: GD-20260817"
-                                className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-400 transition-colors"
-                            />
+                        {/* ── Tipo de Documento + N° ────────────────────── */}
+                        <div className="space-y-2">
+                            <div>
+                                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1.5">
+                                    Tipo de Documento <span className="text-red-400">*</span>
+                                </label>
+                                {/* Selector segmentado — no native select */}
+                                <div className="flex bg-slate-100 p-0.5 rounded-xl gap-0.5">
+                                    {(['GD', 'FC'] as const).map(tipo => (
+                                        <button
+                                            key={tipo}
+                                            type="button"
+                                            onClick={() => setTipoDoc(tipo)}
+                                            className={`flex-1 py-2 rounded-lg text-xs font-black transition-all ${
+                                                tipoDoc === tipo
+                                                    ? tipo === 'GD'
+                                                        ? 'bg-white text-blue-700 shadow-sm'
+                                                        : 'bg-white text-emerald-700 shadow-sm'
+                                                    : 'text-slate-500 hover:text-slate-700'
+                                            }`}
+                                        >
+                                            {tipo === 'GD' ? 'Guía (GD)' : 'Factura (FC)'}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">
+                                    N° Documento <span className="text-red-400">*</span>
+                                </label>
+                                <div className={`flex items-center border rounded-xl overflow-hidden focus-within:ring-2 transition-colors ${
+                                    tipoDoc === 'GD'
+                                        ? 'border-blue-200 focus-within:ring-blue-200 focus-within:border-blue-400'
+                                        : 'border-emerald-200 focus-within:ring-emerald-200 focus-within:border-emerald-400'
+                                }`}>
+                                    <span className={`px-3 py-2.5 text-sm font-black border-r select-none ${
+                                        tipoDoc === 'GD'
+                                            ? 'text-blue-700 bg-blue-50 border-blue-200'
+                                            : 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                                    }`}>
+                                        {tipoDoc}-
+                                    </span>
+                                    <input
+                                        type="text"
+                                        value={numeroGuia}
+                                        onChange={e => setNumeroGuia(e.target.value)}
+                                        placeholder="102030"
+                                        className="flex-1 px-3 py-2.5 text-sm focus:outline-none bg-white"
+                                    />
+                                </div>
+                            </div>
                         </div>
                         <div>
                             <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">
@@ -450,7 +515,7 @@ export function NuevaGuiaForm({ bodegas, catalogo, proveedores, onSuccess }: Pro
                         </button>
                     </div>
 
-                    <div className="space-y-3">
+                    <div className="space-y-3 min-h-[420px]">
                         {items.map((item, idx) => {
                             const results = getSearchResults(idx);
                             const serialesOk = !item.es_serializado || item.seriales.length === item.cantidad;
@@ -482,10 +547,12 @@ export function NuevaGuiaForm({ bodegas, catalogo, proveedores, onSuccess }: Pro
                                         </label>
                                         <button
                                             type="button"
-                                            onClick={() => toggleSearch(idx)}
+                                            onClick={e => openCatalog(idx, e.currentTarget)}
                                             className={`w-full flex items-center justify-between border rounded-xl px-3 py-2.5 text-sm text-left transition-colors ${
                                                 item.modelo
                                                     ? 'border-emerald-300 bg-emerald-50/50'
+                                                    : openCatalogIdx === idx
+                                                    ? 'border-indigo-400 ring-2 ring-indigo-200'
                                                     : 'border-slate-200 hover:border-indigo-300'
                                             }`}
                                         >
@@ -507,8 +574,12 @@ export function NuevaGuiaForm({ bodegas, catalogo, proveedores, onSuccess }: Pro
                                             <Search className="w-4 h-4 text-slate-400 shrink-0" />
                                         </button>
 
-                                        {item._searchOpen && (
-                                            <div className="absolute top-full left-0 right-0 mt-1 border border-indigo-200 rounded-xl bg-white shadow-xl overflow-hidden z-20">
+                                        {openCatalogIdx === idx && (
+                                            <div
+                                                ref={catalogDropRef}
+                                                style={catalogDropStyle}
+                                                className="border border-indigo-200 rounded-xl bg-white shadow-2xl overflow-hidden"
+                                            >
                                                 <div className="p-2">
                                                     <input
                                                         autoFocus
@@ -518,7 +589,7 @@ export function NuevaGuiaForm({ bodegas, catalogo, proveedores, onSuccess }: Pro
                                                         placeholder="Buscar modelo o familia…"
                                                         className="w-full border border-slate-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-200"
                                                         onKeyDown={e => {
-                                                            if (e.key === 'Escape') toggleSearch(idx);
+                                                            if (e.key === 'Escape') setOpenCatalogIdx(null);
                                                         }}
                                                     />
                                                 </div>

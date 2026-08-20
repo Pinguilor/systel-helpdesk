@@ -3,7 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { redirect }          from 'next/navigation';
 import Link                  from 'next/link';
 import { ChevronLeft, ChevronRight, ClipboardList } from 'lucide-react';
-import { getGuiasIngresoAction }                    from './actions';
+import { getGuiasIngresoAction, getKPIsGuiasAction } from './actions';
 import { GuiasClient }                              from './components/GuiasClient';
 
 export const dynamic = 'force-dynamic';
@@ -24,8 +24,8 @@ export default async function GuiasIngresoPage() {
 
     const db = createAdminClient();
 
-    const [guiasResult, bodegasResult, catalogoResult, proveedoresResult] = await Promise.all([
-        getGuiasIngresoAction(0, 20),
+    const [guiasResult, bodegasResult, catalogoResult, proveedoresResult, kpis] = await Promise.all([
+        getGuiasIngresoAction(0, 10),
         db.from('bodegas')
             .select('id, nombre')
             .eq('tipo', 'INTERNA')
@@ -37,6 +37,7 @@ export default async function GuiasIngresoPage() {
         db.from('proveedores')
             .select('id, nombre')
             .order('nombre'),
+        getKPIsGuiasAction(),
     ]);
 
     const bodegas     = (bodegasResult.data     ?? []) as { id: string; nombre: string }[];
@@ -99,6 +100,7 @@ export default async function GuiasIngresoPage() {
                 bodegas={bodegas}
                 catalogo={catalogo}
                 proveedores={proveedores}
+                kpis={kpis}
             />
         </div>
     );

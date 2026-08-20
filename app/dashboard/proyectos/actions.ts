@@ -184,9 +184,12 @@ export async function getPlantillasChecklist() {
     return data ?? [];
 }
 
+export type GrupoPlantilla = { nombre: string; tareas: string[] };
+
 export async function crearPlantillaChecklistAction(
     nombre: string,
-    tareas: string[]
+    tareas: string[],
+    grupos: GrupoPlantilla[]
 ): Promise<{ error: string | null }> {
     const user = await requireProyectosRole();
     if (!user) throw new Error('Acceso denegado: Permisos insuficientes');
@@ -195,6 +198,7 @@ export async function crearPlantillaChecklistAction(
     const { error } = await db.from('proyecto_plantillas_checklist').insert({
         nombre,
         tareas,
+        grupos,
         creado_por: user.id,
     });
 
@@ -206,7 +210,8 @@ export async function crearPlantillaChecklistAction(
 export async function editarPlantillaChecklistAction(
     id: string,
     nombre: string,
-    tareas: string[]
+    tareas: string[],
+    grupos: GrupoPlantilla[]
 ): Promise<{ error: string | null }> {
     const user = await requireProyectosRole();
     if (!user) throw new Error('Acceso denegado: Permisos insuficientes');
@@ -214,7 +219,7 @@ export async function editarPlantillaChecklistAction(
     const db = createAdminClient();
     const { error } = await db
         .from('proyecto_plantillas_checklist')
-        .update({ nombre, tareas })
+        .update({ nombre, tareas, grupos })
         .eq('id', id);
 
     if (error) return { error: error.message };

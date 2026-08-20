@@ -293,7 +293,8 @@ export async function subirPlanimetriaAction(
 // ── Checklist Actions ──────────────────────────────────────────────────
 export async function crearChecklistItemAction(
     proyectoId: string,
-    titulo: string
+    titulo: string,
+    grupo: string = 'General'
 ): Promise<{ error: string | null }> {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -306,7 +307,53 @@ export async function crearChecklistItemAction(
         tipo: 'hito',
         contenido: `[CHECKLIST] ${titulo}`,
         adjuntos: [{ completado: false, asignado_a: null }],
+        grupo,
     });
+
+    if (error) return { error: error.message };
+
+    revalidatePath(`/dashboard/proyectos/${proyectoId}`);
+    return { error: null };
+}
+
+export async function actualizarNombreGrupoAction(
+    proyectoId: string,
+    grupoAntiguo: string,
+    grupoNuevo: string
+): Promise<{ error: string | null }> {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: 'No autorizado.' };
+
+    const db = createAdminClient();
+    const { error } = await db
+        .from('bitacora_entradas')
+        .update({ grupo: grupoNuevo })
+        .eq('proyecto_id', proyectoId)
+        .eq('grupo', grupoAntiguo)
+        .like('contenido', '[CHECKLIST]%');
+
+    if (error) return { error: error.message };
+
+    revalidatePath(`/dashboard/proyectos/${proyectoId}`);
+    return { error: null };
+}
+
+export async function eliminarGrupoCompletoAction(
+    proyectoId: string,
+    grupoNombre: string
+): Promise<{ error: string | null }> {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: 'No autorizado.' };
+
+    const db = createAdminClient();
+    const { error } = await db
+        .from('bitacora_entradas')
+        .delete()
+        .eq('proyecto_id', proyectoId)
+        .eq('grupo', grupoNombre)
+        .like('contenido', '[CHECKLIST]%');
 
     if (error) return { error: error.message };
 
@@ -414,35 +461,28 @@ export async function aplicarPlantillaChecklistAction(
     if (fetchError) return { error: `Error al cargar la plantilla: ${fetchError.message}` };
     if (!plantilla) return { error: 'Plantilla no encontrada.' };
 
-    const tareas = (plantilla.tareas || []) as string[];
-    if (tareas.length === 0) return { error: 'La plantilla no tiene tareas definidas.' };
+    // Build the list of {grupo, tareas} pairs from the template
+    const grupos: { nombre: string; tareas: string[] }[] =
+        (plantilla.grupos && Array.isArray(plantilla.grupos) && plantilla.grupos.length > 0)
+            ? plantilla.grupos as { nombre: string; tareas: string[] }[]
+            : [{ nombre: plantilla.nombre, tareas: (plantilla.tareas || []) as string[] }];
 
-    // 2. Insertar entrada de grupo padre
-    const { data: grupo, error: grupoError } = await db
-        .from('bitacora_entradas')
-        .insert({
+    const totalTareas = grupos.reduce((acc, g) => acc + g.tareas.length, 0);
+    if (totalTareas === 0) return { error: 'La plantilla no tiene tareas definidas.' };
+
+    // Insert all tasks using the grupo column (flat, no header rows needed)
+    const inserts = grupos.flatMap(g =>
+        g.tareas.map(t => ({
             proyecto_id: proyectoId,
             autor_id: user.id,
             tipo: 'hito',
-            contenido: `[CHECKLIST_GRUPO] ${plantilla.nombre}`,
-            adjuntos: [],
-        })
-        .select('id')
-        .single();
-    if (grupoError || !grupo) return { error: `Error al crear grupo: ${grupoError?.message}` };
-
-    // 3. Insertar tareas hijas referenciando el grupo
-    const inserts = tareas.map(t => ({
-        proyecto_id: proyectoId,
-        autor_id: user.id,
-        tipo: 'hito',
-        contenido: `[CHECKLIST] ${t}`,
-        adjuntos: [{ completado: false, asignado_a: null }],
-        parent_id: grupo.id,
-    }));
-
+            contenido: `[CHECKLIST] ${t}`,
+            adjuntos: [{ completado: false, asignado_a: null }],
+            grupo: g.nombre,
+        }))
+    );
     const { error: insertError } = await db.from('bitacora_entradas').insert(inserts);
-    if (insertError) return { error: `Error al inyectar tareas: ${insertError.message}` };
+    if (insertError) return { error: `Error al insertar tareas: ${insertError.message}` };
 
     // 3. Registrar un único log de auditoría
     await registrarEntradaAuditoria(

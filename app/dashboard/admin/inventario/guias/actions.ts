@@ -32,6 +32,7 @@ export interface GuiaIngresoItem {
 
 export interface GuiaIngresoPayload {
     numero_guia:       string;
+    tipo_documento:    'GD' | 'FC';
     proveedor_id:      string;         // FK a proveedores
     bodega_destino_id: string;
     fecha_guia:        string;
@@ -43,6 +44,7 @@ export interface GuiaIngresoPayload {
 export interface GuiaResumen {
     id:               string;
     numero_guia:      string;
+    tipo_documento:   'GD' | 'FC';
     proveedor:        string;          // nombre para display (join)
     bodega_nombre:    string;
     fecha_guia:       string;
@@ -114,9 +116,9 @@ export async function procesarGuiaIngresoAction(
     const user = await requireBodegaRole();
     if (!user) return { error: 'No autorizado.' };
 
-    const { numero_guia, proveedor_id, bodega_destino_id, fecha_guia, observaciones, documento_url, items } = payload;
+    const { numero_guia, tipo_documento, proveedor_id, bodega_destino_id, fecha_guia, observaciones, documento_url, items } = payload;
 
-    if (!numero_guia.trim())  return { error: 'El número de guía es obligatorio.' };
+    if (!numero_guia.trim())  return { error: 'El número de documento es obligatorio.' };
     if (!proveedor_id)        return { error: 'Selecciona un proveedor.' };
     if (!bodega_destino_id)   return { error: 'Selecciona una bodega de destino.' };
     if (!items.length)        return { error: 'Agrega al menos un ítem a la guía.' };
@@ -143,6 +145,7 @@ export async function procesarGuiaIngresoAction(
 
     const { data, error } = await db.rpc('procesar_guia_ingreso_rpc', {
         p_numero_guia:       numero_guia.trim(),
+        p_tipo_documento:    tipo_documento,
         p_proveedor_id:      proveedor_id,
         p_bodega_destino_id: bodega_destino_id,
         p_fecha_guia:        fecha_guia,
@@ -179,7 +182,7 @@ export async function getGuiasIngresoAction(
 
     const [guiasResult, countResult] = await Promise.all([
         db.from('guias_ingreso')
-            .select('id, numero_guia, proveedor_id, proveedores(nombre), bodega_destino_id, fecha_guia, observaciones, documento_url, estado, created_at, registrado_por')
+            .select('id, numero_guia, tipo_documento, proveedor_id, proveedores(nombre), bodega_destino_id, fecha_guia, observaciones, documento_url, estado, created_at, registrado_por')
             .order('created_at', { ascending: false })
             .range(from, to),
         db.from('guias_ingreso')
@@ -218,6 +221,7 @@ export async function getGuiasIngresoAction(
         return {
             id:             g.id             as string,
             numero_guia:    g.numero_guia    as string,
+            tipo_documento: ((g as any).tipo_documento as 'GD' | 'FC') ?? 'GD',
             proveedor:      ((g as any).proveedores as { nombre: string } | null)?.nombre ?? '—',
             bodega_nombre:  bodegaMap[g.bodega_destino_id as string] ?? '—',
             fecha_guia:     g.fecha_guia     as string,
@@ -231,4 +235,218 @@ export async function getGuiasIngresoAction(
     });
 
     return { data, total: (countResult as any).count ?? 0 };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// KPIs del historial (estadísticas rápidas del mes actual)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface KPIsGuias {
+    guiasEsteMes:    number;
+    unidadesEsteMes: number;
+    ultimoProveedor: string | null;
+}
+
+export async function getKPIsGuiasAction(): Promise<KPIsGuias> {
+    const db = createAdminClient();
+    const now = new Date();
+    const startOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
+
+    const [countRes, ultimoRes] = await Promise.all([
+        db.from('guias_ingreso').select('id', { count: 'exact', head: true }).gte('created_at', startOfMonth),
+        db.from('guias_ingreso')
+            .select('proveedor_id, proveedores(nombre)')
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle(),
+    ]);
+
+    const guiasEsteMes    = countRes.count ?? 0;
+    const ultimoProveedor = (ultimoRes.data as any)?.proveedores?.nombre ?? null;
+
+    const { data: idsData } = await db
+        .from('guias_ingreso').select('id').gte('created_at', startOfMonth);
+    const ids = (idsData ?? []).map(g => g.id);
+
+    let unidadesEsteMes = 0;
+    if (ids.length > 0) {
+        const { data: itemsData } = await db
+            .from('guias_ingreso_items').select('cantidad').in('guia_ingreso_id', ids);
+        unidadesEsteMes = (itemsData ?? []).reduce((s, i) => s + (i.cantidad ?? 0), 0);
+    }
+
+    return { guiasEsteMes, unidadesEsteMes, ultimoProveedor };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Búsqueda con filtros (llama al RPC buscar_guias_ingreso_rpc)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface GuiasFiltrosParams {
+    search?:         string;
+    desde?:          string;
+    hasta?:          string;
+    proveedorId?:    string;
+    tipoDocumento?:  'GD' | 'FC' | '';
+    page?:           number;
+    pageSize?:       number;
+}
+
+export async function getGuiasConFiltrosAction(
+    params: GuiasFiltrosParams = {}
+): Promise<{ data: GuiaResumen[]; total: number; error?: string }> {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { data: [], total: 0, error: 'No autenticado.' };
+
+    const { search = '', desde = '', hasta = '', proveedorId = '', tipoDocumento = '', page = 0, pageSize = 10 } = params;
+    const db = createAdminClient();
+
+    const { data: rpcData, error } = await db.rpc('buscar_guias_ingreso_rpc', {
+        p_search:         search         || null,
+        p_desde:          desde          || null,
+        p_hasta:          hasta          || null,
+        p_proveedor_id:   proveedorId    || null,
+        p_tipo_documento: tipoDocumento  || null,
+        p_offset:         page * pageSize,
+        p_limit:          pageSize,
+    });
+
+    if (error) return { data: [], total: 0, error: error.message };
+
+    const result = rpcData as { data: any[]; total: number };
+    const rows   = result?.data ?? [];
+    const total  = result?.total ?? 0;
+
+    const userIds = [...new Set(rows.map((g: any) => g.registrado_por).filter(Boolean))];
+    const profileMap: Record<string, string> = {};
+    if (userIds.length > 0) {
+        const { data: profiles } = await db.from('profiles').select('id, full_name').in('id', userIds);
+        for (const p of profiles ?? []) profileMap[p.id] = (p as any).full_name ?? p.id;
+    }
+
+    const data: GuiaResumen[] = rows.map((g: any) => ({
+        id:             g.id,
+        numero_guia:    g.numero_guia,
+        tipo_documento: (g.tipo_documento as 'GD' | 'FC') ?? 'GD',
+        proveedor:      g.proveedor_nombre  ?? '',
+        bodega_nombre:  g.bodega_nombre     ?? '',
+        fecha_guia:     g.fecha_guia,
+        total_items:    Number(g.total_items    ?? 0),
+        total_unidades: Number(g.total_unidades ?? 0),
+        registrado_por: profileMap[g.registrado_por] ?? 'Desconocido',
+        estado:         g.estado,
+        created_at:     g.created_at,
+        documento_url:  g.documento_url ?? null,
+    }));
+
+    return { data, total };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Detalle completo de una guía (ítems + seriales + estado de stock)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface DetalleSerial {
+    serial: string;
+    estado: string;
+    bodega: string | null;
+}
+
+export interface DetalleItem {
+    familia:        string;
+    modelo:         string;
+    es_serializado: boolean;
+    cantidad:       number;
+    seriales:       DetalleSerial[];
+}
+
+export interface DetalleGuia {
+    id:                    string;
+    numero_guia:           string;
+    tipo_documento:        'GD' | 'FC';
+    proveedor_nombre:      string;
+    bodega_nombre:         string;
+    fecha_guia:            string;
+    observaciones:         string | null;
+    documento_url:         string | null;
+    estado:                string;
+    created_at:            string;
+    registrado_por_nombre: string;
+    items:                 DetalleItem[];
+}
+
+export async function getDetalleGuiaAction(
+    guiaId: string
+): Promise<{ data: DetalleGuia | null; error?: string }> {
+    try {
+        const db = createAdminClient();
+
+        const [guiaRes, itemsRes] = await Promise.all([
+            db.from('guias_ingreso')
+                .select('id, numero_guia, tipo_documento, proveedor_id, proveedores(nombre), bodega_destino_id, bodegas(nombre), fecha_guia, observaciones, documento_url, estado, created_at, registrado_por')
+                .eq('id', guiaId)
+                .single(),
+            db.from('guias_ingreso_items')
+                .select('familia, modelo, es_serializado, numero_serie, cantidad')
+                .eq('guia_ingreso_id', guiaId)
+                .order('modelo'),
+        ]);
+
+        if (guiaRes.error || !guiaRes.data) return { data: null, error: 'Guía no encontrada.' };
+
+        const guia  = guiaRes.data as any;
+        const items = (itemsRes.data ?? []) as any[];
+
+        const profileRes = await db.from('profiles').select('full_name').eq('id', guia.registrado_por).maybeSingle();
+
+        // Agrupar ítems por familia+modelo
+        const grouped = new Map<string, DetalleItem>();
+        for (const item of items) {
+            const key = `${item.familia}|${item.modelo}`;
+            if (!grouped.has(key)) {
+                grouped.set(key, { familia: item.familia, modelo: item.modelo, es_serializado: !!item.es_serializado, cantidad: 0, seriales: [] });
+            }
+            const g = grouped.get(key)!;
+            g.cantidad += item.cantidad ?? 1;
+            if (item.numero_serie) g.seriales.push({ serial: item.numero_serie, estado: 'Consultando…', bodega: null });
+        }
+
+        // Estado de stock para seriales
+        const allSerials = [...grouped.values()].flatMap(g => g.seriales.map(s => s.serial));
+        if (allSerials.length > 0) {
+            const { data: stocks } = await db
+                .from('inventario')
+                .select('numero_serie, estado, bodega_id, bodegas(nombre)')
+                .in('numero_serie', allSerials);
+
+            const stockMap = new Map((stocks ?? []).map((s: any) => [s.numero_serie, s]));
+            for (const item of grouped.values()) {
+                for (const s of item.seriales) {
+                    const stock = stockMap.get(s.serial) as any;
+                    s.estado = stock?.estado ?? 'Desconocido';
+                    s.bodega = stock?.bodegas?.nombre ?? null;
+                }
+            }
+        }
+
+        return {
+            data: {
+                id:                    guia.id,
+                numero_guia:           guia.numero_guia,
+                tipo_documento:        (guia.tipo_documento as 'GD' | 'FC') ?? 'GD',
+                proveedor_nombre:      guia.proveedores?.nombre ?? '—',
+                bodega_nombre:         guia.bodegas?.nombre     ?? '—',
+                fecha_guia:            guia.fecha_guia,
+                observaciones:         guia.observaciones ?? null,
+                documento_url:         guia.documento_url ?? null,
+                estado:                guia.estado,
+                created_at:            guia.created_at,
+                registrado_por_nombre: (profileRes.data as any)?.full_name ?? 'Desconocido',
+                items:                 [...grouped.values()],
+            },
+        };
+    } catch (e: any) {
+        return { data: null, error: e.message };
+    }
 }

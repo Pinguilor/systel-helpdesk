@@ -5,7 +5,7 @@ import {
     CheckCircle2, XCircle, Clock, PackageCheck, Hash, Layers,
     Loader2, AlertCircle, ChevronRight, ChevronLeft, Warehouse, User,
     TicketIcon, AlertTriangle, Package, Undo2, PenLine,
-    ExternalLink, X, ShieldCheck,
+    ExternalLink, X, ShieldCheck, ArrowLeftRight,
 } from 'lucide-react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
@@ -16,7 +16,9 @@ import {
     loadMoreHistorialAction,
     type ItemContexto, type StockCheckResult,
     type AutoAsignacionInput, type ItemBodegaAsignacion,
+    type DevolucionLogistica,
 } from './actions';
+import { BandejaLogisticaInversa } from './BandejaLogisticaInversa';
 import { CustomSelect } from '@/app/dashboard/components/CustomSelect';
 import { useRouter } from 'next/navigation';
 
@@ -82,6 +84,7 @@ interface Devolucion {
 interface Props {
     solicitudes: Solicitud[];
     devoluciones: Devolucion[];
+    devolucionesLogistica: DevolucionLogistica[];
     bodegasCentrales: Bodega[];
     totalSolicitudesAprobadas: number;
     totalSolicitudesRechazadas: number;
@@ -1144,12 +1147,13 @@ function DevolucionCard({
 }
 
 // ── Componente Principal ──────────────────────────────────────────────────────
-type BandejaTipo = 'entregas' | 'devoluciones';
+type BandejaTipo = 'entregas' | 'devoluciones' | 'logistica_inversa';
 type FiltroEstado = 'todas' | 'pendiente' | 'aprobada' | 'rechazada';
 
 export function GestionSolicitudesClient({
     solicitudes: initialSolicitudes,
     devoluciones: initialDevoluciones,
+    devolucionesLogistica: initialDevolucionesLogistica,
     bodegasCentrales,
     totalSolicitudesAprobadas,
     totalSolicitudesRechazadas,
@@ -1161,6 +1165,7 @@ export function GestionSolicitudesClient({
     const [filtro, setFiltro] = useState<FiltroEstado>('pendiente');
     const [allSolicitudes, setAllSolicitudes] = useState<Solicitud[]>(initialSolicitudes);
     const [allDevoluciones, setAllDevoluciones] = useState<Devolucion[]>(initialDevoluciones);
+    const [allDevolucionesLogistica, setAllDevolucionesLogistica] = useState<DevolucionLogistica[]>(initialDevolucionesLogistica);
     const [loadingMore, setLoadingMore] = useState(false);
 
     // Re-sincroniza el estado local cuando el servidor envía datos frescos
@@ -1169,6 +1174,7 @@ export function GestionSolicitudesClient({
     // procesada no desaparece de 'Pendientes' hasta recargar con F5.
     useEffect(() => { setAllSolicitudes(initialSolicitudes); }, [initialSolicitudes]);
     useEffect(() => { setAllDevoluciones(initialDevoluciones); }, [initialDevoluciones]);
+    useEffect(() => { setAllDevolucionesLogistica(initialDevolucionesLogistica); }, [initialDevolucionesLogistica]);
 
     const handleRefresh = () => router.refresh();
 
@@ -1234,6 +1240,7 @@ export function GestionSolicitudesClient({
 
     const pendientesEntregas     = allSolicitudes.filter(s => s.estado === 'pendiente').length;
     const pendientesDevoluciones = allDevoluciones.filter(s => s.estado === 'pendiente').length;
+    const pendientesLogistica    = allDevolucionesLogistica.length;
 
     return (
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
@@ -1297,16 +1304,41 @@ export function GestionSolicitudesClient({
                     }`}
                 >
                     <Undo2 className="w-4 h-4" />
-                    <span>Devoluciones (Reingresos)</span>
+                    <span>Devoluciones</span>
                     {pendientesDevoluciones > 0 && (
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${bandeja === 'devoluciones' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-200 text-slate-600'}`}>
                             {pendientesDevoluciones}
                         </span>
                     )}
                 </button>
+                <button
+                    onClick={() => setBandeja('logistica_inversa')}
+                    className={`flex-1 flex items-center justify-center gap-2.5 px-4 py-3 rounded-xl text-sm font-black transition-all ${
+                        bandeja === 'logistica_inversa'
+                            ? 'bg-white text-orange-700 shadow-md ring-1 ring-slate-200/60'
+                            : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/60'
+                    }`}
+                >
+                    <ArrowLeftRight className="w-4 h-4" />
+                    <span>Reingresos de Proyectos</span>
+                    {pendientesLogistica > 0 && (
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${bandeja === 'logistica_inversa' ? 'bg-orange-100 text-orange-700' : 'bg-slate-200 text-slate-600'}`}>
+                            {pendientesLogistica}
+                        </span>
+                    )}
+                </button>
             </div>
 
-            {/* ── Filtros de Estado ────────────────────────────────────────── */}
+            {/* ── Logística Inversa ────────────────────────────────────────── */}
+            {bandeja === 'logistica_inversa' && (
+                <BandejaLogisticaInversa
+                    devoluciones={allDevolucionesLogistica}
+                    onRefresh={handleRefresh}
+                />
+            )}
+
+            {/* ── Filtros de Estado + Grid (ocultos en Logística Inversa) ──── */}
+            {bandeja !== 'logistica_inversa' && <>
             <div className="flex flex-wrap gap-2">
                 {filtros.map(f => {
                     const isActive = filtro === f.key;
@@ -1391,6 +1423,7 @@ export function GestionSolicitudesClient({
                     )}
                 </>
             )}
+            </>}
         </div>
     );
 }

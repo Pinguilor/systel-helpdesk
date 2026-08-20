@@ -5,6 +5,7 @@ import {
     getSolicitudesMaterialesAction,
     getSolicitudesDevolucionAction,
     getBodegasCentralesAction,
+    getPendientesLogisticaInversaAction,
 } from './actions';
 
 export const metadata = {
@@ -30,16 +31,18 @@ export default async function SolicitudesPage() {
         redirect('/dashboard');
     }
 
-    const [solicitudesResult, devolucionesResult, bodegasResult] = await Promise.all([
+    const [solicitudesResult, devolucionesResult, bodegasResult, logisticaResult] = await Promise.all([
         getSolicitudesMaterialesAction(),
         getSolicitudesDevolucionAction(),
         getBodegasCentralesAction(),
+        getPendientesLogisticaInversaAction(),
     ]);
 
     return (
         <GestionSolicitudesClient
             solicitudes={solicitudesResult.data ?? []}
             devoluciones={devolucionesResult.data ?? []}
+            devolucionesLogistica={logisticaResult.data ?? []}
             bodegasCentrales={bodegasResult.data ?? []}
             totalSolicitudesAprobadas={(solicitudesResult as any).totalAprobadas ?? 0}
             totalSolicitudesRechazadas={(solicitudesResult as any).totalRechazadas ?? 0}

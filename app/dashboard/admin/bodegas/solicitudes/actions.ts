@@ -991,3 +991,158 @@ export async function rechazarDevolucionAction(devolucionId: string, motivo: str
         return { error: e.message || 'Error interno al rechazar la devolución.' };
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LOGÍSTICA INVERSA — Devoluciones de Proyectos
+// Hardware en perfecto estado que el técnico no pudo instalar y devuelve a bodega.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type DevolucionLogistica = {
+    custodiaId: string;
+    proyectoId: string;
+    proyectoNombre: string;
+    tecnicoId: string;
+    tecnicoNombre: string;
+    modelo: string;
+    esSerializado: boolean;
+    cantidad: number;
+    motivoDevolucion: string | null;
+    evidenciaUrl: string | null;
+    createdAt: string;
+};
+
+export async function getPendientesLogisticaInversaAction(): Promise<{
+    data: DevolucionLogistica[];
+    error: string | null;
+}> {
+    try {
+        const supabase = await createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return { data: [], error: 'No autorizado.' };
+
+        const { data: profile } = await supabase
+            .from('profiles').select('rol').eq('id', user.id).maybeSingle();
+
+        const rol = profile?.rol?.toUpperCase() || '';
+        if (!['ADMIN_BODEGA', 'ADMIN', 'COORDINADOR'].includes(rol)) {
+            return { data: [], error: 'Permisos insuficientes.' };
+        }
+
+        const db = getAdminSupabase();
+
+        const { data, error } = await db
+            .from('proyecto_material_custodia')
+            .select(`
+                id,
+                proyecto_id,
+                proyecto_equipamiento_id,
+                cantidad,
+                motivo_incidencia,
+                evidencia_fotografica_url,
+                estado,
+                reportado_por_id,
+                created_at,
+                proyecto:proyectos!proyecto_id ( nombre ),
+                tecnico:profiles!reportado_por_id ( full_name ),
+                equip:proyecto_equipamiento!proyecto_equipamiento_id (
+                    cat:catalogo_equipos!inventario_id ( modelo, es_serializado )
+                )
+            `)
+            .eq('estado', 'En_Transito_Devolucion')
+            .order('created_at', { ascending: false });
+
+        if (error) return { data: [], error: error.message };
+
+        const items: DevolucionLogistica[] = (data ?? []).map((row: any) => ({
+            custodiaId:       row.id,
+            proyectoId:       row.proyecto_id,
+            proyectoNombre:   row.proyecto?.nombre ?? '—',
+            tecnicoId:        row.reportado_por_id,
+            tecnicoNombre:    row.tecnico?.full_name ?? '—',
+            modelo:           row.equip?.cat?.modelo ?? '—',
+            esSerializado:    row.equip?.cat?.es_serializado ?? false,
+            cantidad:         row.cantidad,
+            motivoDevolucion: row.motivo_incidencia,
+            evidenciaUrl:     row.evidencia_fotografica_url,
+            createdAt:        row.created_at,
+        }));
+
+        return { data: items, error: null };
+    } catch (e: any) {
+        return { data: [], error: e.message || 'Error al cargar devoluciones de proyectos.' };
+    }
+}
+
+export async function recepcionarDevolucionBodegueroAction(
+    custodiaId: string
+): Promise<{ error: string | null }> {
+    try {
+        const supabase = await createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return { error: 'No autorizado.' };
+
+        const { data: profile } = await supabase
+            .from('profiles').select('rol').eq('id', user.id).maybeSingle();
+
+        const rol = profile?.rol?.toUpperCase() || '';
+        if (!['ADMIN_BODEGA', 'ADMIN'].includes(rol)) {
+            return { error: 'Solo el bodeguero o administrador puede recepcionar devoluciones de proyectos.' };
+        }
+
+        const db = getAdminSupabase();
+
+        // 1. Cargar custodia y validar estado
+        const { data: custodia, error: custodiaErr } = await db
+            .from('proyecto_material_custodia')
+            .select('id, proyecto_id, proyecto_equipamiento_id, cantidad, estado')
+            .eq('id', custodiaId)
+            .single();
+
+        if (custodiaErr || !custodia) return { error: 'Registro de devolución no encontrado.' };
+        if ((custodia as any).estado !== 'En_Transito_Devolucion') {
+            return { error: `Este registro ya fue procesado (estado: "${String((custodia as any).estado).replace(/_/g, ' ')}").` };
+        }
+
+        const cantidad   = Number((custodia as any).cantidad);
+        const equipId    = (custodia as any).proyecto_equipamiento_id as string;
+        const proyectoId = (custodia as any).proyecto_id as string;
+
+        // 2. Marcar recepción física: bodeguero certifica que recibió el material
+        const { error: custUpdErr } = await db
+            .from('proyecto_material_custodia')
+            .update({
+                estado:          'Reingresado_Logistica',
+                aceptado_por_id: user.id,
+                aceptado_en:     new Date().toISOString(),
+            })
+            .eq('id', custodiaId);
+
+        if (custUpdErr) return { error: `Error al registrar recepción: ${custUpdErr.message}` };
+
+        // 3. Actualizar contadores BOM del proyecto
+        // El material queda disponible dentro del BOM del proyecto para volver a solicitarse.
+        const { data: equip } = await db
+            .from('proyecto_equipamiento')
+            .select('cantidad_en_transito, cantidad_reingresada')
+            .eq('id', equipId)
+            .single();
+
+        if (equip) {
+            const { error: equipErr } = await db
+                .from('proyecto_equipamiento')
+                .update({
+                    cantidad_en_transito: Math.max(0, ((equip as any).cantidad_en_transito ?? 0) - cantidad),
+                    cantidad_reingresada: ((equip as any).cantidad_reingresada ?? 0) + cantidad,
+                })
+                .eq('id', equipId);
+
+            if (equipErr) return { error: `Error al actualizar BOM del proyecto: ${equipErr.message}` };
+        }
+
+        REVALIDATE_PATHS.forEach(p => revalidatePath(p));
+        revalidatePath(`/dashboard/proyectos/${proyectoId}`);
+        return { error: null };
+    } catch (e: any) {
+        return { error: e.message || 'Error interno al recepcionar la devolución.' };
+    }
+}
