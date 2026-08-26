@@ -294,7 +294,8 @@ export async function subirPlanimetriaAction(
 export async function crearChecklistItemAction(
     proyectoId: string,
     titulo: string,
-    grupo: string = 'General'
+    grupo: string = 'General',
+    parentId?: string | null
 ): Promise<{ error: string | null }> {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -308,6 +309,7 @@ export async function crearChecklistItemAction(
         contenido: `[CHECKLIST] ${titulo}`,
         adjuntos: [{ completado: false, asignado_a: null }],
         grupo,
+        ...(parentId ? { parent_id: parentId } : {}),
     });
 
     if (error) return { error: error.message };
@@ -319,20 +321,24 @@ export async function crearChecklistItemAction(
 export async function actualizarNombreGrupoAction(
     proyectoId: string,
     grupoAntiguo: string,
-    grupoNuevo: string
+    grupoNuevo: string,
+    raizId: string | null
 ): Promise<{ error: string | null }> {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { error: 'No autorizado.' };
 
     const db = createAdminClient();
-    const { error } = await db
+    let q = db
         .from('bitacora_entradas')
         .update({ grupo: grupoNuevo })
         .eq('proyecto_id', proyectoId)
         .eq('grupo', grupoAntiguo)
         .like('contenido', '[CHECKLIST]%');
 
+    q = raizId ? q.eq('parent_id', raizId) : q.is('parent_id', null);
+
+    const { error } = await q;
     if (error) return { error: error.message };
 
     revalidatePath(`/dashboard/proyectos/${proyectoId}`);
@@ -341,20 +347,24 @@ export async function actualizarNombreGrupoAction(
 
 export async function eliminarGrupoCompletoAction(
     proyectoId: string,
-    grupoNombre: string
+    grupoNombre: string,
+    raizId: string | null
 ): Promise<{ error: string | null }> {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { error: 'No autorizado.' };
 
     const db = createAdminClient();
-    const { error } = await db
+    let q = db
         .from('bitacora_entradas')
         .delete()
         .eq('proyecto_id', proyectoId)
         .eq('grupo', grupoNombre)
         .like('contenido', '[CHECKLIST]%');
 
+    q = raizId ? q.eq('parent_id', raizId) : q.is('parent_id', null);
+
+    const { error } = await q;
     if (error) return { error: error.message };
 
     revalidatePath(`/dashboard/proyectos/${proyectoId}`);
@@ -400,6 +410,61 @@ export async function toggleChecklistItemAction(
             `[SISTEMA] Se completó la tarea: ${titulo}`,
             'hito'
         );
+    }
+
+    revalidatePath(`/dashboard/proyectos/${proyectoId}`);
+    return { error: null };
+}
+
+export async function actualizarEstadoTareaAction(
+    proyectoId: string,
+    itemId: string,
+    estado: 'completado' | 'pendiente' | 'sin_iniciar',
+    observacion?: string | null,
+    titulo?: string
+): Promise<{ error: string | null }> {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: 'No autorizado.' };
+
+    const { data: profile } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('id', user.id)
+        .single();
+    const autorNombre = profile?.full_name ?? 'Usuario';
+
+    const db = createAdminClient();
+
+    // Preservar asignado_a del payload actual
+    const { data: current } = await db
+        .from('bitacora_entradas')
+        .select('adjuntos')
+        .eq('id', itemId)
+        .single();
+    const prev = current?.adjuntos?.[0] || {};
+
+    const completado = estado === 'completado';
+    const { error } = await db
+        .from('bitacora_entradas')
+        .update({
+            adjuntos: [{
+                ...prev,
+                completado,
+                completado_por: completado ? autorNombre : null,
+                completado_en:  completado ? new Date().toISOString() : null,
+            }],
+            estado_revision: estado === 'sin_iniciar' ? null : estado,
+            observacion:     estado === 'pendiente'   ? (observacion?.trim() || null) : null,
+        })
+        .eq('id', itemId);
+
+    if (error) return { error: error.message };
+
+    if (estado === 'completado') {
+        await registrarEntradaAuditoria(proyectoId, user.id, `[SISTEMA] Se completó la tarea: ${titulo ?? ''}`, 'hito');
+    } else if (estado === 'pendiente') {
+        await registrarEntradaAuditoria(proyectoId, user.id, `[SISTEMA] Tarea marcada como pendiente: ${titulo ?? ''}`, 'hito');
     }
 
     revalidatePath(`/dashboard/proyectos/${proyectoId}`);
@@ -465,12 +530,26 @@ export async function aplicarPlantillaChecklistAction(
     const grupos: { nombre: string; tareas: string[] }[] =
         (plantilla.grupos && Array.isArray(plantilla.grupos) && plantilla.grupos.length > 0)
             ? plantilla.grupos as { nombre: string; tareas: string[] }[]
-            : [{ nombre: plantilla.nombre, tareas: (plantilla.tareas || []) as string[] }];
+            : [{ nombre: 'General', tareas: (plantilla.tareas || []) as string[] }];
 
     const totalTareas = grupos.reduce((acc, g) => acc + g.tareas.length, 0);
     if (totalTareas === 0) return { error: 'La plantilla no tiene tareas definidas.' };
 
-    // Insert all tasks using the grupo column (flat, no header rows needed)
+    // 2. Create the template root entry so tasks nest under it
+    const { data: raiz, error: raizError } = await db
+        .from('bitacora_entradas')
+        .insert({
+            proyecto_id: proyectoId,
+            autor_id: user.id,
+            tipo: 'hito',
+            contenido: `[CHECKLIST_RAIZ] ${plantilla.nombre}`,
+            adjuntos: [],
+        })
+        .select('id')
+        .single();
+    if (raizError || !raiz) return { error: `Error al crear sección raíz: ${raizError?.message ?? 'sin datos'}` };
+
+    // 3. Insert all tasks with parent_id = raiz.id and grup o = group name
     const inserts = grupos.flatMap(g =>
         g.tareas.map(t => ({
             proyecto_id: proyectoId,
@@ -479,6 +558,7 @@ export async function aplicarPlantillaChecklistAction(
             contenido: `[CHECKLIST] ${t}`,
             adjuntos: [{ completado: false, asignado_a: null }],
             grupo: g.nombre,
+            parent_id: raiz.id,
         }))
     );
     const { error: insertError } = await db.from('bitacora_entradas').insert(inserts);
