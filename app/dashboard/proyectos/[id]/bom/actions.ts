@@ -192,6 +192,65 @@ async function ensureBomExists(proyectoId: string): Promise<string> {
     return newBom.id;
 }
 
+// ── Helper: upsert en proyecto_equipamiento (suma cantidad en conflicto) ──────
+// Para ítems con inventario_id (FK a catalogo_equipos): si ya existe una fila
+// para (proyecto_id, inventario_id), suma la cantidad_total en lugar de duplicar.
+// Para ítems manuales (inventario_id = NULL): siempre inserta fila nueva.
+async function upsertEquipamientoItems(
+    db: ReturnType<typeof createAdminClient>,
+    proyectoId: string,
+    items: Array<{ inventario_id: string | null; tipo_item: string; cantidad_total: number }>
+): Promise<{ error: string | null }> {
+    const conCatalogo = items.filter(i => i.inventario_id !== null);
+    const sinCatalogo = items.filter(i => i.inventario_id === null);
+
+    if (conCatalogo.length > 0) {
+        // Buscar filas existentes para este proyecto con los mismos catalog IDs
+        const { data: existentes, error: fetchErr } = await db
+            .from('proyecto_equipamiento')
+            .select('id, inventario_id, cantidad_total')
+            .eq('proyecto_id', proyectoId)
+            .in('inventario_id', conCatalogo.map(i => i.inventario_id as string));
+
+        if (fetchErr) return { error: fetchErr.message };
+
+        const existenteMap = new Map(
+            (existentes ?? []).map(e => [e.inventario_id as string, e])
+        );
+
+        const toInsert: any[] = [];
+
+        for (const item of conCatalogo) {
+            const existente = existenteMap.get(item.inventario_id as string);
+            if (existente) {
+                // Sumar la cantidad al registro existente
+                const { error } = await db
+                    .from('proyecto_equipamiento')
+                    .update({ cantidad_total: (existente.cantidad_total as number) + item.cantidad_total })
+                    .eq('id', existente.id as string);
+                if (error) return { error: error.message };
+            } else {
+                toInsert.push({ proyecto_id: proyectoId, cantidad_entregada: 0, ...item });
+            }
+        }
+
+        if (toInsert.length > 0) {
+            const { error } = await db.from('proyecto_equipamiento').insert(toInsert);
+            if (error) return { error: error.message };
+        }
+    }
+
+    // Ítems manuales: siempre insertar como fila nueva (son distintos entre sí)
+    if (sinCatalogo.length > 0) {
+        const { error } = await db.from('proyecto_equipamiento').insert(
+            sinCatalogo.map(i => ({ proyecto_id: proyectoId, cantidad_entregada: 0, ...i }))
+        );
+        if (error) return { error: error.message };
+    }
+
+    return { error: null };
+}
+
 // ── Agregar ítems al BOM ──────────────────────────────────────────────────
 // Los ítems vienen serializados como JSON en formData para ser compatibles
 // con useActionState (FormData no soporta arrays nativos).
@@ -204,7 +263,7 @@ export async function agregarItemsBom(
     const user = await requireAccess(proyectoId);
     if (!user) return { error: 'No autorizado.' };
 
-    const itemsJson  =  formData.get('items')       as string;
+    const itemsJson = formData.get('items') as string;
 
     let items: Array<{ id?: string; familia: string; modelo: string; cantidad: number; es_serializado: boolean }>;
     try {
@@ -215,27 +274,18 @@ export async function agregarItemsBom(
     if (!items?.length) return { error: 'Selecciona al menos un ítem del catálogo.' };
 
     const db = createAdminClient();
-    const { error } = await db.from('proyecto_equipamiento').insert(
-        items.map(item => {
-            // item.id es catalogo_equipos.id. proyecto_equipamiento.inventario_id es
-            // una FK al CATÁLOGO (no a inventario físico). Solo aceptamos UUIDs reales:
-            // los ítems manuales/sintéticos (familia::modelo) quedan con catálogo NULL y
-            // se resuelven por tipo_item.
-            const passedId = item.id;
-            const validId = passedId && /^[0-9a-f]{8}-/i.test(passedId) ? passedId : null;
 
-            return {
-                proyecto_id:        proyectoId,
-                inventario_id:      validId,
-                tipo_item:          item.modelo || 'Manual',
-                cantidad_total:     item.cantidad,
-                cantidad_entregada: 0,
-            };
-        })
-    );
-    if (error) return { error: error.message };
+    const rows = items.map(item => {
+        // item.id es catalogo_equipos.id. Solo aceptamos UUIDs reales; los ítems
+        // manuales/sintéticos (familia::modelo) quedan con inventario_id=null.
+        const passedId = item.id;
+        const inventario_id = passedId && /^[0-9a-f]{8}-/i.test(passedId) ? passedId : null;
+        return { inventario_id, tipo_item: item.modelo || 'Manual', cantidad_total: item.cantidad };
+    });
 
-    // Register unified system log
+    const upsertResult = await upsertEquipamientoItems(db, proyectoId, rows);
+    if (upsertResult.error) return { error: upsertResult.error };
+
     const summary = items.map(item => `${item.cantidad}x ${item.modelo}`).join(', ');
     await registrarEntradaAuditoria(
         proyectoId,
@@ -484,17 +534,16 @@ export async function aplicarRecetaBOMAction(
 
     // 2. Omitido: Ya no se requiere un "bom_id" principal. La tabla es directa.
 
-    // 3. Inserción masiva de ítems en proyecto_equipamiento
-    const inserts = items.map(item => ({
-        proyecto_id:        proyectoId,
-        inventario_id:      item.modelo_id, // NOTA: Si el modelo_id en la receta es de catalogo_equipos, entonces esto requiere que inventario_id en esta tabla apunte allá.
-        tipo_item:          item.tipo || 'Equipamiento',
-        cantidad_total:     item.cantidad,
-        cantidad_entregada: 0,
-    }));
+    // 3. Upsert masivo: suma cantidad si el modelo ya existe en la receta del proyecto
+    const rows = items.map(item => {
+        const inventario_id = item.modelo_id && /^[0-9a-f]{8}-/i.test(item.modelo_id)
+            ? item.modelo_id
+            : null;
+        return { inventario_id, tipo_item: item.tipo || 'Equipamiento', cantidad_total: item.cantidad };
+    });
 
-    const { error: insertError } = await db.from('proyecto_equipamiento').insert(inserts);
-    if (insertError) return { error: `Error al inyectar materiales: ${insertError.message}` };
+    const upsertResult = await upsertEquipamientoItems(db, proyectoId, rows);
+    if (upsertResult.error) return { error: `Error al inyectar materiales: ${upsertResult.error}` };
 
     // 4. Registrar un único log de auditoría
     await registrarEntradaAuditoria(
