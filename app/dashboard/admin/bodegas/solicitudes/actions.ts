@@ -509,6 +509,11 @@ export interface ItemBodegaAsignacion {
     bodegaId: string;
 }
 
+export interface SerialProyectoAsignacion {
+    solicitudItemId: string;
+    inventarioIds: string[];
+}
+
 export async function aprobarSolicitudAction(
     solicitudId: string,
     itemBodegas: ItemBodegaAsignacion[],  // bodega de origen por ítem
@@ -517,7 +522,8 @@ export async function aprobarSolicitudAction(
     firmaBase64: string | null = null,
     ticketIdCliente: string | null = null,
     tecnicoNombreCliente: string | null = null,
-    itemsContexto: ItemContexto[] = []
+    itemsContexto: ItemContexto[] = [],
+    serialesProyecto: SerialProyectoAsignacion[] = []
 ) {
     try {
         const supabase = await createClient();
@@ -632,19 +638,109 @@ export async function aprobarSolicitudAction(
         }
         // ─────────────────────────────────────────────────────────────────────
 
-        const approvedItemBodegas = itemBodegas.filter(ib => approvedItemIds.includes(ib.solicitudItemId));
-        const itemBodegasPayload = approvedItemBodegas.map(ib => ({
-            solicitud_item_id: ib.solicitudItemId,
-            bodega_id: ib.bodegaId
-        }));
+        // ── Split JIT: asignación explícita de seriales de proyecto ─────────────
+        // Si el bodeguero eligió seriales específicos para un ítem de proyecto:
+        //  1. El ítem original se actualiza al primer serial (cantidad=1).
+        //  2. Se crean filas adicionales para cada serial restante.
+        //  3. El RPC recibe todos con inventario_id fijo → los trata como
+        //     seriales determinísticos de proyecto → estado 'En Proyecto'.
+        const finalApprovedIds = [...approvedItemIds];
+        const finalBodegaMap = new Map<string, string>(
+            itemBodegas
+                .filter(ib => approvedItemIds.includes(ib.solicitudItemId))
+                .map(ib => [ib.solicitudItemId, ib.bodegaId])
+        );
+
+        // Registro para rollback si el RPC falla: { itemId, originalCantidad }
+        const jitRollback: { solicitudItemId: string; originalCantidad: number }[] = [];
+        const newlyInsertedIds: string[] = [];
+
+        if (serialesProyecto.length > 0) {
+            const adminDb = getAdminSupabase();
+            for (const sp of serialesProyecto) {
+                if (!finalApprovedIds.includes(sp.solicitudItemId)) continue;
+                if (!sp.inventarioIds || sp.inventarioIds.length === 0) continue;
+
+                const bodegaId = finalBodegaMap.get(sp.solicitudItemId);
+                if (!bodegaId) continue;
+
+                const { data: origItem, error: origErr } = await adminDb
+                    .from('solicitud_items')
+                    .select('solicitud_id, proyecto_equipamiento_id, cantidad')
+                    .eq('id', sp.solicitudItemId)
+                    .single();
+                if (origErr || !origItem) throw new Error('Error leyendo ítem para split de seriales.');
+
+                // Validar disponibilidad de los seriales elegidos
+                const { data: validRows } = await supabase
+                    .from('inventario')
+                    .select('id')
+                    .in('id', sp.inventarioIds)
+                    .in('estado', ['Disponible', 'operativo', 'Operativo', 'disponible']);
+                if ((validRows?.length ?? 0) < sp.inventarioIds.length) {
+                    throw new Error(
+                        'Uno o más seriales seleccionados ya no están disponibles. Recarga y vuelve a intentarlo.'
+                    );
+                }
+
+                // Registrar para rollback antes de mutar
+                jitRollback.push({ solicitudItemId: sp.solicitudItemId, originalCantidad: origItem.cantidad });
+
+                // Ítem original → primer serial, cantidad 1
+                await adminDb.from('solicitud_items')
+                    .update({ inventario_id: sp.inventarioIds[0], cantidad: 1 })
+                    .eq('id', sp.solicitudItemId);
+
+                // Seriales adicionales → nuevas filas
+                for (let i = 1; i < sp.inventarioIds.length; i++) {
+                    const { data: newItem, error: insErr } = await adminDb
+                        .from('solicitud_items')
+                        .insert({
+                            solicitud_id:             origItem.solicitud_id,
+                            inventario_id:            sp.inventarioIds[i],
+                            cantidad:                 1,
+                            proyecto_equipamiento_id: origItem.proyecto_equipamiento_id,
+                        })
+                        .select('id')
+                        .single();
+                    if (insErr || !newItem) throw new Error(`Error creando fila de serial: ${insErr?.message}`);
+                    finalApprovedIds.push(newItem.id);
+                    newlyInsertedIds.push(newItem.id);
+                    finalBodegaMap.set(newItem.id, bodegaId);
+                }
+            }
+        }
+
+        const itemBodegasPayload = Array.from(finalBodegaMap.entries())
+            .filter(([id]) => finalApprovedIds.includes(id))
+            .map(([solicitud_item_id, bodega_id]) => ({ solicitud_item_id, bodega_id }));
 
         const { data, error } = await supabase.rpc('aprobar_solicitud_rpc', {
             p_solicitud_id:      solicitudId,
             p_bodeguero_id:      user.id,
             p_item_bodegas:      itemBodegasPayload,
-            p_approved_item_ids: approvedItemIds,
+            p_approved_item_ids: finalApprovedIds,
             p_comentario:        comentario ?? null,
         });
+
+        // ── Rollback del split JIT si el RPC falló ─────────────────────────────
+        // El split muta solicitud_items fuera de la transacción del RPC.
+        // Si el RPC falla, hay que revertir para que la solicitud quede limpia
+        // y el bodeguero pueda reintentar con el selector de seriales visible.
+        const rpcFailed = !!error || !!(data as any)?.error;
+        if (rpcFailed && jitRollback.length > 0) {
+            const adminDb = getAdminSupabase();
+            // Eliminar filas adicionales creadas por el split
+            if (newlyInsertedIds.length > 0) {
+                await adminDb.from('solicitud_items').delete().in('id', newlyInsertedIds);
+            }
+            // Restaurar ítems originales a su estado pre-split
+            for (const rb of jitRollback) {
+                await adminDb.from('solicitud_items')
+                    .update({ inventario_id: null, cantidad: rb.originalCantidad })
+                    .eq('id', rb.solicitudItemId);
+            }
+        }
 
         if (error) throw new Error(error.message);
 
@@ -728,6 +824,36 @@ export async function aprobarSolicitudAction(
         return { success: true };
     } catch (e: any) {
         return { error: e.message || 'Error interno al aprobar la solicitud.' };
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Seriales disponibles en bodega para un modelo (JIT parcial)
+// ─────────────────────────────────────────────────────────────────────────────
+export async function getSeriadosDisponiblesAction(
+    bodegaId: string,
+    modelo: string,
+): Promise<{ data: { id: string; numero_serie: string }[] | null; error?: string }> {
+    try {
+        const supabase = await createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return { data: null, error: 'No autorizado.' };
+
+        const { data, error } = await supabase
+            .from('inventario')
+            .select('id, numero_serie')
+            .eq('bodega_id', bodegaId)
+            .eq('modelo', modelo)
+            .eq('es_serializado', true)
+            .in('estado', ['Disponible', 'operativo', 'Operativo', 'disponible'])
+            .order('numero_serie', { ascending: true });
+
+        if (error) return { data: null, error: error.message };
+        return {
+            data: (data ?? []).filter(d => d.numero_serie) as { id: string; numero_serie: string }[],
+        };
+    } catch (e: any) {
+        return { data: null, error: e.message };
     }
 }
 

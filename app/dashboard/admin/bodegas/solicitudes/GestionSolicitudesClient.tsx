@@ -5,7 +5,7 @@ import {
     CheckCircle2, XCircle, Clock, PackageCheck, Hash, Layers,
     Loader2, AlertCircle, ChevronRight, ChevronLeft, Warehouse, User,
     TicketIcon, AlertTriangle, Package, Undo2, PenLine,
-    ExternalLink, X, ShieldCheck, ArrowLeftRight,
+    ExternalLink, X, ShieldCheck, ArrowLeftRight, Check,
 } from 'lucide-react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
@@ -13,10 +13,10 @@ import {
     aprobarSolicitudAction, rechazarSolicitudAction,
     aprobarDevolucionAction, rechazarDevolucionAction,
     getStockEnBodegaAction, getAutoAsignacionBodegasAction,
-    loadMoreHistorialAction,
+    getSeriadosDisponiblesAction, loadMoreHistorialAction,
     type ItemContexto, type StockCheckResult,
     type AutoAsignacionInput, type ItemBodegaAsignacion,
-    type DevolucionLogistica,
+    type SerialProyectoAsignacion, type DevolucionLogistica,
 } from './actions';
 import { BandejaLogisticaInversa } from './BandejaLogisticaInversa';
 import { CustomSelect } from '@/app/dashboard/components/CustomSelect';
@@ -237,6 +237,173 @@ function BodegaSelector({
 }
 
 // ── MODAL: Aprobar solicitud de Entrega — Despacho Multibodega ────────────────
+// ── Dropdown personalizado de bodegas (reemplaza <select> nativo) ────────────
+function BodegaDropdown({ value, onChange, bodegas, disabled }: {
+    value: string;
+    onChange: (id: string) => void;
+    bodegas: Bodega[];
+    disabled?: boolean;
+}) {
+    const [open, setOpen] = useState(false);
+    const ref = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (!open) return;
+        const handler = (e: MouseEvent) => {
+            if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, [open]);
+
+    const selected = bodegas.find(b => b.id === value);
+
+    return (
+        <div ref={ref} className="relative flex-1">
+            <button
+                type="button"
+                onClick={() => { if (!disabled) setOpen(o => !o); }}
+                disabled={disabled}
+                className="w-full text-left text-[10px] font-bold border border-slate-200 rounded-md px-2 py-0.5 bg-white text-slate-700 flex items-center justify-between gap-1 hover:border-indigo-400 focus:border-indigo-400 focus:outline-none disabled:opacity-50 transition-colors"
+            >
+                <span className="truncate">{selected?.nombre ?? 'Seleccionar bodega…'}</span>
+                <ChevronRight className={`w-3 h-3 text-slate-400 shrink-0 transition-transform ${open ? 'rotate-90' : ''}`} />
+            </button>
+            {open && (
+                <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg overflow-hidden">
+                    {bodegas.map(b => (
+                        <button
+                            key={b.id}
+                            type="button"
+                            onClick={() => { onChange(b.id); setOpen(false); }}
+                            className={`w-full text-left text-[10px] font-bold px-3 py-2 hover:bg-indigo-50 transition-colors ${b.id === value ? 'text-indigo-700 bg-indigo-50/60' : 'text-slate-700'}`}
+                        >
+                            {b.nombre}
+                        </button>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
+
+// ── Selector de seriales JIT (proyecto serializado sin serial fijo) ───────────
+function SelectorSerialesProyecto({ bodegaId, modelo, cantidadRequerida, selected, onSelect }: {
+    bodegaId: string;
+    modelo: string;
+    cantidadRequerida: number;
+    selected: string[];
+    onSelect: (ids: string[]) => void;
+}) {
+    const [disponibles, setDisponibles] = useState<{ id: string; numero_serie: string }[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [filtro, setFiltro] = useState('');
+
+    useEffect(() => {
+        if (!bodegaId || !modelo) return;
+        setLoading(true);
+        setFiltro('');
+        getSeriadosDisponiblesAction(bodegaId, modelo).then(res => {
+            const list = res.data ?? [];
+            setDisponibles(list);
+            // Limpiar selecciones que ya no existen en la nueva bodega
+            if (list.length > 0) {
+                const validIds = new Set(list.map(d => d.id));
+                const stillValid = selected.filter(id => validIds.has(id));
+                if (stillValid.length !== selected.length) onSelect(stillValid);
+            } else {
+                onSelect([]);
+            }
+            setLoading(false);
+        });
+    }, [bodegaId, modelo]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    const filtrados = filtro
+        ? disponibles.filter(d => d.numero_serie.toLowerCase().includes(filtro.toLowerCase()))
+        : disponibles;
+
+    const toggle = (id: string) => {
+        if (selected.includes(id)) {
+            onSelect(selected.filter(s => s !== id));
+        } else if (selected.length < cantidadRequerida) {
+            onSelect([...selected, id]);
+        }
+    };
+
+    const isComplete = selected.length === cantidadRequerida;
+
+    return (
+        <div className="mt-2 border border-amber-200 rounded-xl bg-amber-50/30 overflow-hidden">
+            <div className="px-3 py-2 border-b border-amber-100 flex items-center justify-between">
+                <span className="text-[10px] font-black text-amber-700 uppercase tracking-wider">
+                    Seleccionar seriales a despachar
+                </span>
+                <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${
+                    isComplete
+                        ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                        : 'bg-amber-100 text-amber-700 border-amber-200'
+                }`}>
+                    {selected.length}/{cantidadRequerida}
+                </span>
+            </div>
+
+            {loading ? (
+                <div className="flex items-center gap-2 px-3 py-3">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-500" />
+                    <span className="text-xs text-slate-500">Cargando seriales disponibles…</span>
+                </div>
+            ) : disponibles.length === 0 ? (
+                <div className="px-3 py-3 text-xs text-red-600 font-semibold flex items-center gap-2">
+                    <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                    Sin seriales disponibles en esta bodega para "{modelo}"
+                </div>
+            ) : (
+                <>
+                    {disponibles.length > 5 && (
+                        <div className="px-3 py-2 border-b border-amber-100">
+                            <input
+                                type="text"
+                                value={filtro}
+                                onChange={e => setFiltro(e.target.value)}
+                                placeholder="Buscar N/S…"
+                                className="w-full text-xs font-medium px-2 py-1 border border-amber-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-amber-400 placeholder:text-slate-400"
+                            />
+                        </div>
+                    )}
+                    <div className="max-h-36 overflow-y-auto divide-y divide-amber-50">
+                        {filtrados.map(inv => {
+                            const isSel = selected.includes(inv.id);
+                            const isDisabled = !isSel && selected.length >= cantidadRequerida;
+                            return (
+                                <label
+                                    key={inv.id}
+                                    className={`flex items-center gap-2.5 px-3 py-2 cursor-pointer transition-colors select-none ${
+                                        isSel ? 'bg-emerald-50/80' : isDisabled ? 'opacity-40 cursor-default' : 'hover:bg-white'
+                                    }`}
+                                >
+                                    <input
+                                        type="checkbox"
+                                        checked={isSel}
+                                        disabled={isDisabled}
+                                        onChange={() => toggle(inv.id)}
+                                        className="w-3.5 h-3.5 rounded border-slate-300 accent-emerald-600"
+                                    />
+                                    <Hash className="w-3 h-3 text-slate-400 shrink-0" />
+                                    <span className="font-mono text-xs font-bold text-slate-700 flex-1">{inv.numero_serie}</span>
+                                    {isSel && <Check className="w-3 h-3 text-emerald-500 shrink-0" />}
+                                </label>
+                            );
+                        })}
+                        {filtrados.length === 0 && filtro && (
+                            <p className="text-[11px] text-slate-400 text-center py-3">Sin resultados para "{filtro}"</p>
+                        )}
+                    </div>
+                </>
+            )}
+        </div>
+    );
+}
+
 function ModalAprobar({
     solicitud,
     bodegasCentrales,
@@ -250,6 +417,8 @@ function ModalAprobar({
 }) {
     // Bodega de origen por ítem: solicitudItemId → bodegaId
     const [itemBodegas, setItemBodegas] = useState<Record<string, string>>({});
+    // Seriales elegidos por el bodeguero para ítems JIT de proyecto: itemId → inventario UUID[]
+    const [serialesSeleccionados, setSeriales] = useState<Record<string, string[]>>({});
     const [itemsAprobados, setItemsAprobados] = useState<Set<string>>(
         () => new Set(solicitud.solicitud_items.map(i => i.id))
     );
@@ -302,6 +471,8 @@ function ModalAprobar({
     // ── Override manual de bodega por ítem ───────────────────────────────────
     const handleItemBodegaChange = useCallback(async (solicitudItemId: string, newBodegaId: string) => {
         setItemBodegas(prev => ({ ...prev, [solicitudItemId]: newBodegaId }));
+        // Al cambiar de bodega, los seriales elegidos para ese ítem ya no son válidos
+        setSeriales(prev => { const n = { ...prev }; delete n[solicitudItemId]; return n; });
         setCheckingItems(prev => new Set([...prev, solicitudItemId]));
 
         const item = solicitud.solicitud_items.find(i => i.id === solicitudItemId);
@@ -351,6 +522,12 @@ function ModalAprobar({
     );
     const hayStockInsuficiente = itemsConStockInsuficiente.length > 0;
 
+    // ítems JIT de proyecto aprobados que aún no tienen todos sus seriales elegidos
+    const haySeriadosJITPendientes = solicitud.solicitud_items.some(i =>
+        itemsAprobados.has(i.id) && esProyectoAutoSerial(i) &&
+        (serialesSeleccionados[i.id]?.length ?? 0) !== i.cantidad
+    );
+
     // Detectar si el despacho cruza múltiples bodegas
     const bodegasUsadas = useMemo(() => {
         const map = new Map<string, { nombre: string; count: number }>();
@@ -371,6 +548,19 @@ function ModalAprobar({
         if (itemsSinBodega.length > 0) { setError('Todos los ítems aprobados deben tener una bodega de origen.'); return; }
         if (aprobadosCount === 0) { setError('Debes aprobar al menos un ítem.'); return; }
         if (hayStockInsuficiente) { setError('Hay ítems con stock insuficiente. Cambia la bodega o desactiva esos ítems.'); return; }
+
+        // Validar que todos los ítems JIT de proyecto tengan sus seriales seleccionados
+        const itemsJITSinSeriales = solicitud.solicitud_items.filter(i =>
+            itemsAprobados.has(i.id) && esProyectoAutoSerial(i) &&
+            (serialesSeleccionados[i.id]?.length ?? 0) !== i.cantidad
+        );
+        if (itemsJITSinSeriales.length > 0) {
+            const faltante = itemsJITSinSeriales[0];
+            const modelo = faltante.proyecto_equipamiento?.inventario?.modelo ?? 'el ítem';
+            setError(`Debes seleccionar exactamente ${faltante.cantidad} serial(es) para "${modelo}".`);
+            return;
+        }
+
         if (!sigRef.current || sigRef.current.isEmpty()) { setError('La firma del técnico es obligatoria.'); return; }
         setError('');
 
@@ -385,11 +575,19 @@ function ModalAprobar({
                 const modeloInfo = i.inventario?.modelo || i.proyecto_equipamiento?.inventario?.modelo || null;
                 const esSerializadoInfo = i.inventario?.es_serializado ?? i.proyecto_equipamiento?.inventario?.es_serializado ?? false;
                 return {
-                cantidad:       i.cantidad,
-                modelo:         modeloInfo,
-                es_serializado: esSerializadoInfo,
-                numero_serie:   i.inventario?.numero_serie ?? null,
-            }});
+                    cantidad:       i.cantidad,
+                    modelo:         modeloInfo,
+                    es_serializado: esSerializadoInfo,
+                    numero_serie:   i.inventario?.numero_serie ?? null,
+                };
+            });
+
+        const serialesPayload: SerialProyectoAsignacion[] = solicitud.solicitud_items
+            .filter(i => itemsAprobados.has(i.id) && esProyectoAutoSerial(i))
+            .map(i => ({
+                solicitudItemId: i.id,
+                inventarioIds:   serialesSeleccionados[i.id] ?? [],
+            }));
 
         startTransition(async () => {
             const res = await aprobarSolicitudAction(
@@ -401,6 +599,7 @@ function ModalAprobar({
                 solicitud.ticket?.id ?? null,
                 solicitud.tecnico?.full_name ?? null,
                 itemsContexto,
+                serialesPayload,
             );
             if (res.error) setError(res.error);
             else { onSuccess(); onClose(); }
@@ -514,31 +713,36 @@ function ModalAprobar({
                                             </div>
                                         </label>
 
-                                        {/* Fila inferior: selector de bodega (solo si el ítem está activo) */}
+                                        {/* Fila inferior: selector de bodega + seriales JIT */}
                                         {checked && (
-                                            <div className="mt-2 ml-7 flex items-center gap-2">
-                                                <Warehouse className="w-3 h-3 text-slate-400 shrink-0" />
-                                                {isBodegaFija ? (
-                                                    /* Serializado y fijo: bodega fija, no editable */
-                                                    <span className="text-[10px] font-bold text-slate-500 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md">
-                                                        {bodegasCentrales.find(b => b.id === bodegaAsignada)?.nombre ?? 'Auto-asignada'}
-                                                        {' '}· fija por serial
-                                                    </span>
-                                                ) : (
-                                                    /* Genérico o bulk serializado: bodega seleccionable */
-                                                    <select
-                                                        value={bodegaAsignada}
-                                                        onChange={e => handleItemBodegaChange(item.id, e.target.value)}
-                                                        disabled={isAutoAsignando}
-                                                        className="text-[10px] font-bold border border-slate-200 rounded-md px-2 py-0.5 bg-white text-slate-700 focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400 disabled:opacity-50"
-                                                    >
-                                                        {bodegasCentrales.length === 0 && (
-                                                            <option value="">Sin bodegas</option>
-                                                        )}
-                                                        {bodegasCentrales.map(b => (
-                                                            <option key={b.id} value={b.id}>{b.nombre}</option>
-                                                        ))}
-                                                    </select>
+                                            <div className="mt-2 ml-7">
+                                                <div className="flex items-center gap-2">
+                                                    <Warehouse className="w-3 h-3 text-slate-400 shrink-0" />
+                                                    {isBodegaFija ? (
+                                                        /* Serializado y fijo: bodega fija, no editable */
+                                                        <span className="text-[10px] font-bold text-slate-500 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md">
+                                                            {bodegasCentrales.find(b => b.id === bodegaAsignada)?.nombre ?? 'Auto-asignada'}
+                                                            {' '}· fija por serial
+                                                        </span>
+                                                    ) : (
+                                                        /* Genérico o serializado JIT: bodega seleccionable */
+                                                        <BodegaDropdown
+                                                            value={bodegaAsignada}
+                                                            onChange={id => handleItemBodegaChange(item.id, id)}
+                                                            bodegas={bodegasCentrales}
+                                                            disabled={isAutoAsignando}
+                                                        />
+                                                    )}
+                                                </div>
+                                                {/* Selector de seriales JIT: solo para ítems serializados de proyecto sin serial fijo */}
+                                                {autoSerialProyecto && bodegaAsignada && (
+                                                    <SelectorSerialesProyecto
+                                                        bodegaId={bodegaAsignada}
+                                                        modelo={modeloInfo}
+                                                        cantidadRequerida={item.cantidad}
+                                                        selected={serialesSeleccionados[item.id] ?? []}
+                                                        onSelect={ids => setSeriales(prev => ({ ...prev, [item.id]: ids }))}
+                                                    />
                                                 )}
                                             </div>
                                         )}
@@ -600,21 +804,22 @@ function ModalAprobar({
                     </button>
                     <button
                         onClick={handleConfirm}
-                        disabled={isPending || isGloballyChecking || aprobadosCount === 0 || isFirmaVacia || hayStockInsuficiente}
+                        disabled={isPending || isGloballyChecking || aprobadosCount === 0 || isFirmaVacia || hayStockInsuficiente || haySeriadosJITPendientes}
                         className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-black rounded-xl transition-all shadow-md active:scale-95 disabled:opacity-40 disabled:shadow-none ${
-                            hayStockInsuficiente
+                            hayStockInsuficiente || haySeriadosJITPendientes
                                 ? 'bg-amber-500 text-white hover:bg-amber-600'
                                 : 'bg-emerald-600 text-white hover:bg-emerald-700'
                         }`}>
                         {isPending || isGloballyChecking
                             ? <Loader2 className="w-4 h-4 animate-spin" />
-                            : hayStockInsuficiente
+                            : (hayStockInsuficiente || haySeriadosJITPendientes)
                                 ? <AlertTriangle className="w-4 h-4" />
                                 : <CheckCircle2 className="w-4 h-4" />}
                         {isPending ? 'Procesando…' :
                          isAutoAsignando ? 'Asignando bodegas…' :
                          isGloballyChecking ? 'Verificando stock…' :
                          hayStockInsuficiente ? 'Stock insuficiente' :
+                         haySeriadosJITPendientes ? 'Selecciona los seriales' :
                          esAprobacionParcial ? `Aprobar ${aprobadosCount} ítem${aprobadosCount !== 1 ? 's' : ''}` :
                          'Aprobar Todo'}
                     </button>

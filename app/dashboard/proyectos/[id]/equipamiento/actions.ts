@@ -180,8 +180,10 @@ export interface DespachoItem {
 export interface DespachoProyecto {
     id: string;
     creadoEn: string;
-    aprobadoEn: string | null;   // gestionado_en = fecha de aprobación
+    aprobadoEn: string | null;   // gestionado_en = fecha de aprobación/rechazo
     bodegueroNombre: string | null;
+    estado: 'aprobada' | 'rechazada';
+    motivoRechazo: string | null;
     totalUnidades: number;
     items: DespachoItem[];
 }
@@ -202,7 +204,7 @@ export async function getHistorialRetirosProyectoAction(
         const { data, error } = await db
             .from('solicitudes_materiales')
             .select(`
-                id, creado_en, gestionado_en,
+                id, creado_en, gestionado_en, estado, motivo_rechazo,
                 bodeguero:bodeguero_id ( full_name ),
                 solicitud_items (
                     cantidad,
@@ -215,8 +217,8 @@ export async function getHistorialRetirosProyectoAction(
                 )
             `)
             .eq('proyecto_id', proyectoId)
-            .eq('estado', 'aprobada')
-            .order('gestionado_en', { ascending: false });
+            .in('estado', ['aprobada', 'rechazada'])
+            .order('gestionado_en', { ascending: false, nullsFirst: false });
 
         if (error) return { data: [], error: error.message };
 
@@ -238,6 +240,8 @@ export async function getHistorialRetirosProyectoAction(
                 creadoEn:        s.creado_en,
                 aprobadoEn:      s.gestionado_en,
                 bodegueroNombre: s.bodeguero?.full_name ?? null,
+                estado:          s.estado as 'aprobada' | 'rechazada',
+                motivoRechazo:   s.motivo_rechazo ?? null,
                 totalUnidades:   items.reduce((acc, it) => acc + it.cantidad, 0),
                 items,
             };
