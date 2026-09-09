@@ -17,10 +17,9 @@ export default async function GuiasIngresoPage() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) redirect('/login');
 
-    const { data: profile, error: profileError } = await supabase
+    const { data: profile } = await supabase
         .from('profiles').select('rol').eq('id', user.id).maybeSingle();
     const rol = profile?.rol?.toUpperCase();
-    console.log('[guias:auth]', { userId: user.id, rol, profile, profileError });
     if (!['ADMIN', 'ADMIN_BODEGA', 'COORDINADOR'].includes(rol ?? '')) redirect('/dashboard');
 
     const db = createAdminClient();
