@@ -288,35 +288,39 @@ export function NuevaGuiaForm({ bodegas, catalogo, proveedores, onSuccess }: Pro
         }
 
         startTransition(async () => {
-            const result = await procesarGuiaIngresoAction({
-                numero_guia:       numeroGuia,
-                tipo_documento:    tipoDoc,
-                proveedor_id:      proveedorId!,
-                bodega_destino_id: bodegaDestinoId,
-                fecha_guia:        fechaGuia,
-                observaciones,
-                documento_url:     documentoUrl,
-                items,
-            });
-            if (result.error) {
-                setErrorMsg(result.error);
-                return;
+            try {
+                const result = await procesarGuiaIngresoAction({
+                    numero_guia:       numeroGuia,
+                    tipo_documento:    tipoDoc,
+                    proveedor_id:      proveedorId!,
+                    bodega_destino_id: bodegaDestinoId,
+                    fecha_guia:        fechaGuia,
+                    observaciones,
+                    documento_url:     documentoUrl,
+                    items,
+                });
+                if (result.error) {
+                    setErrorMsg(result.error);
+                    return;
+                }
+                setExito(true);
+                router.refresh();
+                setTimeout(() => {
+                    setExito(false);
+                    setTipoDoc('GD');
+                    setNumeroGuia('');
+                    setProveedorId(null);
+                    setProveedorNombre('');
+                    setBodegaDestinoId('');
+                    setBodegaDestinoNombre('');
+                    setObservaciones('');
+                    removeDoc();
+                    setItems([newEmptyItem()]);
+                    onSuccess();
+                }, 1800);
+            } catch (e: any) {
+                setErrorMsg(e?.message || 'Error inesperado al procesar la guía. Intenta de nuevo.');
             }
-            setExito(true);
-            router.refresh();
-            setTimeout(() => {
-                setExito(false);
-                setTipoDoc('GD');
-                setNumeroGuia('');
-                setProveedorId(null);
-                setProveedorNombre('');
-                setBodegaDestinoId('');
-                setBodegaDestinoNombre('');
-                setObservaciones('');
-                removeDoc();
-                setItems([newEmptyItem()]);
-                onSuccess();
-            }, 1800);
         });
     }
 

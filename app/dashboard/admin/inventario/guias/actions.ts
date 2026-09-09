@@ -8,10 +8,12 @@ async function requireBodegaRole() {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
-    const { data: profile } = await supabase
+    // Admin client para leer profiles sin depender de las políticas RLS del perfil del usuario.
+    const db = createAdminClient();
+    const { data: profile } = await db
         .from('profiles').select('rol').eq('id', user.id).single();
     const rol = profile?.rol?.toUpperCase();
-    if (rol !== 'ADMIN' && rol !== 'ADMIN_BODEGA') return null;
+    if (!['ADMIN', 'ADMIN_BODEGA', 'COORDINADOR'].includes(rol ?? '')) return null;
     return user;
 }
 
