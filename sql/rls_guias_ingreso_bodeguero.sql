@@ -20,7 +20,7 @@ USING (
     EXISTS (
         SELECT 1 FROM profiles
         WHERE profiles.id = auth.uid()
-          AND UPPER(profiles.rol) IN ('ADMIN', 'ADMIN_BODEGA', 'COORDINADOR')
+          AND UPPER(profiles.rol::TEXT) IN ('ADMIN', 'ADMIN_BODEGA', 'COORDINADOR')
     )
 );
 
@@ -34,7 +34,7 @@ WITH CHECK (
     EXISTS (
         SELECT 1 FROM profiles
         WHERE profiles.id = auth.uid()
-          AND UPPER(profiles.rol) IN ('ADMIN', 'ADMIN_BODEGA')
+          AND UPPER(profiles.rol::TEXT) IN ('ADMIN', 'ADMIN_BODEGA')
     )
 );
 
@@ -48,7 +48,7 @@ USING (
     EXISTS (
         SELECT 1 FROM profiles
         WHERE profiles.id = auth.uid()
-          AND UPPER(profiles.rol) IN ('ADMIN', 'ADMIN_BODEGA')
+          AND UPPER(profiles.rol::TEXT) IN ('ADMIN', 'ADMIN_BODEGA')
     )
 );
 
@@ -66,7 +66,7 @@ USING (
     EXISTS (
         SELECT 1 FROM profiles
         WHERE profiles.id = auth.uid()
-          AND UPPER(profiles.rol) IN ('ADMIN', 'ADMIN_BODEGA', 'COORDINADOR')
+          AND UPPER(profiles.rol::TEXT) IN ('ADMIN', 'ADMIN_BODEGA', 'COORDINADOR')
     )
 );
 
@@ -80,7 +80,7 @@ WITH CHECK (
     EXISTS (
         SELECT 1 FROM profiles
         WHERE profiles.id = auth.uid()
-          AND UPPER(profiles.rol) IN ('ADMIN', 'ADMIN_BODEGA')
+          AND UPPER(profiles.rol::TEXT) IN ('ADMIN', 'ADMIN_BODEGA')
     )
 );
 
@@ -94,7 +94,7 @@ USING (
     EXISTS (
         SELECT 1 FROM profiles
         WHERE profiles.id = auth.uid()
-          AND UPPER(profiles.rol) IN ('ADMIN', 'ADMIN_BODEGA')
+          AND UPPER(profiles.rol::TEXT) IN ('ADMIN', 'ADMIN_BODEGA')
     )
 );
 
@@ -107,8 +107,8 @@ INSERT INTO storage.policies (name, bucket_id, definition, check_definition, com
 SELECT
     'guias_despacho_bodeguero_upload',
     'guias_despacho',
-    '(EXISTS ( SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND UPPER(profiles.rol) IN (''ADMIN'', ''ADMIN_BODEGA'')))',
-    '(EXISTS ( SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND UPPER(profiles.rol) IN (''ADMIN'', ''ADMIN_BODEGA'')))',
+    '(EXISTS ( SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND UPPER(profiles.rol::TEXT) IN (''ADMIN'', ''ADMIN_BODEGA'')))',
+    '(EXISTS ( SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND UPPER(profiles.rol::TEXT) IN (''ADMIN'', ''ADMIN_BODEGA'')))',
     'INSERT',
     ARRAY['authenticated']::text[]
 WHERE NOT EXISTS (

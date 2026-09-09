@@ -13,16 +13,15 @@ export default async function BodegasPage() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) redirect('/login');
 
-    const { data: profile } = await supabase
+    const db = createAdminClient();
+    const { data: profile } = await db
         .from('profiles')
         .select('rol')
         .eq('id', user.id)
         .maybeSingle();
 
     const rol = profile?.rol?.toUpperCase();
-    if (rol !== 'ADMIN' && rol !== 'ADMIN_BODEGA') redirect('/dashboard/usuario');
-
-    const db = createAdminClient();
+    if (!['ADMIN', 'ADMIN_BODEGA'].includes(rol ?? '')) redirect('/dashboard/usuario');
 
     // ── Step 1: bodegas (needed to derive bodegaIds for filtered queries) ──────
     const { data: bodegasRaw } = await db

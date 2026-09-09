@@ -1,5 +1,6 @@
-import { createClient } from '@/lib/supabase/server';
-import { redirect } from 'next/navigation';
+import { createClient }      from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
+import { redirect }          from 'next/navigation';
 import { TrazabilidadClient } from './TrazabilidadClient';
 
 export const dynamic = 'force-dynamic';
@@ -23,14 +24,15 @@ export default async function TrazabilidadPage() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) redirect('/login');
 
-    const { data: profile } = await supabase
+    const db = createAdminClient();
+    const { data: profile } = await db
         .from('profiles')
         .select('rol')
         .eq('id', user.id)
         .maybeSingle();
 
     const rol = profile?.rol?.toUpperCase() || '';
-    if (rol !== 'ADMIN' && rol !== 'ADMIN_BODEGA') redirect('/dashboard/usuario');
+    if (!['ADMIN', 'ADMIN_BODEGA'].includes(rol)) redirect('/dashboard/usuario');
 
     // ── Consulta principal ──────────────────────────────────────────────────
     // Cruzamos:

@@ -1,4 +1,5 @@
-import { createClient } from '@/lib/supabase/server';
+import { createClient }      from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import TopNav from './components/TopNav';
 import { redirect } from 'next/navigation';
 import { ModalCelebracion1100 } from './components/ModalCelebracion1100';
@@ -19,8 +20,10 @@ export default async function DashboardLayout({
         redirect('/login');
     }
 
-    // Get User Profile for the Navbar (incluye debe_cambiar_password para el route guard)
-    const { data: profile } = await supabase
+    // Admin client para leer el perfil sin depender de RLS (evita que roles como ADMIN_BODEGA
+    // no vean su nav si la política de profiles no incluye auto-lectura).
+    const db = createAdminClient();
+    const { data: profile } = await db
         .from('profiles')
         .select('full_name, rol, debe_cambiar_password')
         .eq('id', user.id)
