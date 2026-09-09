@@ -99,20 +99,35 @@ USING (
 );
 
 -- ── Bucket guias_despacho (Storage) ─────────────────────────────────────────
--- Si el bucket no tiene política para ADMIN_BODEGA, el upload de documentos
--- adjuntos falla en cliente con el cliente Supabase anónimo.
--- Ejecutar solo si el bucket existe y tiene RLS habilitado:
+-- Las políticas de Storage se crean con CREATE POLICY sobre storage.objects.
+-- Ejecutar solo si el bucket 'guias_despacho' existe y tiene RLS habilitado.
 
-INSERT INTO storage.policies (name, bucket_id, definition, check_definition, command, roles)
-SELECT
-    'guias_despacho_bodeguero_upload',
-    'guias_despacho',
-    '(EXISTS ( SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND UPPER(profiles.rol::TEXT) IN (''ADMIN'', ''ADMIN_BODEGA'')))',
-    '(EXISTS ( SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND UPPER(profiles.rol::TEXT) IN (''ADMIN'', ''ADMIN_BODEGA'')))',
-    'INSERT',
-    ARRAY['authenticated']::text[]
-WHERE NOT EXISTS (
-    SELECT 1 FROM storage.policies
-    WHERE name = 'guias_despacho_bodeguero_upload'
-      AND bucket_id = 'guias_despacho'
+-- INSERT: ADMIN y ADMIN_BODEGA pueden subir documentos
+DROP POLICY IF EXISTS "guias_despacho_bodeguero_upload" ON storage.objects;
+CREATE POLICY "guias_despacho_bodeguero_upload"
+ON storage.objects
+FOR INSERT
+TO authenticated
+WITH CHECK (
+    bucket_id = 'guias_despacho'
+    AND EXISTS (
+        SELECT 1 FROM profiles
+        WHERE profiles.id = auth.uid()
+          AND UPPER(profiles.rol::TEXT) IN ('ADMIN', 'ADMIN_BODEGA')
+    )
+);
+
+-- SELECT: ADMIN, ADMIN_BODEGA y COORDINADOR pueden ver los documentos adjuntos
+DROP POLICY IF EXISTS "guias_despacho_select" ON storage.objects;
+CREATE POLICY "guias_despacho_select"
+ON storage.objects
+FOR SELECT
+TO authenticated
+USING (
+    bucket_id = 'guias_despacho'
+    AND EXISTS (
+        SELECT 1 FROM profiles
+        WHERE profiles.id = auth.uid()
+          AND UPPER(profiles.rol::TEXT) IN ('ADMIN', 'ADMIN_BODEGA', 'COORDINADOR')
+    )
 );
