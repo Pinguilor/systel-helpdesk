@@ -1,6 +1,5 @@
-import { createClient }      from '@/lib/supabase/server';
-import { createAdminClient } from '@/lib/supabase/admin';
-import { redirect }          from 'next/navigation';
+import { createClient } from '@/lib/supabase/server';
+import { redirect }     from 'next/navigation';
 import { TrazabilidadClient } from './TrazabilidadClient';
 
 export const dynamic = 'force-dynamic';
@@ -24,8 +23,7 @@ export default async function TrazabilidadPage() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) redirect('/login');
 
-    const db = createAdminClient();
-    const { data: profile } = await db
+    const { data: profile } = await supabase
         .from('profiles')
         .select('rol')
         .eq('id', user.id)

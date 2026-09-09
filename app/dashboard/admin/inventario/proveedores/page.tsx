@@ -1,6 +1,5 @@
-import { createClient }      from '@/lib/supabase/server';
-import { createAdminClient } from '@/lib/supabase/admin';
-import { redirect }          from 'next/navigation';
+import { createClient } from '@/lib/supabase/server';
+import { redirect }     from 'next/navigation';
 import Link                from 'next/link';
 import { ChevronLeft, ChevronRight, Building2 } from 'lucide-react';
 import { getProveedoresAdminAction } from './actions';
@@ -17,8 +16,7 @@ export default async function ProveedoresPage() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) redirect('/login');
 
-    const db = createAdminClient();
-    const { data: profile } = await db
+    const { data: profile } = await supabase
         .from('profiles').select('rol').eq('id', user.id).maybeSingle();
     const rol = profile?.rol?.toUpperCase();
     if (!['ADMIN', 'ADMIN_BODEGA'].includes(rol ?? '')) redirect('/dashboard');

@@ -1,6 +1,5 @@
-import { createClient }      from '@/lib/supabase/server';
-import { createAdminClient } from '@/lib/supabase/admin';
-import { redirect }          from 'next/navigation';
+import { createClient } from '@/lib/supabase/server';
+import { redirect }     from 'next/navigation';
 import { GestionSolicitudesClient } from './GestionSolicitudesClient';
 import {
     getSolicitudesMaterialesAction,
@@ -20,8 +19,7 @@ export default async function SolicitudesPage() {
 
     if (!user) redirect('/login');
 
-    const db = createAdminClient();
-    const { data: profile } = await db
+    const { data: profile } = await supabase
         .from('profiles')
         .select('rol')
         .eq('id', user.id)

@@ -17,11 +17,12 @@ export default async function GuiasIngresoPage() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) redirect('/login');
 
-    const db = createAdminClient();
-    const { data: profile } = await db
+    const { data: profile } = await supabase
         .from('profiles').select('rol').eq('id', user.id).maybeSingle();
     const rol = profile?.rol?.toUpperCase();
     if (!['ADMIN', 'ADMIN_BODEGA', 'COORDINADOR'].includes(rol ?? '')) redirect('/dashboard');
+
+    const db = createAdminClient();
 
     const [guiasResult, bodegasResult, catalogoResult, proveedoresResult, kpis] = await Promise.all([
         getGuiasIngresoAction(0, 10),
