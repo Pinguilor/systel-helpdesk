@@ -111,7 +111,10 @@ export async function proxy(request: NextRequest) {
                 return redirect(url)
             }
         } else if (rol === 'admin_bodega') {
-            if (!url.pathname.startsWith('/dashboard/admin/bodegas')) {
+            const allowedBodega =
+                url.pathname.startsWith('/dashboard/admin/bodegas') ||
+                url.pathname.startsWith('/dashboard/admin/inventario');
+            if (!allowedBodega) {
                 url.pathname = '/dashboard/admin/bodegas'
                 return redirect(url)
             }
