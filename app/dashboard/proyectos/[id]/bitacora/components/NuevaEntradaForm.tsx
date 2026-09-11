@@ -3,7 +3,8 @@
 import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { FileText, PenLine, Loader2, Camera, X } from 'lucide-react';
-import { agregarEntradaGeneral, subirFotoBitacora, crearEntradaFotos } from '../actions';
+import { createClient } from '@/lib/supabase/client';
+import { agregarEntradaGeneral, crearEntradaFotos } from '../actions';
 import { FirmaCanvas } from './FirmaCanvas';
 
 type Tab = 'entrada' | 'firma';
@@ -121,16 +122,26 @@ export function NuevaEntradaForm({ proyectoId }: { proyectoId: string }) {
                 const res = await agregarEntradaGeneral({ error: null }, fd);
                 if (res.error) { setError(res.error); return; }
             } else {
-                // Ruta: fotos — subida secuencial con progreso
+                // Ruta: fotos — subida directa browser→Storage (sin pasar por server action)
+                const supabase = createClient();
                 const urls: string[] = [];
                 for (let i = 0; i < photos.length; i++) {
                     setUploadProgress({ current: i + 1, total: photos.length });
-                    const fd = new FormData();
-                    fd.append('proyecto_id', proyectoId);
-                    fd.append('foto', photos[i].file);
-                    const res = await subirFotoBitacora(fd);
-                    if (res.error) { setError(res.error); setUploadProgress(null); return; }
-                    urls.push(res.url!);
+                    const file = photos[i].file;
+                    const ext  = file.name.split('.').pop()?.toLowerCase() ?? 'jpg';
+                    const path = `bitacora/${proyectoId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+                    const { error: upErr } = await supabase.storage
+                        .from('proyectos-assets')
+                        .upload(path, file, { contentType: file.type });
+                    if (upErr) {
+                        setError(`Error al subir imagen ${i + 1}: ${upErr.message}`);
+                        setUploadProgress(null);
+                        return;
+                    }
+                    const { data: { publicUrl } } = supabase.storage
+                        .from('proyectos-assets')
+                        .getPublicUrl(path);
+                    urls.push(publicUrl);
                 }
                 setUploadProgress(null);
                 const res = await crearEntradaFotos(proyectoId, contenido, urls);
