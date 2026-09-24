@@ -91,12 +91,14 @@ export default async function ProyectoWorkspacePage({
     return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
             <ProyectoTabs
-                rackCount={rack.switches.length}
+                rackCount={rack.switches.length + rack.patchPanels.length}
                 rackContent={
                     <RackBoard
                         proyectoId={id}
                         initialSwitches={rack.switches}
                         initialPuertos={rack.puertos}
+                        initialPatchPanels={rack.patchPanels}
+                        initialBocas={rack.bocas}
                         receta={rack.receta}
                         plantillas={rack.plantillas}
                         canEdit={currentUserRol === 'admin' || currentUserRol === 'coordinador'}

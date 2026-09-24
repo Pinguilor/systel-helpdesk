@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { X, Loader2, Trash2, Zap, ArrowUpFromLine } from 'lucide-react';
-import type { RackPuerto, RackRecetaItem } from '../actions';
+import type { RackPuerto, RackRecetaItem, RackPatchPanel, RackBoca } from '../actions';
 import { asignarPuertoAction, liberarPuertoAction } from '../actions';
 
 export function PortModal({
@@ -13,6 +13,10 @@ export function PortModal({
     numero,
     puerto,
     receta,
+    patchPanels,
+    bocas,
+    bocasCruzadas,
+    equipamientoNombres,
     onClose,
 }: {
     proyectoId: string;
@@ -21,6 +25,10 @@ export function PortModal({
     numero: number;
     puerto?: RackPuerto;
     receta: RackRecetaItem[];
+    patchPanels: RackPatchPanel[];
+    bocas: RackBoca[];
+    bocasCruzadas: Set<string>;
+    equipamientoNombres: Map<string, string>;
     onClose: () => void;
 }) {
     const router = useRouter();
@@ -32,6 +40,22 @@ export function PortModal({
     const [vlan, setVlan] = useState(puerto?.vlan != null ? String(puerto.vlan) : '');
     const [error, setError] = useState('');
     const [isPending, startTransition] = useTransition();
+
+    // Origen del dispositivo: conexión directa a la Receta Maestra, o cruzada
+    // a una boca de Patch Panel (que hereda su dispositivo/ubicación documentado).
+    const bocaActual = bocas.find(b => b.id === puerto?.cruzado_boca_id);
+    const [modo, setModo] = useState<'directo' | 'cruzada'>(puerto?.cruzado_boca_id ? 'cruzada' : 'directo');
+    const [panelId, setPanelId] = useState(bocaActual?.patch_panel_id ?? '');
+    const [bocaId, setBocaId] = useState(puerto?.cruzado_boca_id ?? '');
+
+    // Bocas del panel elegido, ocultando las ya cruzadas a OTRO puerto de switch.
+    const bocasDelPanel = bocas.filter(b =>
+        b.patch_panel_id === panelId && (!bocasCruzadas.has(b.id) || b.id === puerto?.cruzado_boca_id),
+    );
+    const bocaSeleccionada = bocasDelPanel.find(b => b.id === bocaId);
+    const nombreHeredado = bocaSeleccionada?.proyecto_equipamiento_id
+        ? equipamientoNombres.get(bocaSeleccionada.proyecto_equipamiento_id)
+        : undefined;
 
     // Al elegir un dispositivo, autocompleta la VLAN con el default de ese equipo
     // en la Receta (si tiene). El usuario puede sobreescribirla manualmente luego.
@@ -49,9 +73,14 @@ export function PortModal({
                 setError('La VLAN debe ser un número entre 1 y 4094.');
                 return;
             }
+            if (modo === 'cruzada' && !bocaId) {
+                setError('Selecciona un Patch Panel y una boca de origen.');
+                return;
+            }
             const res = await asignarPuertoAction({
                 proyectoId, switchId, numeroPuerto: numero, rol, esPoe,
-                proyectoEquipamientoId: equipId || null,
+                proyectoEquipamientoId: modo === 'directo' ? (equipId || null) : null,
+                cruzadoBocaId: modo === 'cruzada' ? (bocaId || null) : null,
                 etiquetaLibre: etiqueta || null,
                 notas: notas || null,
                 vlan: vlanNum,
@@ -116,29 +145,82 @@ export function PortModal({
                         </span>
                     </button>
 
-                    {/* Dispositivo de la Receta + VLAN */}
-                    <div className="grid grid-cols-3 gap-3">
-                        <div className="col-span-2">
-                            <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Dispositivo (Receta Maestra)</label>
-                            <select value={equipId} onChange={e => handleEquipChange(e.target.value)}
-                                className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent">
-                                <option value="">— Ninguno —</option>
-                                {receta.map(r => (
-                                    <option key={r.id} value={r.id}>
-                                        {r.modelo} · {r.familia}{r.es_serializado ? ' (serializado)' : ''}
-                                    </option>
-                                ))}
-                            </select>
+                    {/* Origen del dispositivo: conexión directa o cruzada a Patch Panel */}
+                    <div>
+                        <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Origen del dispositivo</label>
+                        <div className="grid grid-cols-2 gap-2 mb-3">
+                            <button type="button" onClick={() => setModo('directo')}
+                                className={`px-3 py-2 rounded-xl text-sm font-bold border transition-colors ${modo === 'directo' ? 'bg-emerald-50 border-emerald-300 text-emerald-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+                                Conexión directa
+                            </button>
+                            <button type="button" onClick={() => setModo('cruzada')}
+                                className={`px-3 py-2 rounded-xl text-sm font-bold border transition-colors ${modo === 'cruzada' ? 'bg-violet-50 border-violet-300 text-violet-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+                                Cruzada a Patch Panel
+                            </button>
                         </div>
-                        <div>
-                            <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">VLAN</label>
-                            <input
-                                type="number" min={1} max={4094} value={vlan}
-                                onChange={e => setVlan(e.target.value)}
-                                placeholder="ej: 410"
-                                className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
-                            />
-                        </div>
+
+                        {modo === 'directo' ? (
+                            <div className="grid grid-cols-3 gap-3">
+                                <div className="col-span-2">
+                                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Dispositivo (Receta Maestra)</label>
+                                    <select value={equipId} onChange={e => handleEquipChange(e.target.value)}
+                                        className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent">
+                                        <option value="">— Ninguno —</option>
+                                        {receta.map(r => (
+                                            <option key={r.id} value={r.id}>
+                                                {r.modelo} · {r.familia}{r.es_serializado ? ' (serializado)' : ''}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">VLAN</label>
+                                    <input
+                                        type="number" min={1} max={4094} value={vlan}
+                                        onChange={e => setVlan(e.target.value)}
+                                        placeholder="ej: 410"
+                                        className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
+                                    />
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="flex flex-col gap-3">
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Patch Panel</label>
+                                        <select value={panelId} onChange={e => { setPanelId(e.target.value); setBocaId(''); }}
+                                            className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-400 focus:border-transparent">
+                                            <option value="">— Seleccionar —</option>
+                                            {patchPanels.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Boca de origen</label>
+                                        <select value={bocaId} onChange={e => setBocaId(e.target.value)} disabled={!panelId}
+                                            className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-400 focus:border-transparent disabled:opacity-50">
+                                            <option value="">— Seleccionar —</option>
+                                            {bocasDelPanel.map(b => (
+                                                <option key={b.id} value={b.id}>Boca {b.numero_boca}{b.etiqueta_libre ? ` · ${b.etiqueta_libre}` : ''}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
+                                {bocaSeleccionada && (
+                                    <div className="text-xs text-violet-700 bg-violet-50 border border-violet-200 rounded-xl px-3 py-2">
+                                        Hereda: <b>{bocaSeleccionada.etiqueta_libre || nombreHeredado || 'Sin documentar aún'}</b>
+                                    </div>
+                                )}
+                                <div className="w-1/3">
+                                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">VLAN</label>
+                                    <input
+                                        type="number" min={1} max={4094} value={vlan}
+                                        onChange={e => setVlan(e.target.value)}
+                                        placeholder="ej: 410"
+                                        className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-400 focus:border-transparent"
+                                    />
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Etiqueta libre */}

@@ -13,6 +13,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { revalidatePath } from 'next/cache';
 
 const PUERTOS_VALIDOS = [8, 24, 48];
+const BOCAS_VALIDAS = [24, 48];
 const rutaProyecto = (proyectoId: string) => `/dashboard/proyectos/${proyectoId}`;
 
 // ── Tipos ───────────────────────────────────────────────────────────────────
@@ -33,9 +34,28 @@ export interface RackPuerto {
     es_poe: boolean;
     proyecto_equipamiento_id: string | null;
     inventario_id: string | null;
+    cruzado_boca_id: string | null;
     etiqueta_libre: string | null;
     notas: string | null;
     vlan: number | null;
+}
+
+export interface RackPatchPanel {
+    id: string;
+    proyecto_id: string;
+    nombre: string;
+    num_bocas: number;
+    orden: number;
+    created_at: string;
+}
+
+export interface RackBoca {
+    id: string;
+    patch_panel_id: string;
+    numero_boca: number;
+    proyecto_equipamiento_id: string | null;
+    etiqueta_libre: string | null;
+    notas: string | null;
 }
 
 export interface RackRecetaItem {
@@ -90,8 +110,16 @@ async function requireGestor(): Promise<{ user: { id: string } } | { error: stri
 // ── Lectura ─────────────────────────────────────────────────────────────────
 export async function getRackData(
     proyectoId: string,
-): Promise<{ switches: RackSwitch[]; puertos: RackPuerto[]; receta: RackRecetaItem[]; plantillas: RackTemplate[]; error?: string }> {
-    const empty = { switches: [], puertos: [], receta: [], plantillas: [] };
+): Promise<{
+    switches: RackSwitch[];
+    puertos: RackPuerto[];
+    patchPanels: RackPatchPanel[];
+    bocas: RackBoca[];
+    receta: RackRecetaItem[];
+    plantillas: RackTemplate[];
+    error?: string;
+}> {
+    const empty = { switches: [], puertos: [], patchPanels: [], bocas: [], receta: [], plantillas: [] };
     const { user } = await getUser();
     if (!user) return { ...empty, error: 'No autenticado.' };
 
@@ -112,10 +140,31 @@ export async function getRackData(
     if (switchIds.length > 0) {
         const { data: p, error: pErr } = await db
             .from('proyecto_puertos')
-            .select('id, switch_id, numero_puerto, rol, es_poe, proyecto_equipamiento_id, inventario_id, etiqueta_libre, notas, vlan')
+            .select('id, switch_id, numero_puerto, rol, es_poe, proyecto_equipamiento_id, inventario_id, cruzado_boca_id, etiqueta_libre, notas, vlan')
             .in('switch_id', switchIds);
         if (pErr) return { ...empty, switches: (switches ?? []) as RackSwitch[], error: pErr.message };
         puertos = (p ?? []) as RackPuerto[];
+    }
+
+    // Patch panels (infraestructura pasiva) + sus bocas.
+    const { data: patchPanels, error: ppErr } = await db
+        .from('proyecto_patch_panels')
+        .select('id, proyecto_id, nombre, num_bocas, orden, created_at')
+        .eq('proyecto_id', proyectoId)
+        .order('orden', { ascending: true })
+        .order('created_at', { ascending: true });
+
+    if (ppErr) return { ...empty, switches: (switches ?? []) as RackSwitch[], puertos, error: ppErr.message };
+
+    const panelIds = (patchPanels ?? []).map(p => p.id);
+    let bocas: RackBoca[] = [];
+    if (panelIds.length > 0) {
+        const { data: b, error: bErr } = await db
+            .from('proyecto_bocas')
+            .select('id, patch_panel_id, numero_boca, proyecto_equipamiento_id, etiqueta_libre, notas')
+            .in('patch_panel_id', panelIds);
+        if (bErr) return { ...empty, switches: (switches ?? []) as RackSwitch[], puertos, patchPanels: (patchPanels ?? []) as RackPatchPanel[], error: bErr.message };
+        bocas = (b ?? []) as RackBoca[];
     }
 
     // Receta Maestra del proyecto: opciones de dispositivo para asignar a puertos.
@@ -146,7 +195,14 @@ export async function getRackData(
         .order('created_at', { ascending: false });
     const plantillas = (plantillasRaw ?? []) as RackTemplate[];
 
-    return { switches: (switches ?? []) as RackSwitch[], puertos, receta, plantillas };
+    return {
+        switches: (switches ?? []) as RackSwitch[],
+        puertos,
+        patchPanels: (patchPanels ?? []) as RackPatchPanel[],
+        bocas,
+        receta,
+        plantillas,
+    };
 }
 
 // ── CRUD básico de switches ─────────────────────────────────────────────────
@@ -232,6 +288,7 @@ export interface AsignarPuertoInput {
     rol: 'acceso' | 'uplink';
     esPoe: boolean;
     proyectoEquipamientoId?: string | null;
+    cruzadoBocaId?: string | null;
     etiquetaLibre?: string | null;
     notas?: string | null;
     vlan?: number | null;
@@ -252,12 +309,37 @@ export async function asignarPuertoAction(input: AsignarPuertoInput) {
         .from('proyecto_switches').select('id').eq('id', switchId).eq('proyecto_id', proyectoId).maybeSingle();
     if (!sw) return { error: 'El switch no pertenece a este proyecto.' };
 
+    // Cruzada a Patch Panel y dispositivo directo son mutuamente excluyentes.
+    const cruzadoBocaId = input.cruzadoBocaId?.trim() || null;
+    const equipamientoId = cruzadoBocaId ? null : (input.proyectoEquipamientoId?.trim() || null);
+
     // Si se asigna equipo de la Receta, debe ser de este proyecto.
-    const equipamientoId = input.proyectoEquipamientoId?.trim() || null;
     if (equipamientoId) {
         const { data: eq } = await db
             .from('proyecto_equipamiento').select('id').eq('id', equipamientoId).eq('proyecto_id', proyectoId).maybeSingle();
         if (!eq) return { error: 'El equipo seleccionado no pertenece a la Receta de este proyecto.' };
+    }
+
+    // Si se cruza a una boca, debe pertenecer al mismo proyecto y no estar ya cruzada.
+    if (cruzadoBocaId) {
+        const { data: boca } = await db
+            .from('proyecto_bocas')
+            .select('id, proyecto_patch_panels!inner(proyecto_id)')
+            .eq('id', cruzadoBocaId)
+            .maybeSingle();
+        const proyectoBoca = (boca as any)?.proyecto_patch_panels?.proyecto_id;
+        if (!boca || proyectoBoca !== proyectoId) {
+            return { error: 'La boca seleccionada no pertenece a este proyecto.' };
+        }
+
+        const { data: puertoActual } = await db
+            .from('proyecto_puertos').select('id').eq('switch_id', switchId).eq('numero_puerto', numeroPuerto).maybeSingle();
+
+        const { data: yaCruzada } = await db
+            .from('proyecto_puertos').select('id').eq('cruzado_boca_id', cruzadoBocaId).maybeSingle();
+        if (yaCruzada && yaCruzada.id !== puertoActual?.id) {
+            return { error: 'Esa boca ya está cruzada a otro puerto de switch.' };
+        }
     }
 
     // VLAN: entero 1..4094 o null.
@@ -277,6 +359,7 @@ export async function asignarPuertoAction(input: AsignarPuertoInput) {
                 rol,
                 es_poe: esPoe,
                 proyecto_equipamiento_id: equipamientoId,
+                cruzado_boca_id: cruzadoBocaId,
                 etiqueta_libre: input.etiquetaLibre?.trim() || null,
                 notas: input.notas?.trim() || null,
                 vlan,
@@ -310,6 +393,187 @@ export async function liberarPuertoAction(switchId: string, numeroPuerto: number
     if (error) {
         console.error('[liberarPuertoAction]', error.message);
         return { error: error.message || 'No se pudo liberar el puerto.' };
+    }
+
+    revalidatePath(rutaProyecto(proyectoId));
+    return { success: true };
+}
+
+// ── CRUD básico de patch panels (infraestructura pasiva) ───────────────────
+export async function crearPatchPanelAction(proyectoId: string, nombre: string, numBocas: number) {
+    const guard = await requireGestor();
+    if ('error' in guard) return { error: guard.error };
+
+    if (!proyectoId) return { error: 'Proyecto no identificado.' };
+    if (!BOCAS_VALIDAS.includes(numBocas)) return { error: 'El conteo de bocas debe ser 24 o 48.' };
+    const nombreLimpio = nombre?.trim() || 'Patch Panel';
+
+    const db = createAdminClient();
+
+    const { count } = await db
+        .from('proyecto_patch_panels')
+        .select('*', { count: 'exact', head: true })
+        .eq('proyecto_id', proyectoId);
+
+    const { error } = await db.from('proyecto_patch_panels').insert({
+        proyecto_id: proyectoId,
+        nombre: nombreLimpio,
+        num_bocas: numBocas,
+        orden: count ?? 0,
+    });
+
+    if (error) {
+        console.error('[crearPatchPanelAction]', error.message);
+        return { error: error.message || 'No se pudo crear el patch panel.' };
+    }
+
+    revalidatePath(rutaProyecto(proyectoId));
+    return { success: true };
+}
+
+export async function eliminarPatchPanelAction(patchPanelId: string, proyectoId: string) {
+    const guard = await requireGestor();
+    if ('error' in guard) return { error: guard.error };
+
+    if (!patchPanelId) return { error: 'Patch panel no identificado.' };
+
+    const db = createAdminClient();
+    const { error } = await db.from('proyecto_patch_panels').delete().eq('id', patchPanelId);
+
+    if (error) {
+        console.error('[eliminarPatchPanelAction]', error.message);
+        if (error.message.includes('violates foreign key constraint')) {
+            return { error: 'Hay bocas de este panel cruzadas a un switch. Libera esas cruzadas antes de eliminar el panel.' };
+        }
+        return { error: error.message || 'No se pudo eliminar el patch panel.' };
+    }
+
+    revalidatePath(rutaProyecto(proyectoId));
+    return { success: true };
+}
+
+// ── Autogenerar bocas (carga masiva) ────────────────────────────────────────
+export async function autogenerarBocasAction(
+    proyectoId: string,
+    patchPanelId: string,
+    prefijo: string,
+    desde: number,
+    hasta: number,
+) {
+    const guard = await requireGestor();
+    if ('error' in guard) return { error: guard.error };
+    if (!patchPanelId) return { error: 'Patch panel no identificado.' };
+    if (!Number.isFinite(desde) || !Number.isFinite(hasta) || desde < 1 || hasta < desde) {
+        return { error: 'Rango de bocas inválido.' };
+    }
+
+    const db = createAdminClient();
+    const { data: panel } = await db
+        .from('proyecto_patch_panels').select('num_bocas').eq('id', patchPanelId).eq('proyecto_id', proyectoId).maybeSingle();
+    if (!panel) return { error: 'El patch panel no pertenece a este proyecto.' };
+    if (hasta > panel.num_bocas) return { error: `El rango no puede superar ${panel.num_bocas} bocas.` };
+
+    const prefijoLimpio = prefijo?.trim();
+    const filas = [];
+    for (let n = desde; n <= hasta; n++) {
+        filas.push({
+            patch_panel_id: patchPanelId,
+            numero_boca: n,
+            etiqueta_libre: prefijoLimpio ? `${prefijoLimpio} ${n}` : null,
+        });
+    }
+
+    // No pisa bocas ya configuradas: solo inserta las que faltan.
+    const { error } = await db
+        .from('proyecto_bocas')
+        .upsert(filas, { onConflict: 'patch_panel_id,numero_boca', ignoreDuplicates: true });
+
+    if (error) {
+        console.error('[autogenerarBocasAction]', error.message);
+        return { error: error.message || 'No se pudieron autogenerar las bocas.' };
+    }
+
+    revalidatePath(rutaProyecto(proyectoId));
+    return { success: true };
+}
+
+// ── Asignación de bocas ──────────────────────────────────────────────────────
+export interface AsignarBocaInput {
+    proyectoId: string;
+    patchPanelId: string;
+    numeroBoca: number;
+    proyectoEquipamientoId?: string | null;
+    etiquetaLibre?: string | null;
+    notas?: string | null;
+}
+
+export async function asignarBocaAction(input: AsignarBocaInput) {
+    const guard = await requireGestor();
+    if ('error' in guard) return { error: guard.error };
+
+    const { proyectoId, patchPanelId, numeroBoca } = input;
+    if (!patchPanelId || !numeroBoca) return { error: 'Boca no identificada.' };
+
+    const db = createAdminClient();
+    const { data: panel } = await db
+        .from('proyecto_patch_panels').select('id').eq('id', patchPanelId).eq('proyecto_id', proyectoId).maybeSingle();
+    if (!panel) return { error: 'El patch panel no pertenece a este proyecto.' };
+
+    const equipamientoId = input.proyectoEquipamientoId?.trim() || null;
+    if (equipamientoId) {
+        const { data: eq } = await db
+            .from('proyecto_equipamiento').select('id').eq('id', equipamientoId).eq('proyecto_id', proyectoId).maybeSingle();
+        if (!eq) return { error: 'El equipo seleccionado no pertenece a la Receta de este proyecto.' };
+    }
+
+    const { error } = await db
+        .from('proyecto_bocas')
+        .upsert(
+            {
+                patch_panel_id: patchPanelId,
+                numero_boca: numeroBoca,
+                proyecto_equipamiento_id: equipamientoId,
+                etiqueta_libre: input.etiquetaLibre?.trim() || null,
+                notas: input.notas?.trim() || null,
+                actualizado_por: guard.user.id,
+            },
+            { onConflict: 'patch_panel_id,numero_boca' },
+        );
+
+    if (error) {
+        console.error('[asignarBocaAction]', error.message);
+        return { error: error.message || 'No se pudo guardar la boca.' };
+    }
+
+    revalidatePath(rutaProyecto(proyectoId));
+    return { success: true };
+}
+
+export async function liberarBocaAction(patchPanelId: string, numeroBoca: number, proyectoId: string) {
+    const guard = await requireGestor();
+    if ('error' in guard) return { error: guard.error };
+
+    if (!patchPanelId || !numeroBoca) return { error: 'Boca no identificada.' };
+
+    const db = createAdminClient();
+
+    const { data: boca } = await db
+        .from('proyecto_bocas').select('id').eq('patch_panel_id', patchPanelId).eq('numero_boca', numeroBoca).maybeSingle();
+    if (boca) {
+        const { data: cruzada } = await db
+            .from('proyecto_puertos').select('id').eq('cruzado_boca_id', boca.id).maybeSingle();
+        if (cruzada) return { error: 'Esta boca está cruzada a un switch. Libera la cruzada desde el puerto del switch primero.' };
+    }
+
+    const { error } = await db
+        .from('proyecto_bocas')
+        .delete()
+        .eq('patch_panel_id', patchPanelId)
+        .eq('numero_boca', numeroBoca);
+
+    if (error) {
+        console.error('[liberarBocaAction]', error.message);
+        return { error: error.message || 'No se pudo liberar la boca.' };
     }
 
     revalidatePath(rutaProyecto(proyectoId));
