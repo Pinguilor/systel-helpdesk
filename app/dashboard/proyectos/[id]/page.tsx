@@ -11,7 +11,10 @@ import { BitacoraTimeline } from './bitacora/components/BitacoraTimeline';
 import { ProyectoWidgets } from './components/ProyectoWidgets';
 import { BookOpen, Lock, ArrowLeft } from 'lucide-react';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
+import { getRecetasAplicadas } from './bom/actions';
 import Link from 'next/link';
+import { notFound } from 'next/navigation';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,10 +39,23 @@ export default async function ProyectoWorkspacePage({
         getRackData(id),
     ]);
 
+    // Proyectos ocultos (de prueba): no son accesibles ni por URL directa
+    if ((proyecto as any)?.oculto) notFound();
+
     const participantes  = (proyecto as any)?.participantes  ?? [];
     const responsableId: string | null = (proyecto as any)?.responsable_id ?? null;
     const proyectoEstado: string       = (proyecto as any)?.estado          ?? 'planificacion';
     const bomItems = (bom?.items ?? []) as any[];
+
+    // Eliminar receta (solo admin): bloqueado si ya existe alguna solicitud de retiro a bodega
+    const [{ count: totalSolicitudes }, recetasAplicadas] = await Promise.all([
+        createAdminClient()
+            .from('solicitudes_materiales')
+            .select('id', { count: 'exact', head: true })
+            .eq('proyecto_id', id),
+        getRecetasAplicadas(id),
+    ]);
+    const hayRetiros = (totalSolicitudes ?? 0) > 0;
 
     // --- ACCESSIBILITY AND SECURITY LAYER ---
     const supabase = await createClient();
@@ -149,6 +165,8 @@ export default async function ProyectoWorkspacePage({
                         currentUserRol={currentUserRol}
                         currentUserId={currentUserId}
                         responsableId={responsableId}
+                        hayRetiros={hayRetiros}
+                        recetasAplicadas={recetasAplicadas}
                     />
                 </div>
 

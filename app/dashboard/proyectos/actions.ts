@@ -34,6 +34,7 @@ export async function getProyectos() {
                 proyecto_participantes!inner(perfil_id)
             `)
             .eq('proyecto_participantes.perfil_id', user.id)
+            .eq('oculto', false)
             .order('created_at', { ascending: false });
         if (error) throw error;
         return data ?? [];
@@ -45,6 +46,7 @@ export async function getProyectos() {
                 cliente:restaurantes(nombre_restaurante, sigla),
                 coordinador:profiles!coordinador_id(full_name)
             `)
+            .eq('oculto', false)
             .order('created_at', { ascending: false });
         if (error) throw error;
         return data ?? [];

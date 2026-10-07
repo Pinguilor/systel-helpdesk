@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition, useEffect, useMemo, useRef } from 'react';
-import { X, Settings, Plus, Trash2, Box, Loader2, Edit2, Search } from 'lucide-react';
+import { X, Settings, Plus, Trash2, Box, Loader2, Edit2, Search, Copy } from 'lucide-react';
 import { crearPlantillaBOMAction, editarPlantillaBOMAction, eliminarPlantillaBOMAction } from '../actions';
 
 interface CatalogItem {
@@ -39,6 +39,7 @@ export function GestorPlantillasBOMModal({ plantillas, catalogo }: Props) {
     const [tempItems, setTempItems] = useState<any[]>([]);
     const [error, setError] = useState<string | null>(null);
     const [editingId, setEditingId] = useState<string | null>(null);
+    const [itemFilter, setItemFilter] = useState('');
 
     // Combobox/Catalog states
     const [searchQuery, setSearchQuery] = useState('');
@@ -74,6 +75,7 @@ export function GestorPlantillasBOMModal({ plantillas, catalogo }: Props) {
         setCantidadInput(1);
         setIsDropdownOpen(false);
         setEditingId(null);
+        setItemFilter('');
         setError(null);
     }
 
@@ -87,6 +89,17 @@ export function GestorPlantillasBOMModal({ plantillas, catalogo }: Props) {
                 item.familia.toLowerCase().includes(query)
         );
     }, [catalogo, searchQuery]);
+
+    // Filtro sobre los ítems YA agregados a la receta (por modelo, familia o tipo)
+    const visibleItems = useMemo(() => {
+        const q = itemFilter.trim().toLowerCase();
+        if (!q) return tempItems;
+        return tempItems.filter(i =>
+            String(i.nombre_modelo ?? '').toLowerCase().includes(q) ||
+            String(i.familia ?? '').toLowerCase().includes(q) ||
+            String(i.tipo ?? '').toLowerCase().includes(q)
+        );
+    }, [tempItems, itemFilter]);
 
     function handleAddItem() {
         if (!selectedItem) {
@@ -129,8 +142,18 @@ export function GestorPlantillasBOMModal({ plantillas, catalogo }: Props) {
 
     function handleLoadEdit(p: PlantillaBOM) {
         setEditingId(p.id);
+        setItemFilter('');
         setNombre(p.nombre);
         setTempItems(p.items || []);
+        setError(null);
+    }
+
+    // Carga la receta en el formulario como NUEVA (sin id) → al guardar se inserta un registro nuevo.
+    function handleDuplicate(p: PlantillaBOM) {
+        setEditingId(null);
+        setItemFilter('');
+        setNombre(`${p.nombre} (Copia)`);
+        setTempItems((p.items || []).map(i => ({ ...i })));
         setError(null);
     }
 
@@ -160,6 +183,7 @@ export function GestorPlantillasBOMModal({ plantillas, catalogo }: Props) {
                 setNombre('');
                 setTempItems([]);
                 setEditingId(null);
+                setItemFilter('');
             }
         });
     }
@@ -180,10 +204,11 @@ export function GestorPlantillasBOMModal({ plantillas, catalogo }: Props) {
             {/* Cog Button Trigger */}
             <button
                 onClick={() => setIsOpen(true)}
-                className="w-10 h-10 rounded-xl bg-white border border-slate-200/80 text-slate-500 hover:text-slate-800 hover:bg-slate-50 transition-all flex items-center justify-center cursor-pointer shadow-sm"
+                className="h-10 px-3.5 rounded-xl bg-white border border-slate-200/80 text-slate-500 hover:text-slate-800 hover:bg-slate-50 transition-all flex items-center justify-center gap-2 text-sm font-bold cursor-pointer shadow-sm"
                 title="Gestionar Recetas de Hardware"
             >
                 <Box className="w-4 h-4" />
+                Recetas
             </button>
 
             {isOpen && (
@@ -306,6 +331,30 @@ export function GestorPlantillasBOMModal({ plantillas, catalogo }: Props) {
                                         </div>
                                     </div>
 
+                                    {/* Buscador dentro de la receta */}
+                                    {tempItems.length > 5 && (
+                                        <div className="relative">
+                                            <input
+                                                type="text"
+                                                placeholder={`Filtrar en esta receta (${tempItems.length} ítems)...`}
+                                                value={itemFilter}
+                                                onChange={e => setItemFilter(e.target.value)}
+                                                className="w-full pl-9 pr-8 py-2 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-slate-900/10 placeholder:text-slate-400 bg-white"
+                                            />
+                                            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+                                            {itemFilter && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setItemFilter('')}
+                                                    className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-700 cursor-pointer"
+                                                    title="Limpiar filtro"
+                                                >
+                                                    <X className="w-3.5 h-3.5" />
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
+
                                     {/* Added Items List */}
                                     <div className="flex-1 border border-slate-200/80 rounded-2xl bg-slate-50/40 p-4 min-h-[180px] max-h-[260px] overflow-y-auto flex flex-col gap-2">
                                         {tempItems.length === 0 ? (
@@ -314,8 +363,12 @@ export function GestorPlantillasBOMModal({ plantillas, catalogo }: Props) {
                                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Lista vacía</p>
                                                 <p className="text-[9px] text-slate-350 mt-0.5">Agrega hardware desde el buscador para conformar el kit</p>
                                             </div>
+                                        ) : visibleItems.length === 0 ? (
+                                            <p className="text-[11px] font-semibold text-slate-400 text-center py-10">
+                                                Ningún ítem coincide con &quot;{itemFilter}&quot;
+                                            </p>
                                         ) : (
-                                            tempItems.map(item => (
+                                            visibleItems.map(item => (
                                                 <div key={item.modelo_id} className="flex justify-between items-center gap-3 bg-white border border-slate-150/40 px-3.5 py-2.5 rounded-xl shadow-sm group">
                                                     <div className="min-w-0">
                                                         <p className="text-xs font-bold text-slate-800 truncate">{item.nombre_modelo}</p>
@@ -342,13 +395,18 @@ export function GestorPlantillasBOMModal({ plantillas, catalogo }: Props) {
 
                                     {/* Action Buttons */}
                                     <div className="flex gap-3 pt-2">
-                                        {editingId && (
+                                        {(editingId || nombre.trim() || tempItems.length > 0) && (
                                             <button
                                                 type="button"
                                                 onClick={() => {
                                                     setEditingId(null);
                                                     setNombre('');
                                                     setTempItems([]);
+                                                    setItemFilter('');
+                                                    setSelectedItem(null);
+                                                    setSearchQuery('');
+                                                    setCantidadInput(1);
+                                                    setError(null);
                                                 }}
                                                 className="flex-1 py-2.5 border border-slate-200 text-slate-500 rounded-xl text-xs font-bold hover:bg-slate-50 cursor-pointer"
                                             >
@@ -404,6 +462,13 @@ export function GestorPlantillasBOMModal({ plantillas, catalogo }: Props) {
                                                             title="Editar receta"
                                                         >
                                                             <Edit2 className="w-3.5 h-3.5" />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleDuplicate(p)}
+                                                            className="w-7 h-7 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 flex items-center justify-center transition-colors cursor-pointer"
+                                                            title="Duplicar receta"
+                                                        >
+                                                            <Copy className="w-3.5 h-3.5" />
                                                         </button>
                                                         <button
                                                             onClick={() => handleDelete(p.id)}

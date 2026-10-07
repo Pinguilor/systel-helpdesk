@@ -52,6 +52,7 @@ export default async function tecnicoDashboard() {
             proyecto_participantes!inner ( perfil_id )
         `)
         .eq('proyecto_participantes.perfil_id', user.id)
+        .eq('oculto', false)
         .order('created_at', { ascending: false });
 
     if (projectsError) {

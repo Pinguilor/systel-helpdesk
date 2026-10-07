@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useTransition, useEffect } from 'react';
-import { List, LayoutGrid, FolderKanban, Clock, UserCheck, AlertTriangle, X, Loader2 } from 'lucide-react';
-import { type ProyectoEstado } from '@/types/proyectos.types';
+import { useState, useTransition, useEffect, useMemo, useRef } from 'react';
+import { List, LayoutGrid, FolderKanban, Clock, UserCheck, AlertTriangle, X, Loader2, Search, ChevronDown, Check } from 'lucide-react';
+import { type ProyectoEstado, PROYECTO_ESTADO_CONFIG } from '@/types/proyectos.types';
 import { ProyectosTable } from './ProyectosTable';
 import { KanbanBoard } from './KanbanBoard';
 import { ProyectoFormModal, type ProyectoParaEditar } from './ProyectoFormModal';
@@ -112,12 +112,116 @@ function DeleteConfirmModal({
     );
 }
 
+// ── Normalización para búsqueda sin tildes ni mayúsculas ──────────────────
+const norm = (v: string | null | undefined) =>
+    (v ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
+// ── Combobox de coordinador ────────────────────────────────────────────────
+function CoordinadorCombobox({
+    options, value, onChange,
+}: {
+    options: { id: string; nombre: string }[];
+    value: string | null;
+    onChange: (id: string | null) => void;
+}) {
+    const [open, setOpen] = useState(false);
+    const ref = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const handler = (e: MouseEvent) => {
+            if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, []);
+
+    const actual = options.find(o => o.id === value);
+
+    return (
+        <div className="relative" ref={ref}>
+            <button
+                type="button"
+                onClick={() => setOpen(o => !o)}
+                className={`flex items-center gap-2 px-3.5 py-2 border rounded-xl text-xs font-bold transition-colors cursor-pointer bg-white ${
+                    actual ? 'border-slate-900 text-slate-900' : 'border-slate-200 text-slate-500 hover:bg-slate-50'
+                }`}
+            >
+                <UserCheck className="w-3.5 h-3.5" />
+                <span className="max-w-[140px] truncate">{actual ? actual.nombre : 'Coordinador'}</span>
+                <ChevronDown className="w-3.5 h-3.5 opacity-60" />
+            </button>
+            {open && (
+                <div className="absolute left-0 top-full mt-1 w-56 bg-white border border-slate-200 rounded-xl shadow-lg z-30 max-h-60 overflow-y-auto py-1">
+                    <button
+                        type="button"
+                        onClick={() => { onChange(null); setOpen(false); }}
+                        className="w-full text-left px-3.5 py-2 text-xs font-bold text-slate-500 hover:bg-slate-50 flex items-center justify-between cursor-pointer"
+                    >
+                        Todos los coordinadores
+                        {!value && <Check className="w-3.5 h-3.5 text-slate-900" />}
+                    </button>
+                    {options.map(o => (
+                        <button
+                            key={o.id}
+                            type="button"
+                            onClick={() => { onChange(o.id); setOpen(false); }}
+                            className="w-full text-left px-3.5 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center justify-between gap-2 cursor-pointer"
+                        >
+                            <span className="truncate">{o.nombre}</span>
+                            {value === o.id && <Check className="w-3.5 h-3.5 text-slate-900 shrink-0" />}
+                        </button>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
+
 export function ProyectosDashboardView({ proyectos, empresas, sucursales, coordinadores }: Props) {
     const [vista, setVista] = useState<'list' | 'board'>('list');
     const [editingProyecto, setEditingProyecto] = useState<ProyectoParaEditar | null>(null);
     const [proyectoToDelete, setProyectoToDelete] = useState<ProyectoRow | null>(null);
     const [actionError, setActionError] = useState<string | null>(null);
     const [isDeletePending, startDeleteTransition] = useTransition();
+
+    // Búsqueda y filtros
+    const [busqueda, setBusqueda] = useState('');
+    const [estadoFiltro, setEstadoFiltro] = useState<ProyectoEstado | null>(null);
+    const [coordFiltro, setCoordFiltro] = useState<string | null>(null);
+
+    const coordinadoresOpts = useMemo(() => {
+        const m = new Map<string, string>();
+        proyectos.forEach(p => {
+            if (p.coordinador_id) m.set(p.coordinador_id, p.coordinador?.full_name ?? 'Sin nombre');
+        });
+        return [...m.entries()]
+            .map(([id, nombre]) => ({ id, nombre }))
+            .sort((a, b) => a.nombre.localeCompare(b.nombre));
+    }, [proyectos]);
+
+    const conteoEstados = useMemo(() => {
+        const c: Partial<Record<ProyectoEstado, number>> = {};
+        proyectos.forEach(p => { c[p.estado] = (c[p.estado] ?? 0) + 1; });
+        return c;
+    }, [proyectos]);
+
+    // Búsqueda de texto + estado + coordinador (se combinan con AND)
+    const proyectosFiltrados = useMemo(() => {
+        const q = norm(busqueda.trim());
+        return proyectos.filter(p => {
+            if (estadoFiltro && p.estado !== estadoFiltro) return false;
+            if (coordFiltro && p.coordinador_id !== coordFiltro) return false;
+            if (!q) return true;
+            return [
+                p.nombre, p.descripcion,
+                p.cliente?.sigla, p.cliente?.nombre_restaurante,
+                p.coordinador?.full_name,
+            ].some(campo => norm(campo).includes(q));
+        });
+    }, [proyectos, busqueda, estadoFiltro, coordFiltro]);
+
+    const hayFiltros = !!(busqueda.trim() || estadoFiltro || coordFiltro);
+    function limpiarFiltros() { setBusqueda(''); setEstadoFiltro(null); setCoordFiltro(null); }
 
     // Persist active view preference in localStorage
     useEffect(() => {
@@ -239,6 +343,80 @@ export function ProyectosDashboardView({ proyectos, empresas, sucursales, coordi
                 </div>
             </div>
 
+            {/* ── Buscador y filtros ───────────────────────────────────────── */}
+            {proyectos.length > 0 && (
+                <div className="space-y-3 font-sans">
+                    <div className="flex flex-col sm:flex-row gap-3">
+                        <div className="relative flex-1">
+                            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                            <input
+                                type="text"
+                                value={busqueda}
+                                onChange={e => setBusqueda(e.target.value)}
+                                placeholder="Buscar por proyecto, local, sigla o coordinador..."
+                                className="w-full pl-10 pr-9 py-2 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-slate-900/10 placeholder:text-slate-400 bg-white"
+                            />
+                            {busqueda && (
+                                <button
+                                    type="button"
+                                    onClick={() => setBusqueda('')}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 cursor-pointer"
+                                    title="Limpiar búsqueda"
+                                >
+                                    <X className="w-3.5 h-3.5" />
+                                </button>
+                            )}
+                        </div>
+                        {coordinadoresOpts.length > 1 && (
+                            <CoordinadorCombobox options={coordinadoresOpts} value={coordFiltro} onChange={setCoordFiltro} />
+                        )}
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={() => setEstadoFiltro(null)}
+                            className={`px-3 py-1.5 rounded-full text-[11px] font-black border transition-colors cursor-pointer ${
+                                !estadoFiltro ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
+                            }`}
+                        >
+                            Todos ({proyectos.length})
+                        </button>
+                        {(Object.keys(PROYECTO_ESTADO_CONFIG) as ProyectoEstado[]).map(est => {
+                            const cnt = conteoEstados[est] ?? 0;
+                            if (cnt === 0 && estadoFiltro !== est) return null;
+                            const activo = estadoFiltro === est;
+                            return (
+                                <button
+                                    key={est}
+                                    type="button"
+                                    onClick={() => setEstadoFiltro(activo ? null : est)}
+                                    className={`px-3 py-1.5 rounded-full text-[11px] font-black border transition-colors cursor-pointer ${
+                                        activo ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
+                                    }`}
+                                >
+                                    {PROYECTO_ESTADO_CONFIG[est].label} ({cnt})
+                                </button>
+                            );
+                        })}
+                        {hayFiltros && (
+                            <>
+                                <span className="text-[11px] font-semibold text-slate-400 ml-1">
+                                    {proyectosFiltrados.length} de {proyectos.length} proyectos
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={limpiarFiltros}
+                                    className="text-[11px] font-black text-indigo-600 hover:text-indigo-800 underline underline-offset-2 cursor-pointer"
+                                >
+                                    Limpiar filtros
+                                </button>
+                            </>
+                        )}
+                    </div>
+                </div>
+            )}
+
             {/* Error global de acción */}
             {actionError && (
                 <div className="bg-red-50 border border-red-200 text-red-700 text-sm font-medium px-4 py-3 rounded-xl flex items-center justify-between font-sans">
@@ -250,9 +428,21 @@ export function ProyectosDashboardView({ proyectos, empresas, sucursales, coordi
             )}
 
             {/* ── Renderizado Condicional de Vistas ─────────────────────────── */}
-            {vista === 'list' ? (
+            {hayFiltros && proyectosFiltrados.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 text-center border border-dashed border-slate-200 rounded-2xl bg-slate-50/50 font-sans">
+                    <Search className="w-8 h-8 text-slate-300 mb-3" strokeWidth={1.5} />
+                    <p className="text-slate-500 font-bold text-sm">Ningún proyecto coincide con los filtros</p>
+                    <button
+                        type="button"
+                        onClick={limpiarFiltros}
+                        className="mt-2 text-xs font-black text-indigo-600 hover:text-indigo-800 underline underline-offset-2 cursor-pointer"
+                    >
+                        Limpiar filtros
+                    </button>
+                </div>
+            ) : vista === 'list' ? (
                 <ProyectosTable
-                    proyectos={proyectos}
+                    proyectos={proyectosFiltrados}
                     empresas={empresas}
                     sucursales={sucursales}
                     coordinadores={coordinadores}
@@ -261,7 +451,7 @@ export function ProyectosDashboardView({ proyectos, empresas, sucursales, coordi
                 />
             ) : (
                 <KanbanBoard
-                    proyectos={proyectos}
+                    proyectos={proyectosFiltrados}
                     onEdit={handleEdit}
                     onDelete={setProyectoToDelete}
                 />

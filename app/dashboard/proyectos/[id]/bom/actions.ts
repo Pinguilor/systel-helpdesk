@@ -545,6 +545,17 @@ export async function aplicarRecetaBOMAction(
     const upsertResult = await upsertEquipamientoItems(db, proyectoId, rows);
     if (upsertResult.error) return { error: `Error al inyectar materiales: ${upsertResult.error}` };
 
+    // 3b. Registrar la aplicación (snapshot) para poder revertir SOLO esta receta después.
+    //     Best-effort: si la tabla aún no existe, la carga de la receta igual se mantiene.
+    const { error: appErr } = await db.from('proyecto_recetas_aplicadas').insert({
+        proyecto_id:  proyectoId,
+        plantilla_id: plantillaId,
+        nombre:       receta.nombre,
+        items,
+        aplicada_por: user.id,
+    });
+    if (appErr) console.error('[aplicarRecetaBOM] no se pudo registrar la aplicación:', appErr.message);
+
     // 4. Registrar un único log de auditoría
     await registrarEntradaAuditoria(
         proyectoId,
@@ -556,4 +567,219 @@ export async function aplicarRecetaBOMAction(
     revalidatePath(`/dashboard/proyectos/${proyectoId}/bom`);
     revalidatePath(`/dashboard/proyectos/${proyectoId}`);
     return { error: null };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Eliminar receta cargada por error (solo ADMIN).
+//  • Con aplicacionId → elimina UNA receta aplicada (resta sus ítems). Se prohíbe si de
+//    esa receta se pidió cualquier ítem a bodega (solicitud de cualquier estado) o si
+//    hay stock con movimiento.
+//  • Sin aplicacionId → elimina TODA la receta del proyecto. Se prohíbe si el proyecto
+//    tiene cualquier solicitud de retiro.
+
+type FilaEquip = {
+    id: string; inventario_id: string | null; cantidad_total: number | null;
+    cantidad_entregada: number | null; cantidad_instalada: number | null;
+    cantidad_estacionada: number | null; cantidad_en_transito: number | null;
+    cantidad_reingresada: number | null;
+};
+type ItemReceta = { modelo_id: string; cantidad: number };
+
+const FILA_SELECT =
+    'id, inventario_id, cantidad_total, cantidad_entregada, cantidad_instalada, cantidad_estacionada, cantidad_en_transito, cantidad_reingresada';
+
+const esUuid = (v: string) => !!v && /^[0-9a-f]{8}-/i.test(v);
+
+// Fila del proyecto que corresponde a un ítem de la receta aplicada.
+// Ítem manual (sin catálogo): fila propia sin inventario_id y misma cantidad.
+function buscarFila(filas: FilaEquip[], it: ItemReceta): number {
+    return esUuid(it.modelo_id)
+        ? filas.findIndex(f => f.inventario_id === it.modelo_id)
+        : filas.findIndex(f => f.inventario_id === null && f.cantidad_total === it.cantidad);
+}
+
+const tieneMovimiento = (f: FilaEquip) =>
+    ((f.cantidad_entregada ?? 0) + (f.cantidad_instalada ?? 0) + (f.cantidad_estacionada ?? 0) +
+     (f.cantidad_en_transito ?? 0) + (f.cantidad_reingresada ?? 0)) > 0;
+
+// IDs (de proyecto_equipamiento) que tienen al menos una solicitud de retiro, de cualquier estado.
+async function filasSolicitadas(db: ReturnType<typeof createAdminClient>, filaIds: string[]): Promise<Set<string>> {
+    if (filaIds.length === 0) return new Set();
+    const { data } = await db
+        .from('solicitud_items')
+        .select('proyecto_equipamiento_id')
+        .in('proyecto_equipamiento_id', filaIds);
+    return new Set((data ?? []).map(r => r.proyecto_equipamiento_id as string));
+}
+
+// IDs de proyecto_equipamiento usados en el Rack Mapper (puertos de switch / bocas de patch panel).
+// Sus FK son ON DELETE SET NULL: borrar la fila los desvincularía en silencio → se prohíbe.
+async function filasEnRack(db: ReturnType<typeof createAdminClient>, filaIds: string[]): Promise<Set<string>> {
+    if (filaIds.length === 0) return new Set();
+    const [puertos, bocas] = await Promise.all([
+        db.from('proyecto_puertos').select('proyecto_equipamiento_id').in('proyecto_equipamiento_id', filaIds),
+        db.from('proyecto_bocas').select('proyecto_equipamiento_id').in('proyecto_equipamiento_id', filaIds),
+    ]);
+    return new Set([...(puertos.data ?? []), ...(bocas.data ?? [])].map(r => r.proyecto_equipamiento_id as string));
+}
+
+const MSG_RACK = 'No se puede eliminar: hay equipos de esta receta asignados en el Rack Mapper. Quítalos del rack primero.';
+
+export async function eliminarRecetaProyectoAction(
+    proyectoId: string,
+    aplicacionId?: string
+): Promise<{ error: string | null }> {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: 'No autorizado.' };
+    const { data: profile } = await supabase.from('profiles').select('rol').eq('id', user.id).single();
+    if (profile?.rol?.toUpperCase() !== 'ADMIN') {
+        return { error: 'Solo un administrador puede eliminar la receta.' };
+    }
+
+    const db = createAdminClient();
+
+    const { data: filasData, error: filasErr } = await db
+        .from('proyecto_equipamiento')
+        .select(FILA_SELECT)
+        .eq('proyecto_id', proyectoId);
+    if (filasErr) return { error: filasErr.message };
+    const filasProy = (filasData ?? []) as FilaEquip[];
+
+    // ── Eliminar UNA receta aplicada ─────────────────────────────────────────
+    if (aplicacionId) {
+        const { data: app, error: appErr } = await db
+            .from('proyecto_recetas_aplicadas')
+            .select('id, nombre, items')
+            .eq('id', aplicacionId)
+            .eq('proyecto_id', proyectoId)
+            .single();
+        if (appErr || !app) return { error: 'Receta aplicada no encontrada.' };
+        const items = (app.items ?? []) as ItemReceta[];
+
+        // Bloqueo: cualquier ítem de ESTA receta ya pedido a bodega
+        const solicitadas = await filasSolicitadas(db, filasProy.map(f => f.id));
+        for (const it of items) {
+            const idx = buscarFila(filasProy, it);
+            if (idx !== -1 && solicitadas.has(filasProy[idx].id)) {
+                return { error: 'No se puede eliminar: ya se solicitaron a bodega ítems de esta receta.' };
+            }
+        }
+
+        const enRack = await filasEnRack(db, filasProy.map(f => f.id));
+        for (const it of items) {
+            const idx = buscarFila(filasProy, it);
+            if (idx !== -1 && enRack.has(filasProy[idx].id)) return { error: MSG_RACK };
+        }
+
+        const disponibles = [...filasProy];
+        const aEliminar: string[] = [];
+        const aActualizar: { id: string; cantidad_total: number }[] = [];
+
+        for (const it of items) {
+            const idx = buscarFila(disponibles, it);
+            if (idx === -1) continue; // ya no existe en el proyecto
+            const fila = disponibles[idx];
+            if (tieneMovimiento(fila)) {
+                return { error: 'No se puede eliminar: hay ítems de esta receta con movimientos de stock registrados.' };
+            }
+            const nuevoTotal = (fila.cantidad_total ?? 0) - it.cantidad;
+            if (nuevoTotal <= 0) {
+                aEliminar.push(fila.id);
+                disponibles.splice(idx, 1);
+            } else {
+                aActualizar.push({ id: fila.id, cantidad_total: nuevoTotal });
+                disponibles[idx] = { ...fila, cantidad_total: nuevoTotal };
+            }
+        }
+
+        for (const u of aActualizar) {
+            const { error } = await db.from('proyecto_equipamiento').update({ cantidad_total: u.cantidad_total }).eq('id', u.id);
+            if (error) return { error: error.message };
+        }
+        if (aEliminar.length > 0) {
+            const { error } = await db.from('proyecto_equipamiento').delete().in('id', aEliminar);
+            if (error) return { error: error.message };
+        }
+        const { error: delAppErr } = await db.from('proyecto_recetas_aplicadas').delete().eq('id', aplicacionId);
+        if (delAppErr) return { error: delAppErr.message };
+
+        await registrarEntradaAuditoria(
+            proyectoId, user.id,
+            `[SISTEMA] Un administrador eliminó la receta de materiales: ${app.nombre}`,
+            'hito'
+        );
+        revalidatePath(`/dashboard/proyectos/${proyectoId}/bom`);
+        revalidatePath(`/dashboard/proyectos/${proyectoId}`);
+        return { error: null };
+    }
+
+    // ── Eliminar TODA la receta del proyecto ─────────────────────────────────
+    const { count: solicitudes, error: solErr } = await db
+        .from('solicitudes_materiales')
+        .select('id', { count: 'exact', head: true })
+        .eq('proyecto_id', proyectoId);
+    if (solErr) return { error: solErr.message };
+    if ((solicitudes ?? 0) > 0) {
+        return { error: 'No se puede eliminar: el proyecto ya tiene solicitudes de retiro a bodega.' };
+    }
+    if (filasProy.length === 0) return { error: 'No hay ítems para eliminar.' };
+    if (filasProy.some(tieneMovimiento)) {
+        return { error: 'No se puede eliminar: hay ítems con movimientos de stock registrados.' };
+    }
+
+    const ids = filasProy.map(f => f.id);
+    if ((await filasEnRack(db, ids)).size > 0) return { error: MSG_RACK };
+    const { error: delErr } = await db.from('proyecto_equipamiento').delete().in('id', ids);
+    if (delErr) return { error: delErr.message };
+    await db.from('proyecto_recetas_aplicadas').delete().eq('proyecto_id', proyectoId);
+
+    await registrarEntradaAuditoria(
+        proyectoId, user.id,
+        `[SISTEMA] Un administrador eliminó la receta de materiales completa (${ids.length} ítems).`,
+        'hito'
+    );
+    revalidatePath(`/dashboard/proyectos/${proyectoId}/bom`);
+    revalidatePath(`/dashboard/proyectos/${proyectoId}`);
+    return { error: null };
+}
+
+// ── Recetas aplicadas al proyecto (para elegir cuál eliminar) ────────────────
+
+export type RecetaAplicada = {
+    id: string; nombre: string; items_count: number; created_at: string;
+    /** true si de esta receta ya se pidió algún ítem a bodega → no se puede eliminar. */
+    bloqueada: boolean;
+};
+
+export async function getRecetasAplicadas(proyectoId: string): Promise<RecetaAplicada[]> {
+    const db = createAdminClient();
+    const { data, error } = await db
+        .from('proyecto_recetas_aplicadas')
+        .select('id, nombre, items, created_at')
+        .eq('proyecto_id', proyectoId)
+        .order('created_at');
+    if (error || !data?.length) return []; // tabla aún no creada o sin registros
+
+    const { data: filasData } = await db
+        .from('proyecto_equipamiento')
+        .select(FILA_SELECT)
+        .eq('proyecto_id', proyectoId);
+    const filas = (filasData ?? []) as FilaEquip[];
+    const solicitadas = await filasSolicitadas(db, filas.map(f => f.id));
+
+    return data.map(r => {
+        const items = (Array.isArray(r.items) ? r.items : []) as ItemReceta[];
+        const bloqueada = items.some(it => {
+            const idx = buscarFila(filas, it);
+            return idx !== -1 && solicitadas.has(filas[idx].id);
+        });
+        return {
+            id: r.id as string,
+            nombre: r.nombre as string,
+            items_count: items.length,
+            created_at: r.created_at as string,
+            bloqueada,
+        };
+    });
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useTransition, useOptimistic } from 'react';
+import { useRouter } from 'next/navigation';
 import {
     Users, UserPlus, Trash2, Package, X,
     DollarSign, Plus, Eye, Loader2, AlertCircle,
@@ -21,6 +22,8 @@ import {
 } from '../actions';
 import { BomResumen } from '../bom/components/BomResumen';
 import { BomTable } from '../bom/components/BomTable';
+import type { RecetaAplicada } from '../bom/actions';
+import { EliminarRecetaModal } from '../bom/components/EliminarRecetaModal';
 import { AgregarItemModal } from '../bom/components/AgregarItemModal';
 import { aplicarRecetaBOMAction } from '../bom/actions';
 import { HistorialRetirosProyecto } from '../equipamiento/components/HistorialRetirosProyecto';
@@ -58,6 +61,9 @@ interface ProyectoWidgetsProps {
     currentUserRol?: string;
     currentUserId?: string;
     responsableId?: string | null;
+    /** Hay solicitudes de retiro a bodega → no se puede eliminar la receta. */
+    hayRetiros?: boolean;
+    recetasAplicadas?: RecetaAplicada[];
 }
 
 export function ProyectoWidgets({
@@ -75,6 +81,8 @@ export function ProyectoWidgets({
     currentUserRol = 'tecnico',
     currentUserId = '',
     responsableId = null,
+    hayRetiros = false,
+    recetasAplicadas = [],
 }: ProyectoWidgetsProps) {
     const [isPending, startTransition] = useTransition();
 
@@ -99,6 +107,11 @@ export function ProyectoWidgets({
 
     // ── BOM Recipes Selector State ────────────────────────────────────────
     const [showRecipeSelector, setShowRecipeSelector] = useState(false);
+    const router = useRouter();
+    const [showEliminarReceta, setShowEliminarReceta] = useState(false);
+    // Admin: se puede eliminar toda la receta (sin retiros) o UNA receta registrada sin retiros.
+    const puedeEliminarReceta = currentUserRol.toLowerCase() === 'admin' &&
+        (!hayRetiros || recetasAplicadas.some(r => !r.bloqueada));
     const [selectedRecipeToApply, setSelectedRecipeToApply] = useState<any | null>(null);
 
     function handleApplyRecipe() {
@@ -716,6 +729,17 @@ export function ProyectoWidgets({
             )}
 
             {/* ── MODAL COMPLETO: MOTOR LOGÍSTICO (BOM) ──────────────────────── */}
+            {showEliminarReceta && (
+                <EliminarRecetaModal
+                    proyectoId={proyectoId}
+                    totalItems={bomItems.length}
+                    hayRetiros={hayRetiros}
+                    aplicaciones={recetasAplicadas}
+                    onClose={() => setShowEliminarReceta(false)}
+                    onSuccess={() => { setShowEliminarReceta(false); router.refresh(); }}
+                />
+            )}
+
             {isBomModalOpen && (
                 <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
                     <div className="bg-white rounded-3xl border border-slate-200/50 shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-y-auto p-6 relative flex flex-col gap-6">
@@ -833,6 +857,19 @@ export function ProyectoWidgets({
                                         </div>
                                     )}
                                 </div>
+
+                                {currentUserRol.toLowerCase() === 'admin' && (
+                                    <button
+                                        type="button"
+                                        onClick={() => { setShowRecipeSelector(false); setShowEliminarReceta(true); }}
+                                        disabled={isPending || !puedeEliminarReceta}
+                                        className="px-3.5 py-1.5 bg-red-50 border border-red-200/80 hover:bg-red-100 text-red-700 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                                        title={puedeEliminarReceta ? 'Eliminar una receta cargada' : 'No disponible: ya se solicitaron ítems de la receta a bodega'}
+                                    >
+                                        <Trash2 className="w-3.5 h-3.5 text-red-600" />
+                                        <span>Eliminar Receta</span>
+                                    </button>
+                                )}
 
                                 {canManage && <AgregarItemModal proyectoId={proyectoId} catalogo={catalogo} />}
                                 <button

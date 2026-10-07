@@ -189,10 +189,11 @@ export function GestorPlantillasModal({ plantillas }: Props) {
             {/* Trigger button */}
             <button
                 onClick={() => setIsOpen(true)}
-                className="w-10 h-10 rounded-xl bg-white border border-slate-200/80 text-slate-500 hover:text-slate-800 hover:bg-slate-50 transition-all flex items-center justify-center cursor-pointer shadow-sm"
+                className="h-10 px-3.5 rounded-xl bg-white border border-slate-200/80 text-slate-500 hover:text-slate-800 hover:bg-slate-50 transition-all flex items-center justify-center gap-2 text-sm font-bold cursor-pointer shadow-sm"
                 title="Gestionar Plantillas de Checklist"
             >
                 <Settings className="w-4 h-4" />
+                Checklist
             </button>
 
             {/* Confirm delete modal */}
