@@ -1,14 +1,20 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import { createClient } from '@/lib/supabase/client';
+import { compressImage } from '@/lib/compressImage';
 import SignatureCanvas from 'react-signature-canvas';
 import { computeSHA256 } from '@/lib/sha256';
-import { Loader2, Eraser, CheckCircle2, PenLine } from 'lucide-react';
+import { Loader2, Eraser, CheckCircle2, PenLine, Camera, X } from 'lucide-react';
 
 interface Props {
     proyectoId: string;
     onSuccess: () => void;
 }
+
+const MAX_EVIDENCIAS = 5;
+
+type Evidencia = { id: string; file: File; previewUrl: string };
 
 export function FirmaCanvas({ proyectoId, onSuccess }: Props) {
     const sigRef = useRef<SignatureCanvas>(null);
@@ -18,6 +24,35 @@ export function FirmaCanvas({ proyectoId, onSuccess }: Props) {
     const [saving,         setSaving]         = useState(false);
     const [error,          setError]          = useState<string | null>(null);
     const [isEmpty,        setIsEmpty]        = useState(true);
+    const fileRef = useRef<HTMLInputElement>(null);
+    const [evidencias,      setEvidencias]      = useState<Evidencia[]>([]);
+    const [isCompressing,   setIsCompressing]   = useState(false);
+    const [progress,        setProgress]        = useState<{ current: number; total: number } | null>(null);
+
+    async function handleFiles(e: React.ChangeEvent<HTMLInputElement>) {
+        const files = Array.from(e.target.files ?? []).filter(f => f.type.startsWith('image/'));
+        const toProcess = files.slice(0, MAX_EVIDENCIAS - evidencias.length);
+        if (fileRef.current) fileRef.current.value = '';
+        if (!toProcess.length) return;
+
+        setIsCompressing(true);
+        setError(null);
+        const nuevas: Evidencia[] = [];
+        for (const file of toProcess) {
+            const compressed = await compressImage(file);
+            nuevas.push({ id: crypto.randomUUID(), file: compressed, previewUrl: URL.createObjectURL(compressed) });
+        }
+        setEvidencias(prev => [...prev, ...nuevas]);
+        setIsCompressing(false);
+    }
+
+    function removeEvidencia(id: string) {
+        setEvidencias(prev => {
+            const ev = prev.find(x => x.id === id);
+            if (ev) URL.revokeObjectURL(ev.previewUrl);
+            return prev.filter(x => x.id !== id);
+        });
+    }
 
     async function handleGuardar() {
         if (isEmpty) {
@@ -40,7 +75,25 @@ export function FirmaCanvas({ proyectoId, onSuccess }: Props) {
             // 2. SHA-256 nativo via Web Crypto API
             const hash = await computeSHA256(blob);
 
-            // 3. POST al API route
+            // 3. Subir evidencias directo browser→Storage (evita el límite de body del server)
+            const evidenciaUrls: string[] = [];
+            if (evidencias.length) {
+                const supabase = createClient();
+                for (let i = 0; i < evidencias.length; i++) {
+                    setProgress({ current: i + 1, total: evidencias.length });
+                    const file = evidencias[i].file;
+                    const ext  = file.name.split('.').pop()?.toLowerCase() ?? 'jpg';
+                    const path = `firmas/${proyectoId}/evidencia/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+                    const { error: upErr } = await supabase.storage
+                        .from('proyectos-assets')
+                        .upload(path, file, { contentType: file.type });
+                    if (upErr) throw new Error(`Error al subir evidencia ${i + 1}: ${upErr.message}`);
+                    evidenciaUrls.push(supabase.storage.from('proyectos-assets').getPublicUrl(path).data.publicUrl);
+                }
+                setProgress(null);
+            }
+
+            // 4. POST al API route
             const fd = new FormData();
             fd.append('firma',          blob, 'firma.png');
             fd.append('proyectoId',     proyectoId);
@@ -48,6 +101,19 @@ export function FirmaCanvas({ proyectoId, onSuccess }: Props) {
             fd.append('cargo',          cargo.trim());
             fd.append('hash',           hash);
             fd.append('observaciones',  observaciones.trim());
+            fd.append('evidencias',     JSON.stringify(evidenciaUrls));
+
+            // 5. Geolocalización opcional (no bloquea la firma si se rechaza)
+            const pos = await new Promise<GeolocationPosition | null>(resolve => {
+                if (!navigator.geolocation) return resolve(null);
+                navigator.geolocation.getCurrentPosition(resolve, () => resolve(null), {
+                    enableHighAccuracy: true, timeout: 8000, maximumAge: 0,
+                });
+            });
+            if (pos) {
+                fd.append('latitud',  String(pos.coords.latitude));
+                fd.append('longitud', String(pos.coords.longitude));
+            }
 
             const apiRes = await fetch('/api/proyectos/firma', { method: 'POST', body: fd });
 
@@ -59,6 +125,7 @@ export function FirmaCanvas({ proyectoId, onSuccess }: Props) {
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Error inesperado');
         } finally {
+            setProgress(null);
             setSaving(false);
         }
     }
@@ -144,6 +211,49 @@ export function FirmaCanvas({ proyectoId, onSuccess }: Props) {
                 </p>
             </div>
 
+            {/* Evidencia fotográfica (máx. 5) */}
+            <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
+                    Evidencia fotográfica{' '}
+                    <span className="font-normal text-slate-400">(opcional · máx. {MAX_EVIDENCIAS})</span>
+                </label>
+
+                {evidencias.length > 0 && (
+                    <div className="grid grid-cols-5 gap-2 mb-2">
+                        {evidencias.map(ev => (
+                            <div key={ev.id} className="relative aspect-square rounded-xl overflow-hidden border border-slate-200 bg-slate-100">
+                                <img src={ev.previewUrl} alt="Evidencia" className="w-full h-full object-cover" />
+                                <button
+                                    type="button"
+                                    onClick={() => removeEvidencia(ev.id)}
+                                    disabled={saving}
+                                    className="absolute top-1 right-1 w-5 h-5 bg-black/60 hover:bg-black/80 rounded-full flex items-center justify-center disabled:pointer-events-none"
+                                >
+                                    <X className="w-3 h-3 text-white" />
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                {evidencias.length < MAX_EVIDENCIAS && (
+                    <button
+                        type="button"
+                        disabled={saving || isCompressing}
+                        onClick={() => fileRef.current?.click()}
+                        className="inline-flex items-center gap-2 text-sm text-slate-400 hover:text-slate-700 disabled:opacity-60 transition-colors font-medium select-none"
+                    >
+                        {isCompressing ? (
+                            <><Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.75} />Procesando imágenes...</>
+                        ) : (
+                            <><Camera className="w-4 h-4" strokeWidth={1.75} />
+                                {evidencias.length > 0 ? `Agregar más fotos (${evidencias.length}/${MAX_EVIDENCIAS})` : 'Adjuntar fotos'}</>
+                        )}
+                    </button>
+                )}
+                <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={handleFiles} />
+            </div>
+
             {/* Error */}
             {error && (
                 <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">
@@ -155,13 +265,13 @@ export function FirmaCanvas({ proyectoId, onSuccess }: Props) {
             <button
                 type="button"
                 onClick={handleGuardar}
-                disabled={saving || isEmpty}
+                disabled={saving || isEmpty || isCompressing}
                 className="w-full py-2.5 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-slate-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
             >
                 {saving ? (
                     <>
                         <Loader2 className="w-4 h-4 animate-spin" />
-                        Guardando firma...
+                        {progress ? `Subiendo foto ${progress.current} de ${progress.total}...` : 'Generando acta...'}
                     </>
                 ) : (
                     <>

@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import Image from 'next/image';
-import { MessageSquare, Camera, PenLine, Flag, User, Clock, ShieldCheck, FileText, Coins, Activity, ChevronDown } from 'lucide-react';
+import { MessageSquare, Camera, PenLine, Flag, User, Clock, FileText, Coins, Activity, ChevronDown } from 'lucide-react';
 
 // ── Tipos locales (reflejo del query Supabase) ─────────────────────────────
 type FirmaRow = {
@@ -12,6 +12,7 @@ type FirmaRow = {
     storage_url: string;
     sha256_hash: string;
     signed_at: string;
+    pdf_url: string | null;       // null en firmas históricas (anteriores al Acta PDF)
 };
 
 type EntradaRow = {
@@ -309,27 +310,31 @@ function EntradaCard({ entrada }: { entrada: EntradaRow }) {
                             </p>
                         )}
 
-                        {/* Imagen de la firma */}
-                        <div className="bg-white border border-green-200 rounded-lg p-2">
-                            <img
-                                src={firma.storage_url}
-                                alt={`Firma de ${firma.firmante_nombre}`}
-                                className="max-h-24 w-auto mx-auto block"
-                            />
-                        </div>
-
-                        {/* SHA-256 chip (inmutabilidad) */}
-                        <div className="flex items-start gap-2 bg-white border border-green-200 rounded-lg px-3 py-2">
-                            <ShieldCheck className="w-4 h-4 text-green-600 shrink-0 mt-0.5" strokeWidth={2} />
-                            <div className="min-w-0">
-                                <p className="text-[10px] font-bold text-green-700 uppercase tracking-wide">
-                                    SHA-256 · Inmutable
-                                </p>
-                                <p className="text-[10px] text-slate-500 font-mono break-all mt-0.5">
-                                    {firma.sha256_hash}
-                                </p>
+                        {firma.pdf_url ? (
+                            /* Acta PDF (firmas nuevas) */
+                            <a
+                                href={firma.pdf_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-3 bg-white border border-green-200 hover:border-green-400 rounded-lg px-3 py-2.5 transition-colors"
+                            >
+                                <FileText className="w-5 h-5 text-red-500 shrink-0" strokeWidth={2} />
+                                <div className="min-w-0 flex-1">
+                                    <p className="text-sm font-bold text-slate-900">Acta de Avance de Proyecto</p>
+                                    <p className="text-[11px] text-slate-500">PDF firmado · clic para ver o descargar</p>
+                                </div>
+                            </a>
+                        ) : (
+                            /* Firmas históricas sin PDF: se mantiene la imagen */
+                            <div className="bg-white border border-green-200 rounded-lg p-2">
+                                <img
+                                    src={firma.storage_url}
+                                    alt={`Firma de ${firma.firmante_nombre}`}
+                                    className="max-h-24 w-auto mx-auto block"
+                                />
                             </div>
-                        </div>
+                        )}
+
                     </div>
                 )}
             </div>

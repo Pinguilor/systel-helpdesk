@@ -22,7 +22,7 @@ export async function getBitacoraEntradas(proyectoId: string) {
             autor:profiles(full_name),
             firma:bitacora_firmas(
                 id, firmante_nombre, firmante_cargo,
-                storage_url, sha256_hash, signed_at
+                storage_url, sha256_hash, signed_at, pdf_url
             )
         `)
         .eq('proyecto_id', proyectoId)

@@ -6,6 +6,7 @@ import { FileText, PenLine, Loader2, Camera, X } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { agregarEntradaGeneral, crearEntradaFotos } from '../actions';
 import { FirmaCanvas } from './FirmaCanvas';
+import { compressImage } from '@/lib/compressImage';
 
 type Tab = 'entrada' | 'firma';
 
@@ -15,36 +16,6 @@ const TABS: { id: Tab; label: string; Icon: typeof FileText }[] = [
 ];
 
 type PhotoItem = { id: string; file: File; previewUrl: string };
-
-async function compressImage(file: File, maxWidth = 1920, quality = 0.75): Promise<File> {
-    if (file.size < 300 * 1024) return file; // ya es pequeño, no comprimir
-
-    return new Promise(resolve => {
-        const img = new Image();
-        const objUrl = URL.createObjectURL(file);
-        img.onload = () => {
-            URL.revokeObjectURL(objUrl);
-            const scale = img.width > maxWidth ? maxWidth / img.width : 1;
-            const canvas = document.createElement('canvas');
-            canvas.width  = Math.round(img.width  * scale);
-            canvas.height = Math.round(img.height * scale);
-            canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height);
-            canvas.toBlob(
-                blob => {
-                    if (!blob) { resolve(file); return; }
-                    resolve(new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), {
-                        type: 'image/jpeg',
-                        lastModified: Date.now(),
-                    }));
-                },
-                'image/jpeg',
-                quality
-            );
-        };
-        img.onerror = () => { URL.revokeObjectURL(objUrl); resolve(file); };
-        img.src = objUrl;
-    });
-}
 
 const MAX_PHOTOS = 10;
 
