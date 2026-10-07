@@ -9,28 +9,11 @@ import {
     Ticket as TicketIcon, TrendingUp, CheckCircle2,
     AlertCircle, Target, Trophy, Building2, Tag, Zap,
 } from 'lucide-react';
-import { ACTIVE_STATES, buildStatusData, countActive, countTerminal, STATUS_META_ORDERED } from '@/lib/ticketAnalytics';
+import { ACTIVE_STATES, TERMINAL_STATES, statusDataFromCounts, type AnalyticsResumen } from '@/lib/ticketAnalytics';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
-interface EnrichedTicket {
-    id: string;
-    numero_ticket: number;
-    titulo: string;
-    estado: string;
-    prioridad: string;
-    fecha_creacion: string;
-    fecha_resolucion?: string | null;
-    agente_asignado_id?: string | null;
-    restaurante_id?: string | null;
-    agente?: { full_name: string | null } | null;
-    restaurantes?: { nombre_restaurante: string; sigla: string } | null;
-    categoria?: { nombre: string } | null;
-    tipo_servicio?: { nombre: string } | null;
-    [key: string]: any;
-}
-
 interface Props {
-    tickets: EnrichedTicket[];
+    resumen: AnalyticsResumen;
     isStaff?: boolean;
 }
 
@@ -102,93 +85,34 @@ function ChartCard({ title, icon, bg, subtitle, children, className = '' }: {
 }
 
 // ─── Main Component ────────────────────────────────────────────────────────────
-export default function AnalyticsCharts({ tickets, isStaff = true }: Props) {
+export default function AnalyticsCharts({ resumen, isStaff = true }: Props) {
+    const total = resumen.total;
 
     // ── KPIs ────────────────────────────────────────────────────────────────────
     const kpis = useMemo(() => {
-        const total    = tickets.length;
-        const active   = countActive(tickets);
-        const resolved = countTerminal(tickets);
+        const sum = (keys: readonly string[]) => keys.reduce((n, k) => n + (resumen.por_estado[k] ?? 0), 0);
+        const active   = sum(ACTIVE_STATES);
+        const resolved = sum(TERMINAL_STATES);
         const rate     = total > 0 ? Math.round((resolved / total) * 100) : 0;
-        const criticos = tickets.filter(
-            t => t.prioridad === 'crítica' && (ACTIVE_STATES as readonly string[]).includes(t.estado)
-        ).length;
+        return { active, resolved, rate, criticos: resumen.criticos_activos };
+    }, [resumen, total]);
 
-        return { total, active, resolved, rate, criticos };
-    }, [tickets]);
+    const statusData = useMemo(() => statusDataFromCounts(resumen.por_estado), [resumen]);
 
-    // ── Status donut — pre-filled con todos los estados en 0 ───────────────────
-    const statusData = useMemo(() => buildStatusData(tickets), [tickets]);
+    const monthlyData = useMemo(() => resumen.mensual.map(m => {
+        const lbl = new Date(m.anio, m.mes - 1, 1).toLocaleDateString('es-ES', { month: 'short', year: '2-digit' });
+        return { label: lbl.charAt(0).toUpperCase() + lbl.slice(1), creados: m.creados, resueltos: m.resueltos };
+    }), [resumen]);
 
-    // ── Monthly trend (last 6 months) ───────────────────────────────────────────
-    const monthlyData = useMemo(() => {
-        const months = Array.from({ length: 6 }, (_, i) => {
-            const d = new Date();
-            d.setDate(1);
-            d.setMonth(d.getMonth() - (5 - i));
-            const lbl = d.toLocaleDateString('es-ES', { month: 'short', year: '2-digit' });
-            return { label: lbl.charAt(0).toUpperCase() + lbl.slice(1), month: d.getMonth(), year: d.getFullYear(), creados: 0, resueltos: 0 };
-        });
-        tickets.forEach(t => {
-            const dc = new Date(t.fecha_creacion);
-            const m  = months.find(x => x.month === dc.getMonth() && x.year === dc.getFullYear());
-            if (m) m.creados++;
-            if (t.fecha_resolucion) {
-                const dr = new Date(t.fecha_resolucion);
-                const mr = months.find(x => x.month === dr.getMonth() && x.year === dr.getFullYear());
-                if (mr) mr.resueltos++;
-            }
-        });
-        return months;
-    }, [tickets]);
-
-    // ── Top categories ──────────────────────────────────────────────────────────
-    const topCategories = useMemo(() => {
-        const counts: Record<string, number> = {};
-        tickets.forEach(t => {
-            const cat = t.categoria?.nombre || t.tipo_servicio?.nombre || 'Sin Clasificar';
-            counts[cat] = (counts[cat] || 0) + 1;
-        });
-        return Object.entries(counts)
-            .map(([name, value]) => ({ name, value }))
-            .sort((a, b) => b.value - a.value)
-            .slice(0, 6);
-    }, [tickets]);
-
-    // ── Agent leaderboard ───────────────────────────────────────────────────────
-    const agentStats = useMemo(() => {
-        const map: Record<string, { name: string; total: number; resueltos: number }> = {};
-        tickets.forEach(t => {
-            const id = t.agente_asignado_id;
-            if (!id) return;
-            if (!map[id]) map[id] = { name: t.agente?.full_name || 'Técnico', total: 0, resueltos: 0 };
-            map[id].total++;
-            if (['resuelto', 'cerrado'].includes(t.estado)) map[id].resueltos++;
-        });
-        return Object.values(map).sort((a, b) => b.resueltos - a.resueltos).slice(0, 5);
-    }, [tickets]);
-
-    // ── Top restaurants ─────────────────────────────────────────────────────────
-    const topRestaurants = useMemo(() => {
-        const map: Record<string, { name: string; sigla: string; value: number }> = {};
-        tickets.forEach(t => {
-            const id = t.restaurante_id;
-            if (!id) return;
-            if (!map[id]) map[id] = {
-                name:  t.restaurantes?.nombre_restaurante || 'Restaurante',
-                sigla: t.restaurantes?.sigla || '—',
-                value: 0,
-            };
-            map[id].value++;
-        });
-        return Object.values(map).sort((a, b) => b.value - a.value).slice(0, 8);
-    }, [tickets]);
+    const topCategories = resumen.categorias;
+    const agentStats    = resumen.agentes;
+    const topRestaurants = resumen.restaurantes;
 
     const maxCat  = topCategories[0]?.value  || 1;
     const maxRest = topRestaurants[0]?.value || 1;
     const MEDALS  = ['🥇', '🥈', '🥉'];
 
-    if (tickets.length === 0) {
+    if (total === 0) {
         return (
             <div className="bg-white rounded-2xl border border-slate-100 p-16 text-center shadow-sm">
                 <TicketIcon className="w-12 h-12 text-slate-200 mx-auto mb-4" />
@@ -206,7 +130,7 @@ export default function AnalyticsCharts({ tickets, isStaff = true }: Props) {
                     icon={<TicketIcon className="w-5 h-5 text-indigo-600" />}
                     bg="bg-indigo-50"
                     label="Total Solicitudes"
-                    value={kpis.total}
+                    value={total}
                     sub="Historial completo"
                 />
                 <KPICard
@@ -234,7 +158,7 @@ export default function AnalyticsCharts({ tickets, isStaff = true }: Props) {
                         {/* Donut */}
                         <div className="relative w-44 h-44 shrink-0">
                             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10">
-                                <span className="text-4xl font-black text-slate-800 leading-none">{tickets.length}</span>
+                                <span className="text-4xl font-black text-slate-800 leading-none">{total}</span>
                                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Total</span>
                             </div>
                             <ResponsiveContainer width="100%" height="100%">
@@ -264,7 +188,7 @@ export default function AnalyticsCharts({ tickets, isStaff = true }: Props) {
                                     <span className="text-[11px] font-semibold text-slate-600 flex-1 truncate">{item.name}</span>
                                     <span className="text-xs font-black text-slate-800 tabular-nums">{item.value}</span>
                                     <span className="text-[10px] text-slate-400 font-medium tabular-nums w-8 text-right">
-                                        {Math.round((item.value / tickets.length) * 100)}%
+                                        {Math.round((item.value / total) * 100)}%
                                     </span>
                                 </div>
                             ))}
@@ -276,8 +200,8 @@ export default function AnalyticsCharts({ tickets, isStaff = true }: Props) {
                 <ChartCard title="Distribución por Prioridad" subtitle="Tickets activos e históricos" icon={<AlertCircle className="w-4 h-4 text-rose-500" />} bg="bg-rose-50">
                     <div className="flex flex-col gap-5 mt-1">
                         {Object.entries(PRIORITY_META).map(([key, meta]) => {
-                            const count = tickets.filter(t => t.prioridad === key).length;
-                            const pct   = tickets.length > 0 ? (count / tickets.length) * 100 : 0;
+                            const count = resumen.por_prioridad[key] ?? 0;
+                            const pct   = total > 0 ? (count / total) * 100 : 0;
                             return (
                                 <div key={key}>
                                     <div className="flex items-center justify-between mb-1.5">

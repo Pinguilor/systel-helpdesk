@@ -52,6 +52,7 @@ export default async function TrazabilidadMaterialesPage() {
                     titulo,
                     estado,
                     fecha_resolucion,
+                    notas_cierre,
                     cliente_id,
                     creado_por,
                     agente:agente_asignado_id ( full_name ),
@@ -60,7 +61,7 @@ export default async function TrazabilidadMaterialesPage() {
             `)
             .eq('estado', 'Operativo')
             .not('ticket_id', 'is', null)
-            .limit(2000);
+            .order('id');
 
         // Filtro multi-tenant estricto para USUARIO
         if (esCliente) {
@@ -73,7 +74,17 @@ export default async function TrazabilidadMaterialesPage() {
             }
         }
 
-        const { data: rawData, error } = await query;
+        // PostgREST corta cada respuesta en 1000 filas (max_rows) aunque se pida más:
+        // paginamos con orden estable (id) hasta agotar los resultados.
+        const PAGE = 1000;
+        const rawData: any[] = [];
+        let error: { message: string } | null = null;
+        for (let from = 0; ; from += PAGE) {
+            const { data, error: pageError } = await query.range(from, from + PAGE - 1);
+            if (pageError) { error = pageError; break; }
+            rawData.push(...(data ?? []));
+            if (!data || data.length < PAGE) break;
+        }
 
         if (error) {
             console.error('[TrazabilidadMateriales] DB error:', error);
@@ -86,7 +97,7 @@ export default async function TrazabilidadMaterialesPage() {
             );
         }
 
-        if (!rawData || rawData.length === 0) {
+        if (rawData.length === 0) {
             return <ConsumoMaterialesClient rows={[]} tecnicos={[]} locales={[]} esCliente={esCliente} />;
         }
 
@@ -101,6 +112,7 @@ export default async function TrazabilidadMaterialesPage() {
                 localSigla:   ticket?.restaurantes?.sigla ?? '—',
                 localTitulo:  ticket?.titulo ?? '—',
                 fecha:        ticket?.fecha_resolucion ?? '',
+                descripcionTrabajo: ticket?.notas_cierre ?? '',
                 tecnico:      ticket?.agente?.full_name ?? '—',
                 modelo:       item.modelo ?? '—',
                 familia:      item.familia ?? '—',
@@ -108,6 +120,9 @@ export default async function TrazabilidadMaterialesPage() {
                 estadoTicket: ticket?.estado ?? '—',
             });
         }
+
+        // Correlativo descendente: NC más reciente primero (el orden por id solo sirve para paginar).
+        rows.sort((a, b) => (Number(b.nc) || 0) - (Number(a.nc) || 0));
 
         const tecnicos = [...new Set(rows.map(r => r.tecnico).filter(t => t !== '—'))].sort();
         const locales  = [...new Set(rows.map(r => r.local).filter(l => l !== '—'))].sort();

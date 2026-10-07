@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import AnalyticsCharts from './components/AnalyticsCharts';
 import { AreaChart, ChevronLeft, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
+import { aggregateTickets, type AnalyticsResumen, type TicketResumenRow } from '@/lib/ticketAnalytics';
 
 export default async function AnaliticasPage() {
     const supabase = await createClient();
@@ -20,21 +21,35 @@ export default async function AnaliticasPage() {
 
     const userRole = profile?.rol?.toUpperCase() || '';
 
-    let ticketQuery = supabase.from('tickets').select(`
-        *,
-        agente:agente_asignado_id(full_name),
-        restaurantes(nombre_restaurante, sigla),
-        categoria:ticket_categorias!categoria_id(nombre),
-        tipo_servicio:ticket_tipos_servicio!tipo_servicio_id(nombre)
-    `);
+    const soloPropios = userRole === 'USUARIO';
 
-    if (userRole === 'USUARIO') {
-        ticketQuery = ticketQuery.eq('creado_por', user.id);
+    // Agregación en la base (RPC): devuelve unos pocos KB en vez de todos los tickets.
+    let resumen: AnalyticsResumen | null = null;
+    const { data: rpcData, error: rpcError } = await supabase.rpc('analiticas_resumen', { p_solo_propios: soloPropios });
+    if (!rpcError && rpcData) {
+        resumen = rpcData as AnalyticsResumen;
+    } else {
+        // Fallback si la RPC aún no fue creada (sql/analiticas_resumen.sql): solo las
+        // columnas necesarias, paginando para superar el tope de 1000 filas.
+        console.warn('analiticas_resumen no disponible, usando fallback:', rpcError?.message);
+        const PAGE = 1000;
+        const rows: TicketResumenRow[] = [];
+        for (let from = 0; ; from += PAGE) {
+            let q = supabase.from('tickets').select(`
+                estado, prioridad, fecha_creacion, fecha_resolucion, agente_asignado_id, restaurante_id,
+                agente:agente_asignado_id(full_name),
+                restaurantes(nombre_restaurante, sigla),
+                categoria:ticket_categorias!categoria_id(nombre),
+                tipo_servicio:ticket_tipos_servicio!tipo_servicio_id(nombre)
+            `);
+            if (soloPropios) q = q.eq('creado_por', user.id);
+            const { data, error } = await q.order('fecha_creacion', { ascending: false }).range(from, from + PAGE - 1);
+            if (error) { console.error('Error cargando tickets para analíticas:', error); break; }
+            rows.push(...(data as unknown as TicketResumenRow[]));
+            if (!data || data.length < PAGE) break;
+        }
+        resumen = aggregateTickets(rows);
     }
-
-    const { data: tickets, error } = await ticketQuery.order('fecha_creacion', { ascending: false });
-
-    if (error) console.error('Error cargando tickets para analíticas:', error);
 
     return (
         <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-6">
@@ -72,7 +87,7 @@ export default async function AnaliticasPage() {
                 </div>
             </div>
 
-            <AnalyticsCharts tickets={tickets || []} isStaff={userRole !== 'USUARIO'} />
+            <AnalyticsCharts resumen={resumen} isStaff={userRole !== 'USUARIO'} />
         </div>
     );
 }

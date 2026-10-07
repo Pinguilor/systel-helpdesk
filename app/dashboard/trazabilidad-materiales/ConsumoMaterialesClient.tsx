@@ -220,7 +220,35 @@ export function ConsumoMaterialesClient({ rows, tecnicos, locales, esCliente = f
     }
 
     // ── Excel export — estándar Reporte Maestro (exceljs) ───────────────────
+    const [showExportModal, setShowExportModal] = useState(false);
+    const [isExporting, setIsExporting] = useState(false);
+    const [exportFrom, setExportFrom] = useState('');
+    const [exportTo, setExportTo] = useState('');
+
+    // Filas filtradas además por el rango elegido en el modal de exportación
+    const exportRows = useMemo(() => filteredRows.filter(r => {
+        if (exportFrom && r.fecha < exportFrom) return false;
+        if (exportTo && r.fecha > exportTo + 'T23:59:59') return false;
+        return true;
+    }), [filteredRows, exportFrom, exportTo]);
+
+    function openExportModal() {
+        setExportFrom(dateFrom);
+        setExportTo(dateTo);
+        setShowExportModal(true);
+    }
+
     async function handleExportExcel() {
+        setIsExporting(true);
+        try {
+            await generateExcel(exportRows);
+            setShowExportModal(false);
+        } finally {
+            setIsExporting(false);
+        }
+    }
+
+    async function generateExcel(dataRows: ConsumoRow[]) {
         const ExcelJS = (await import('exceljs')).default;
         const workbook = new ExcelJS.Workbook();
         workbook.creator = 'Systel × Loop';
@@ -231,7 +259,7 @@ export function ConsumoMaterialesClient({ rows, tecnicos, locales, esCliente = f
             pageSetup: { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1 },
         });
 
-        const HEADERS = ['N° NC', 'Local', 'Título del Ticket', 'Fecha', 'Técnico', 'Producto', 'Cantidad', 'Estado'];
+        const HEADERS = ['N° NC', 'Local', 'Título del Ticket', 'Fecha', 'Descripción del Trabajo', 'Técnico', 'Producto', 'Cantidad', 'Estado'];
         const TOTAL_COLS = HEADERS.length;
         const lastColLetter = String.fromCharCode(65 + TOTAL_COLS); // A=65, +8 cols = I
 
@@ -247,7 +275,7 @@ export function ConsumoMaterialesClient({ rows, tecnicos, locales, esCliente = f
         // ── Fila 2: metadatos ─────────────────────────────────────────────────
         sheet.mergeCells(`A2:${lastColLetter}2`);
         const subCell = sheet.getCell('A2');
-        subCell.value     = `Generado el ${new Date().toLocaleString('es-CL')}   ·   ${filteredRows.length} registro(s)`;
+        subCell.value     = `Generado el ${new Date().toLocaleString('es-CL')}   ·   ${dataRows.length} registro(s)${exportFrom || exportTo ? `   ·   Rango: ${exportFrom || '…'} a ${exportTo || '…'}` : ''}`;
         subCell.font      = { name: 'Arial', size: 10, italic: true, color: { argb: 'FF64748B' } };
         subCell.alignment = { vertical: 'middle', horizontal: 'left' };
         subCell.fill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F4FF' } };
@@ -286,8 +314,8 @@ export function ConsumoMaterialesClient({ rows, tecnicos, locales, esCliente = f
         };
 
         // ── Filas de datos ────────────────────────────────────────────────────
-        filteredRows.forEach((r, rowIdx) => {
-            const isEven   = rowIdx % 2 === 0;
+        dataRows.forEach((r, rowIdx) => {
+            const isEven  = rowIdx % 2 === 0;
             const baseBg   = isEven ? 'FFFFFFFF' : 'FFF8FAFC';
             const estadoKey = r.estadoTicket?.toLowerCase() ?? '';
 
@@ -296,6 +324,7 @@ export function ConsumoMaterialesClient({ rows, tecnicos, locales, esCliente = f
                 r.localSigla !== '—' ? r.localSigla : '',
                 r.localTitulo !== '—' ? r.localTitulo : '',
                 r.fecha ? new Date(r.fecha).toLocaleDateString('es-CL') : '—',
+                r.descripcionTrabajo,
                 r.tecnico,
                 r.modelo,
                 r.cantidad,
@@ -322,6 +351,9 @@ export function ConsumoMaterialesClient({ rows, tecnicos, locales, esCliente = f
                     if (c) cell.font = { name: 'Arial', size: 9, bold: true, color: { argb: c.font } };
                 } else {
                     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: baseBg } };
+                    if (header === 'Descripción del Trabajo') {
+                        cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
+                    }
                 }
             });
         });
@@ -330,7 +362,7 @@ export function ConsumoMaterialesClient({ rows, tecnicos, locales, esCliente = f
         sheet.getColumn(1).width = 0.5;   // col auxiliar A
         const COL_WIDTHS: Record<string, number> = {
             'N° NC': 12, 'Local': 12, 'Título del Ticket': 42,
-            'Fecha': 14, 'Técnico': 26, 'Producto': 38, 'Cantidad': 10, 'Estado': 16,
+            'Fecha': 14, 'Descripción del Trabajo': 50, 'Técnico': 26, 'Producto': 38, 'Cantidad': 10, 'Estado': 16,
         };
         HEADERS.forEach((h, idx) => { sheet.getColumn(idx + 2).width = COL_WIDTHS[h] ?? 15; });
 
@@ -399,12 +431,82 @@ export function ConsumoMaterialesClient({ rows, tecnicos, locales, esCliente = f
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                     <button
-                        onClick={handleExportExcel}
+                        onClick={openExportModal}
                         className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-700 text-sm font-bold hover:bg-slate-50 transition-colors shadow-sm"
                     >
                         <Download className="w-4 h-4" />
                         Exportar Excel
                     </button>
+
+                    {showExportModal && (
+                        <div
+                            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4"
+                            onMouseDown={e => { if (e.target === e.currentTarget && !isExporting) setShowExportModal(false); }}
+                        >
+                            <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-100 p-6 space-y-5">
+                                <div className="flex items-start justify-between gap-4">
+                                    <div>
+                                        <h2 className="text-lg font-black text-slate-900">Exportar reporte a Excel</h2>
+                                        <p className="text-sm text-slate-500 mt-0.5">
+                                            Elige el rango de fechas (fecha de cierre del ticket).
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={() => setShowExportModal(false)}
+                                        disabled={isExporting}
+                                        className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                                    >
+                                        <X className="w-4 h-4" />
+                                    </button>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3">
+                                    <label className="space-y-1">
+                                        <span className="text-xs font-black text-slate-500 uppercase tracking-widest">Desde</span>
+                                        <input
+                                            type="date"
+                                            value={exportFrom}
+                                            max={exportTo || undefined}
+                                            onChange={e => setExportFrom(e.target.value)}
+                                            className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                        />
+                                    </label>
+                                    <label className="space-y-1">
+                                        <span className="text-xs font-black text-slate-500 uppercase tracking-widest">Hasta</span>
+                                        <input
+                                            type="date"
+                                            value={exportTo}
+                                            min={exportFrom || undefined}
+                                            onChange={e => setExportTo(e.target.value)}
+                                            className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                        />
+                                    </label>
+                                </div>
+
+                                <p className="text-xs text-slate-500">
+                                    {exportRows.length} registro(s) en el rango. Se respetan los demás filtros activos. Deja las fechas vacías para exportar todo.
+                                </p>
+
+                                <div className="flex justify-end gap-2">
+                                    <button
+                                        onClick={() => setShowExportModal(false)}
+                                        disabled={isExporting}
+                                        className="px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-700 text-sm font-bold hover:bg-slate-50 transition-colors"
+                                    >
+                                        Cancelar
+                                    </button>
+                                    <button
+                                        onClick={handleExportExcel}
+                                        disabled={isExporting || exportRows.length === 0}
+                                        className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-bold transition-colors shadow-sm"
+                                    >
+                                        <Download className="w-4 h-4" />
+                                        {isExporting ? 'Generando…' : 'Descargar'}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                     <button
                         onClick={handleRefresh}
                         className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold transition-colors shadow-sm"
