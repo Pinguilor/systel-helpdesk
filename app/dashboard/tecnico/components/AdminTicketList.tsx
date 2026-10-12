@@ -9,6 +9,7 @@ import Link from 'next/link';
 import { ExportarMaestroButton } from '@/app/dashboard/admin/components/ExportarMaestroButton';
 import { getStatusBadge } from '@/app/dashboard/components/StatusBadge';
 import { motion } from 'framer-motion';
+import { TinySpider } from '@/components/theme/HalloweenDecor';
 import { GlobeInteractive } from '@/components/ui/cobe-globe-interactive';
 
 const containerVariants = {
@@ -258,7 +259,8 @@ export function AdminTicketList({ initialTickets, currentAgentId, agentName, tot
     const paginatedTickets = useMemo(() => {
         const start = (currentPage - 1) * ITEMS_PER_PAGE;
         return processedTickets.slice(start, start + ITEMS_PER_PAGE);
-    }, [processedTickets, currentPage]);    const getPriorityBadge = (priority: Ticket['prioridad']) => {
+    }, [processedTickets, currentPage]);
+    const getPriorityBadge = (priority: Ticket['prioridad']) => {
         const p = priority?.toLowerCase() || 'baja';
         const dotClass = (pr: string) => {
             if (pr === 'alta') return 'bg-orange-500';
@@ -307,7 +309,7 @@ export function AdminTicketList({ initialTickets, currentAgentId, agentName, tot
             )}
 
             {/* Main Ticket List Card */}
-            <div className="relative z-10 bg-white/70 backdrop-blur-md shadow-lg rounded-3xl overflow-hidden border border-slate-200/40 w-full">
+            <div className="hw-panel hw-web relative z-10 bg-white/70 backdrop-blur-md shadow-lg rounded-3xl overflow-hidden border border-slate-200/40 w-full">
             
                 {/* Header / Controles Principales (Visible Móvil y Desktop) */}
             <div className="p-5 border-b border-slate-100 flex flex-col bg-white/40 gap-4 w-full">
@@ -393,35 +395,36 @@ export function AdminTicketList({ initialTickets, currentAgentId, agentName, tot
 
             {/* Paneles de Resumen (Top 3) */}
             <div className="grid grid-cols-3 gap-4 p-5 bg-slate-50/30 border-b border-slate-100/85">
-                <div className="bg-white/60 backdrop-blur-sm p-4 rounded-2xl border border-slate-200/50 shadow-sm flex flex-col items-center justify-center transition-all hover:shadow-md hover:scale-[1.02] duration-200">
-                    <span className="text-[10px] sm:text-xs font-black text-slate-400 uppercase tracking-widest mb-1.5">Totales</span>
+                <div className="hw-card hw-card--total bg-white/60 backdrop-blur-sm p-4 rounded-2xl border border-slate-200/50 shadow-sm flex flex-col items-center justify-center transition-all hover:shadow-md hover:scale-[1.02] duration-200">
+                    <span className="hw-card-label text-[10px] sm:text-xs font-black text-slate-400 uppercase tracking-widest mb-1.5">Totales</span>
                     <motion.span
                         initial={{ scale: 0.9, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
                         transition={{ type: 'spring', stiffness: 200, damping: 15 }}
-                        className="text-xl sm:text-3xl font-black text-[#0e3187] tracking-tight"
+                        className="hw-num text-xl sm:text-3xl font-black text-[#0e3187] tracking-tight"
                     >
                         {displayTotal}
                     </motion.span>
                 </div>
-                <div className="bg-white/60 backdrop-blur-sm p-4 rounded-2xl border border-slate-200/50 shadow-sm flex flex-col items-center justify-center transition-all hover:shadow-md hover:scale-[1.02] duration-200">
-                    <span className="text-[10px] sm:text-xs font-black text-slate-400 uppercase tracking-widest mb-1.5">Pendientes</span>
+                <div className="hw-card hw-card--pending bg-white/60 backdrop-blur-sm p-4 rounded-2xl border border-slate-200/50 shadow-sm flex flex-col items-center justify-center transition-all hover:shadow-md hover:scale-[1.02] duration-200">
+                    <TinySpider />
+                    <span className="hw-card-label text-[10px] sm:text-xs font-black text-slate-400 uppercase tracking-widest mb-1.5">Pendientes</span>
                     <motion.span
                         initial={{ scale: 0.9, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
                         transition={{ type: 'spring', stiffness: 200, damping: 15 }}
-                        className="text-xl sm:text-3xl font-black text-amber-500 tracking-tight"
+                        className="hw-num text-xl sm:text-3xl font-black text-amber-500 tracking-tight"
                     >
                         {displayPending}
                     </motion.span>
                 </div>
-                <div className="bg-white/60 backdrop-blur-sm p-4 rounded-2xl border border-slate-200/50 shadow-sm flex flex-col items-center justify-center transition-all hover:shadow-md hover:scale-[1.02] duration-200">
-                    <span className="text-[10px] sm:text-xs font-black text-slate-400 uppercase tracking-widest mb-1.5">Resueltos</span>
+                <div className="hw-card hw-card--resolved bg-white/60 backdrop-blur-sm p-4 rounded-2xl border border-slate-200/50 shadow-sm flex flex-col items-center justify-center transition-all hover:shadow-md hover:scale-[1.02] duration-200">
+                    <span className="hw-card-label text-[10px] sm:text-xs font-black text-slate-400 uppercase tracking-widest mb-1.5">Resueltos</span>
                     <motion.span
                         initial={{ scale: 0.9, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
                         transition={{ type: 'spring', stiffness: 200, damping: 15 }}
-                        className="text-xl sm:text-3xl font-black text-emerald-500 tracking-tight"
+                        className="hw-num text-xl sm:text-3xl font-black text-emerald-500 tracking-tight"
                     >
                         {displayResolved}
                     </motion.span>
@@ -430,7 +433,7 @@ export function AdminTicketList({ initialTickets, currentAgentId, agentName, tot
 
             {/* VISTA DE ESCRITORIO (Tabla) */}
             <div className="hidden md:block overflow-hidden">
-                <table className="w-full table-fixed divide-y divide-slate-100/50">
+                <table className="hw-table w-full table-fixed divide-y divide-slate-100/50">
                     <thead className="bg-slate-50/70 border-b border-slate-200/50">
                         <tr>
                             <th scope="col" className="pl-6 pr-3 py-4 w-36 text-left text-[10px] font-black text-slate-500 uppercase tracking-widest">ID / Fecha</th>

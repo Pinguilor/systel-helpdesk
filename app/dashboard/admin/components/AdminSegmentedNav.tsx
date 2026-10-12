@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { LoopLoader } from '@/components/LoopLoader';
 import { LayoutGrid, Warehouse, PackageCheck, ScanLine, FolderKanban } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { Pumpkin } from '@/components/theme/HalloweenDecor';
 
 export function AdminSegmentedNav({ rol }: { rol: string }) {
     const pathname = usePathname();
@@ -36,12 +37,12 @@ export function AdminSegmentedNav({ rol }: { rol: string }) {
         <div className="w-full flex justify-center py-4 px-4 md:px-0">
             {isTransitioning && <LoopLoader fullScreen={true} text="Systel × Loop" />}
 
-            <div className="inline-flex items-center w-full md:w-auto p-1 bg-white/70 backdrop-blur-md border border-slate-200/40 rounded-2xl gap-1 relative shadow-sm shadow-slate-200/50">
+            <div className="hw-nav hw-web hw-web-sm inline-flex items-center w-full md:w-auto p-1 bg-white/70 backdrop-blur-md border border-slate-200/40 rounded-2xl gap-1 relative shadow-sm shadow-slate-200/50">
                 {(rol === 'ADMIN' || rol === 'COORDINADOR') && (
                     <button
                         onClick={() => handleNavigation('/dashboard/admin')}
                         disabled={isTransitioning}
-                        className={`relative flex-1 md:flex-none flex items-center justify-center gap-2 px-3 md:px-5 py-2 rounded-xl text-sm font-bold transition-colors duration-200 whitespace-nowrap focus:outline-none ${isVistaGeneral
+                        className={`hw-nav-tab relative flex-1 md:flex-none flex items-center justify-center gap-2 px-3 md:px-5 py-2 rounded-xl text-sm font-bold transition-colors duration-200 whitespace-nowrap focus:outline-none ${isVistaGeneral
                             ? 'text-white font-extrabold'
                             : 'text-slate-600 hover:text-slate-900'
                             }`}
@@ -49,10 +50,11 @@ export function AdminSegmentedNav({ rol }: { rol: string }) {
                         {isVistaGeneral && (
                             <motion.span
                                 layoutId="active-admin-nav-tab"
-                                className="absolute inset-0 bg-slate-900 rounded-xl z-0"
+                                className="hw-nav-active absolute inset-0 bg-slate-900 rounded-xl z-0"
                                 transition={{ type: 'spring', stiffness: 380, damping: 30 }}
                             />
                         )}
+                        <Pumpkin />
                         <span className="relative z-10 flex items-center gap-2">
                             <LayoutGrid className="w-4 h-4" strokeWidth={1.75} />
                             <span className="hidden md:inline">Vista General</span>
@@ -64,7 +66,7 @@ export function AdminSegmentedNav({ rol }: { rol: string }) {
                     <button
                         onClick={() => handleNavigation('/dashboard/admin/bodegas')}
                         disabled={isTransitioning}
-                        className={`relative flex-1 md:flex-none flex items-center justify-center gap-2 px-3 md:px-5 py-2 rounded-xl text-sm font-bold transition-colors duration-200 whitespace-nowrap focus:outline-none ${isBodegas
+                        className={`hw-nav-tab relative flex-1 md:flex-none flex items-center justify-center gap-2 px-3 md:px-5 py-2 rounded-xl text-sm font-bold transition-colors duration-200 whitespace-nowrap focus:outline-none ${isBodegas
                             ? 'text-white font-extrabold'
                             : 'text-slate-600 hover:text-slate-900'
                             }`}
@@ -72,7 +74,7 @@ export function AdminSegmentedNav({ rol }: { rol: string }) {
                         {isBodegas && (
                             <motion.span
                                 layoutId="active-admin-nav-tab"
-                                className="absolute inset-0 bg-slate-900 rounded-xl z-0"
+                                className="hw-nav-active absolute inset-0 bg-slate-900 rounded-xl z-0"
                                 transition={{ type: 'spring', stiffness: 380, damping: 30 }}
                             />
                         )}
@@ -87,7 +89,7 @@ export function AdminSegmentedNav({ rol }: { rol: string }) {
                     <button
                         onClick={() => handleNavigation('/dashboard/admin/bodegas/solicitudes')}
                         disabled={isTransitioning}
-                        className={`relative flex-1 md:flex-none flex items-center justify-center gap-2 px-3 md:px-5 py-2 rounded-xl text-sm font-bold transition-colors duration-200 whitespace-nowrap focus:outline-none ${isSolicitudes
+                        className={`hw-nav-tab relative flex-1 md:flex-none flex items-center justify-center gap-2 px-3 md:px-5 py-2 rounded-xl text-sm font-bold transition-colors duration-200 whitespace-nowrap focus:outline-none ${isSolicitudes
                             ? 'text-white font-extrabold'
                             : 'text-slate-600 hover:text-slate-900'
                             }`}
@@ -95,7 +97,7 @@ export function AdminSegmentedNav({ rol }: { rol: string }) {
                         {isSolicitudes && (
                             <motion.span
                                 layoutId="active-admin-nav-tab"
-                                className="absolute inset-0 bg-slate-900 rounded-xl z-0"
+                                className="hw-nav-active absolute inset-0 bg-slate-900 rounded-xl z-0"
                                 transition={{ type: 'spring', stiffness: 380, damping: 30 }}
                             />
                         )}
@@ -110,7 +112,7 @@ export function AdminSegmentedNav({ rol }: { rol: string }) {
                     <button
                         onClick={() => handleNavigation('/dashboard/proyectos')}
                         disabled={isTransitioning}
-                        className={`relative flex-1 md:flex-none flex items-center justify-center gap-2 px-3 md:px-5 py-2 rounded-xl text-sm font-bold transition-colors duration-200 whitespace-nowrap focus:outline-none ${isProyectos
+                        className={`hw-nav-tab relative flex-1 md:flex-none flex items-center justify-center gap-2 px-3 md:px-5 py-2 rounded-xl text-sm font-bold transition-colors duration-200 whitespace-nowrap focus:outline-none ${isProyectos
                             ? 'text-white font-extrabold'
                             : 'text-slate-600 hover:text-slate-900'
                             }`}
@@ -118,7 +120,7 @@ export function AdminSegmentedNav({ rol }: { rol: string }) {
                         {isProyectos && (
                             <motion.span
                                 layoutId="active-admin-nav-tab"
-                                className="absolute inset-0 bg-slate-900 rounded-xl z-0"
+                                className="hw-nav-active absolute inset-0 bg-slate-900 rounded-xl z-0"
                                 transition={{ type: 'spring', stiffness: 380, damping: 30 }}
                             />
                         )}
@@ -133,7 +135,7 @@ export function AdminSegmentedNav({ rol }: { rol: string }) {
                     <button
                         onClick={() => handleNavigation('/dashboard/trazabilidad-materiales')}
                         disabled={isTransitioning}
-                        className={`relative flex-1 md:flex-none flex items-center justify-center gap-2 px-3 md:px-5 py-2 rounded-xl text-sm font-bold transition-colors duration-200 whitespace-nowrap focus:outline-none ${isSerializados
+                        className={`hw-nav-tab relative flex-1 md:flex-none flex items-center justify-center gap-2 px-3 md:px-5 py-2 rounded-xl text-sm font-bold transition-colors duration-200 whitespace-nowrap focus:outline-none ${isSerializados
                             ? 'text-white font-extrabold'
                             : 'text-slate-600 hover:text-slate-900'
                             }`}
@@ -141,7 +143,7 @@ export function AdminSegmentedNav({ rol }: { rol: string }) {
                         {isSerializados && (
                             <motion.span
                                 layoutId="active-admin-nav-tab"
-                                className="absolute inset-0 bg-slate-900 rounded-xl z-0"
+                                className="hw-nav-active absolute inset-0 bg-slate-900 rounded-xl z-0"
                                 transition={{ type: 'spring', stiffness: 380, damping: 30 }}
                             />
                         )}

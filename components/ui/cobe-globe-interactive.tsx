@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import createGlobe from "cobe"
+import { isHalloween } from "@/lib/theme"
 
 export interface InteractiveMarker {
   id: string
@@ -15,6 +16,36 @@ interface GlobeInteractiveProps {
   className?: string
   speed?: number
   backgroundMode?: boolean
+}
+
+const DEFAULT_GLOBE = {
+  dark: 0,
+  baseColor: [0.15, 0.3, 0.6], // Dark blue continents for contrast
+  markerColor: [0.05, 0.19, 0.53], // Dark blue markers (#0e3187)
+  glowColor: [0.3, 0.5, 0.8], // Blue glow
+}
+
+// Tema Halloween: continentes violeta, marcadores naranja y "telaraña de datos" de arcos
+const HALLOWEEN_GLOBE = {
+  dark: 1,
+  baseColor: [0.48, 0.17, 0.75],
+  markerColor: [1, 0.43, 0],
+  glowColor: [0.25, 0.08, 0.4],
+  arcColor: [1, 0.36, 0],
+  arcWidth: 0.5,
+  arcHeight: 0.22,
+}
+
+function buildWebArcs(markers: InteractiveMarker[]) {
+  const sorted = [...markers].sort((a, b) => b.users - a.users || a.location[1] - b.location[1])
+  const hub = sorted[0]
+  if (!hub) return []
+  const arcs: { from: [number, number]; to: [number, number] }[] = []
+  // Radios desde el nodo con más actividad + anillo entre vecinos por longitud
+  sorted.slice(1, 9).forEach((m) => arcs.push({ from: hub.location, to: m.location }))
+  const ring = [...markers].sort((a, b) => a.location[1] - b.location[1]).slice(0, 14)
+  for (let i = 0; i < ring.length - 1; i += 2) arcs.push({ from: ring[i].location, to: ring[i + 1].location })
+  return arcs
 }
 
 export function GlobeInteractive({
@@ -103,16 +134,13 @@ export function GlobeInteractive({
           height: width,
           phi: 5.0, // Initial focus near Chile longitude (-70 deg -> ~5.0 rad)
           theta: -0.4, // Initial vertical tilt looking at South America (-0.4 rad)
-          dark: 0,
+          ...(isHalloween ? HALLOWEEN_GLOBE : DEFAULT_GLOBE),
           diffuse: 1.5,
           mapSamples: 16000,
           mapBrightness: 8,
-          baseColor: [0.15, 0.3, 0.6], // Dark blue continents for contrast
-          markerColor: [0.05, 0.19, 0.53], // Dark blue markers (#0e3187)
-          glowColor: [0.3, 0.5, 0.8], // Blue glow
           markerElevation: 0,
           markers: markers.map((m) => ({ location: m.location, size: backgroundMode ? 0.045 : 0.03, id: m.id })),
-          arcs: [],
+          arcs: isHalloween ? buildWebArcs(markers) : [],
           opacity: 0.85,
         } as any)
         console.log("Globe instance created successfully:", globe)
@@ -253,12 +281,14 @@ export function GlobeInteractive({
             flexDirection: "column",
             alignItems: "center",
             padding: backgroundMode ? "0.2rem 0.4rem" : (expanded === m.id ? "0.35rem 0.55rem" : "0.25rem 0.45rem"),
-            background: backgroundMode ? (m.users > 0 ? "rgba(14, 49, 135, 0.95)" : "rgba(15, 23, 42, 0.85)") : "#0e3187", // High contrast dark slate for inactive ones
+            background: isHalloween
+              ? (m.users > 0 ? "rgba(26, 12, 4, 0.94)" : "rgba(18, 14, 36, 0.9)")
+              : backgroundMode ? (m.users > 0 ? "rgba(14, 49, 135, 0.95)" : "rgba(15, 23, 42, 0.85)") : "#0e3187", // High contrast dark slate for inactive ones
             color: "#fff",
             borderRadius: backgroundMode ? 5 : 6,
             cursor: backgroundMode ? "default" : "pointer",
-            boxShadow: backgroundMode ? "0 2px 5px rgba(0,0,0,0.15)" : "0 4px 10px rgba(14,49,135,0.25)",
-            border: backgroundMode ? "1px solid rgba(255,255,255,0.2)" : "1px solid rgba(255,255,255,0.15)",
+            boxShadow: isHalloween ? (m.users > 0 ? "0 0 8px rgba(255,109,0,0.55)" : "0 0 6px rgba(157,78,221,0.35)") : backgroundMode ? "0 2px 5px rgba(0,0,0,0.15)" : "0 4px 10px rgba(14,49,135,0.25)",
+            border: isHalloween ? (m.users > 0 ? "1px solid #ff6d00" : "1px solid rgba(157,78,221,0.7)") : backgroundMode ? "1px solid rgba(255,255,255,0.2)" : "1px solid rgba(255,255,255,0.15)",
             opacity: 0,
             transition: backgroundMode ? "opacity 0.3s, transform 0.1s" : "opacity 0.3s, transform 0.1s, padding 0.2s, background-color 0.2s",
             zIndex: backgroundMode ? 1 : (expanded === m.id ? 10 : 2),
@@ -278,8 +308,8 @@ export function GlobeInteractive({
             <span>{m.name}</span>
             {m.users > 0 && (
               <span style={{
-                background: "#fff",
-                color: "#0e3187",
+                background: isHalloween ? "#ff6d00" : "#fff",
+                color: isHalloween ? "#1a0b00" : "#0e3187",
                 fontSize: backgroundMode ? "0.45rem" : "0.55rem",
                 fontWeight: 900,
                 padding: "0.01rem 0.2rem",

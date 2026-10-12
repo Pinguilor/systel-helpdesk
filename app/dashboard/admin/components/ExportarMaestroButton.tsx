@@ -11,7 +11,7 @@ export function ExportarMaestroButton() {
         <>
             <button
                 onClick={() => setShowPanel(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-emerald-600 text-white hover:bg-emerald-700 active:bg-emerald-800 transition-all shadow-sm whitespace-nowrap"
+                className="hw-export inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-emerald-600 text-white hover:bg-emerald-700 active:bg-emerald-800 transition-all shadow-sm whitespace-nowrap"
             >
                 <FileSpreadsheet className="w-4 h-4" />
                 Exportar Reporte
