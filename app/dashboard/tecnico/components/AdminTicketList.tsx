@@ -314,7 +314,7 @@ export function AdminTicketList({ initialTickets, currentAgentId, agentName, tot
             <div className="hw-panel hw-web relative z-10 bg-white/70 backdrop-blur-md shadow-lg rounded-3xl overflow-hidden border border-slate-200/40 w-full">
             
                 {/* Header / Controles Principales (Visible Móvil y Desktop) */}
-            <div className="p-5 border-b border-slate-100 flex flex-col bg-white/40 gap-4 w-full">
+            <div className="hw-panel-head p-5 border-b border-slate-100 flex flex-col bg-white/40 gap-4 w-full">
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 w-full">
                     {/* Título y Badge */}
                     <div className="flex items-center gap-2">
