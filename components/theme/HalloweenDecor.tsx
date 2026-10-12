@@ -29,58 +29,81 @@ export function HalloweenBackdrop() {
     );
 }
 
-const glowFace = (
-    <g fill="#ffd54a">
-        <path d="M-9 -6l5 -6 5 6z" transform="translate(0 4)" />
-        <path d="M4 -6l5 -6 5 6z" transform="translate(0 4)" />
-        <path d="M-2 4l3 -4 3 4z" transform="translate(0 4)" />
-        <path d="M-12 12q12 12 24 0l-4 -3 -3 3 -3 -3 -3 3 -3 -3 -3 3z" transform="translate(0 4)" />
-    </g>
-);
+/* ---- Calabazas y hojas (SVG): gomos con sombreado, tallo con zarcillo, cara encendida ---- */
+const LOBES: [number, number, number][] = [
+    [-33, 17, 33], [33, 17, 33], [-17, 21, 38], [17, 21, 38], [0, 22, 40],
+];
+
+function Pumpkin3D({ face = false, id }: { face?: boolean; id: string }) {
+    return (
+        <g>
+            <ellipse cx="0" cy="40" rx="46" ry="6" fill="#000" opacity=".35" />
+            {LOBES.map(([cx, rx, ry], i) => (
+                <ellipse key={i} cx={cx} cy="2" rx={rx} ry={ry} fill={`url(#hwPk${i < 2 ? 'Dark' : i < 4 ? 'Mid' : 'Lite'})`} stroke="#8f3600" strokeOpacity=".55" strokeWidth="1.2" />
+            ))}
+            {/* brillo */}
+            <ellipse cx="-12" cy="-16" rx="9" ry="16" fill="#fff" opacity=".16" transform="rotate(14 -12 -16)" />
+            {/* tallo y zarcillo */}
+            <path d="M-4 -37c-1-7 0-11 3-14l7 1c-1 4-1 9 0 13z" fill="#5b3a12" stroke="#3a2408" strokeWidth="1" />
+            <path d="M5 -45c10-4 18 0 16 8-1 4-6 5-8 2" fill="none" stroke="#5aa616" strokeWidth="2.2" strokeLinecap="round" />
+            {face && (
+                <g>
+                    <g fill="#ffb300" opacity=".75" filter={`url(#${id})`}>
+                        <path d="M-28 -6L-11 -10 -19 -24z" /><path d="M28 -6L11 -10 19 -24z" /><path d="M0 -1L-7 11 7 11z" />
+                        <path d="M-31 14Q0 42 31 14L25 11 19 20 11 12 0 22-11 12-19 20-25 11z" />
+                    </g>
+                    <g fill="url(#hwFace)" stroke="#5a1f00" strokeWidth="1.2" strokeLinejoin="round">
+                        <path d="M-28 -6L-11 -10 -19 -24z" /><path d="M28 -6L11 -10 19 -24z" /><path d="M0 -1L-7 11 7 11z" />
+                        <path d="M-31 14Q0 42 31 14L25 11 19 20 11 12 0 22-11 12-19 20-25 11z" />
+                    </g>
+                </g>
+            )}
+        </g>
+    );
+}
+
+const LEAF = 'M0-21L4-11 13-15 9-5 20-4 11 4 17 13 6 10 3 21 0 15-3 21-6 10-17 13-11 4-20-4-9-5-13-15-4-11z';
+
+function Leaf({ x, y, r, s = 1, c }: { x: number; y: number; r: number; s?: number; c: 'Red' | 'Amber' | 'Gold' }) {
+    return (
+        <g transform={`translate(${x} ${y}) rotate(${r}) scale(${s})`}>
+            <path d={LEAF} fill={`url(#hwLeaf${c})`} stroke="#5c1d02" strokeOpacity=".55" strokeWidth=".9" strokeLinejoin="round" />
+            <path d="M0 22V-14M0 4L-9 -4M0 4L9 -4M0 -5L-6 -10M0 -5L6 -10" stroke="#5c1d02" strokeOpacity=".5" strokeWidth=".8" strokeLinecap="round" fill="none" />
+        </g>
+    );
+}
 
 /** Grupo de calabazas con hojas de otoño, apoyado sobre el borde superior del panel (posición absoluta). */
 export function PumpkinPatch({ className = '' }: { className?: string }) {
     if (!isHalloween) return null;
     return (
-        <svg className={`hw-patch ${className}`} viewBox="0 0 220 100" aria-hidden="true">
+        <svg className={`hw-patch ${className}`} viewBox="0 0 260 120" aria-hidden="true">
             <defs>
-                <radialGradient id="hwPk" cx="50%" cy="40%" r="65%">
-                    <stop offset="0" stopColor="#ff9a2e" />
-                    <stop offset=".6" stopColor="#f26a00" />
-                    <stop offset="1" stopColor="#a63d00" />
-                </radialGradient>
+                <radialGradient id="hwPkLite" cx="45%" cy="35%" r="75%"><stop offset="0" stopColor="#ffb347" /><stop offset=".55" stopColor="#ff7a00" /><stop offset="1" stopColor="#b84300" /></radialGradient>
+                <radialGradient id="hwPkMid" cx="45%" cy="35%" r="75%"><stop offset="0" stopColor="#ff9d2e" /><stop offset=".55" stopColor="#f06400" /><stop offset="1" stopColor="#9c3700" /></radialGradient>
+                <radialGradient id="hwPkDark" cx="45%" cy="35%" r="75%"><stop offset="0" stopColor="#f58a1f" /><stop offset=".55" stopColor="#d65500" /><stop offset="1" stopColor="#7a2c00" /></radialGradient>
+                <radialGradient id="hwFace" cx="50%" cy="45%" r="70%"><stop offset="0" stopColor="#fff6b8" /><stop offset=".6" stopColor="#ffc933" /><stop offset="1" stopColor="#ff8a00" /></radialGradient>
+                <linearGradient id="hwLeafRed" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stopColor="#8f1d0a" /><stop offset="1" stopColor="#e8420f" /></linearGradient>
+                <linearGradient id="hwLeafAmber" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stopColor="#b8470a" /><stop offset="1" stopColor="#ff9a1f" /></linearGradient>
+                <linearGradient id="hwLeafGold" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stopColor="#c27a0a" /><stop offset="1" stopColor="#ffd23f" /></linearGradient>
+                <filter id="hwBlurA" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="3.5" /></filter>
+                <filter id="hwBlurB" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="2.5" /></filter>
             </defs>
-            {/* hojas */}
-            <g opacity=".95">
-                <path d="M14 92c6-16 20-22 34-22-2 14-16 26-34 22z" fill="#b8460a" />
-                <path d="M40 96c2-14 12-24 26-26 2 12-8 24-26 26z" fill="#d97706" />
-                <path d="M170 94c-2-14-12-24-26-26-2 12 8 24 26 26z" fill="#c2410c" />
-                <path d="M200 90c-6-16-20-22-34-22 2 14 16 26 34 22z" fill="#a3330a" />
-                <path d="M96 98c0-10 4-18 14-22 2 10-4 18-14 22z" fill="#e08a1a" />
-            </g>
+            {/* hojas al fondo */}
+            <Leaf x={22} y={100} r={-38} s={1.1} c="Red" />
+            <Leaf x={56} y={108} r={14} s={.9} c="Gold" />
+            <Leaf x={236} y={102} r={40} s={1.1} c="Amber" />
             {/* calabaza izquierda */}
-            <g transform="translate(58 62)">
-                <ellipse cx="-12" cy="0" rx="17" ry="22" fill="url(#hwPk)" />
-                <ellipse cx="12" cy="0" rx="17" ry="22" fill="url(#hwPk)" />
-                <ellipse cx="0" cy="0" rx="15" ry="24" fill="url(#hwPk)" />
-                <path d="M0 -24c0-6 2-9 6-11" stroke="#4d7c0f" strokeWidth="3" strokeLinecap="round" fill="none" />
-                <g transform="scale(.8)">{glowFace}</g>
-            </g>
-            {/* calabaza central (grande) */}
-            <g transform="translate(112 52)">
-                <ellipse cx="-18" cy="2" rx="26" ry="32" fill="url(#hwPk)" />
-                <ellipse cx="18" cy="2" rx="26" ry="32" fill="url(#hwPk)" />
-                <ellipse cx="0" cy="2" rx="23" ry="35" fill="url(#hwPk)" />
-                <path d="M0 -33c0-8 3-12 8-14" stroke="#4d7c0f" strokeWidth="4" strokeLinecap="round" fill="none" />
-                <g transform="scale(1.25) translate(0 1)">{glowFace}</g>
-            </g>
-            {/* calabaza derecha (sin cara) */}
-            <g transform="translate(166 72)">
-                <ellipse cx="-9" cy="0" rx="13" ry="17" fill="url(#hwPk)" />
-                <ellipse cx="9" cy="0" rx="13" ry="17" fill="url(#hwPk)" />
-                <ellipse cx="0" cy="0" rx="11" ry="18" fill="url(#hwPk)" />
-                <path d="M0 -18c0-5 2-8 5-9" stroke="#4d7c0f" strokeWidth="3" strokeLinecap="round" fill="none" />
-            </g>
+            <g transform="translate(70 76) scale(.62)"><Pumpkin3D face id="hwBlurB" /></g>
+            {/* calabaza derecha */}
+            <g transform="translate(200 90) scale(.5) rotate(8)"><Pumpkin3D id="hwBlurB" /></g>
+            {/* calabaza central */}
+            <g transform="translate(132 64) scale(.95)"><Pumpkin3D face id="hwBlurA" /></g>
+            {/* hojas al frente */}
+            <Leaf x={104} y={110} r={-20} s={.9} c="Amber" />
+            <Leaf x={166} y={110} r={26} s={.85} c="Red" />
+            <Leaf x={36} y={114} r={64} s={.7} c="Amber" />
+            <Leaf x={222} y={114} r={-50} s={.7} c="Gold" />
         </svg>
     );
 }
