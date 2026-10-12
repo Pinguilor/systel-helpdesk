@@ -9,7 +9,7 @@ import Link from 'next/link';
 import { ExportarMaestroButton } from '@/app/dashboard/admin/components/ExportarMaestroButton';
 import { getStatusBadge } from '@/app/dashboard/components/StatusBadge';
 import { motion } from 'framer-motion';
-import { TinySpider } from '@/components/theme/HalloweenDecor';
+import { TinySpider, PumpkinPatch } from '@/components/theme/HalloweenDecor';
 import { GlobeInteractive } from '@/components/ui/cobe-globe-interactive';
 
 const containerVariants = {
@@ -308,6 +308,8 @@ export function AdminTicketList({ initialTickets, currentAgentId, agentName, tot
                 </div>
             )}
 
+            <PumpkinPatch />
+
             {/* Main Ticket List Card */}
             <div className="hw-panel hw-web relative z-10 bg-white/70 backdrop-blur-md shadow-lg rounded-3xl overflow-hidden border border-slate-200/40 w-full">
             
@@ -336,13 +338,13 @@ export function AdminTicketList({ initialTickets, currentAgentId, agentName, tot
                             placeholder="Buscar por ID (NC-XX), título, descripción o restaurante..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="block w-full pl-10 pr-3 py-2.5 border border-slate-200 rounded-2xl leading-5 bg-slate-50/50 placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-4 focus:ring-[#0e3187]/10 focus:border-[#0e3187] text-[15px] sm:text-sm transition-all font-semibold shadow-inner"
+                            className="hw-panel-search block w-full pl-10 pr-3 py-2.5 border border-slate-200 rounded-2xl leading-5 bg-slate-50/50 placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-4 focus:ring-[#0e3187]/10 focus:border-[#0e3187] text-[15px] sm:text-sm transition-all font-semibold shadow-inner"
                         />
                     </div>
                 </div>
 
                 {/* Filtros Estrictos (Tabs) */}
-                <div className="flex p-1.5 rounded-2xl bg-slate-100/80 border border-slate-200/50 shadow-inner mt-1 sm:mt-0 relative overflow-hidden">
+                <div className="hw-filter-bar flex p-1.5 rounded-2xl bg-slate-100/80 border border-slate-200/50 shadow-inner mt-1 sm:mt-0 relative overflow-hidden">
                     <div className="flex space-x-1 min-w-max w-full">
                         <button 
                             onClick={() => setFilter('TODOS')} 
@@ -354,7 +356,7 @@ export function AdminTicketList({ initialTickets, currentAgentId, agentName, tot
                             {filter === 'TODOS' && (
                                 <motion.div
                                     layoutId="activeAdminFilterPill"
-                                    className="absolute inset-0 bg-white rounded-xl shadow-sm border border-slate-200/60"
+                                    className="hw-filter-pill absolute inset-0 bg-white rounded-xl shadow-sm border border-slate-200/60"
                                     transition={{ type: "spring", stiffness: 350, damping: 25 }}
                                 />
                             )}
@@ -369,7 +371,7 @@ export function AdminTicketList({ initialTickets, currentAgentId, agentName, tot
                             {filter === 'PENDIENTES' && (
                                 <motion.div
                                     layoutId="activeAdminFilterPill"
-                                    className="absolute inset-0 bg-white rounded-xl shadow-sm border border-slate-200/60"
+                                    className="hw-filter-pill absolute inset-0 bg-white rounded-xl shadow-sm border border-slate-200/60"
                                     transition={{ type: "spring", stiffness: 350, damping: 25 }}
                                 />
                             )}
@@ -384,7 +386,7 @@ export function AdminTicketList({ initialTickets, currentAgentId, agentName, tot
                             {filter === 'RESUELTOS' && (
                                 <motion.div
                                     layoutId="activeAdminFilterPill"
-                                    className="absolute inset-0 bg-white rounded-xl shadow-sm border border-slate-200/60"
+                                    className="hw-filter-pill absolute inset-0 bg-white rounded-xl shadow-sm border border-slate-200/60"
                                     transition={{ type: "spring", stiffness: 350, damping: 25 }}
                                 />
                             )}
@@ -481,7 +483,7 @@ export function AdminTicketList({ initialTickets, currentAgentId, agentName, tot
                                     <td className="pl-6 pr-3 py-4 whitespace-nowrap">
                                         <div className="flex flex-col">
                                             <div className="text-xs font-bold tracking-wider mb-1">
-                                                <span className="inline-flex items-center px-2.5 py-1 rounded-xl bg-[#0e3187] text-white text-xs font-black tracking-wide shadow-sm group-hover:scale-105 transition-transform duration-200 ease-out">
+                                                <span className="hw-id inline-flex items-center px-2.5 py-1 rounded-xl bg-[#0e3187] text-white text-xs font-black tracking-wide shadow-sm group-hover:scale-105 transition-transform duration-200 ease-out">
                                                     NC-{ticket.numero_ticket}
                                                 </span>
                                             </div>

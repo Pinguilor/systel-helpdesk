@@ -5,7 +5,8 @@ import { usePathname, useRouter } from 'next/navigation';
 import { LoopLoader } from '@/components/LoopLoader';
 import { LayoutGrid, Warehouse, PackageCheck, ScanLine, FolderKanban } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { Pumpkin } from '@/components/theme/HalloweenDecor';
+import { PumpkinIcon } from '@/components/theme/HalloweenDecor';
+import { isHalloween } from '@/lib/theme';
 
 export function AdminSegmentedNav({ rol }: { rol: string }) {
     const pathname = usePathname();
@@ -54,9 +55,8 @@ export function AdminSegmentedNav({ rol }: { rol: string }) {
                                 transition={{ type: 'spring', stiffness: 380, damping: 30 }}
                             />
                         )}
-                        <Pumpkin />
                         <span className="relative z-10 flex items-center gap-2">
-                            <LayoutGrid className="w-4 h-4" strokeWidth={1.75} />
+                            {isHalloween ? <PumpkinIcon /> : <LayoutGrid className="w-4 h-4" strokeWidth={1.75} />}
                             <span className="hidden md:inline">Vista General</span>
                         </span>
                     </button>
