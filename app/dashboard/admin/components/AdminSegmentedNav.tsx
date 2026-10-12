@@ -54,8 +54,8 @@ export function AdminSegmentedNav({ rol }: { rol: string }) {
                                 transition={{ type: 'spring', stiffness: 380, damping: 30 }}
                             />
                         )}
-                        <Pumpkin />
                         <span className="relative z-10 flex items-center gap-2">
+                            {isVistaGeneral && <Pumpkin className="hw-pumpkin-inline" />}
                             <LayoutGrid className="w-4 h-4" strokeWidth={1.75} />
                             <span className="hidden md:inline">Vista General</span>
                         </span>

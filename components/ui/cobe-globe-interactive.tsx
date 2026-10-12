@@ -28,12 +28,12 @@ const DEFAULT_GLOBE = {
 // Tema Halloween: continentes violeta, marcadores naranja y "telaraña de datos" de arcos
 const HALLOWEEN_GLOBE = {
   dark: 1,
-  baseColor: [0.48, 0.17, 0.75],
-  markerColor: [1, 0.43, 0],
-  glowColor: [0.25, 0.08, 0.4],
-  arcColor: [1, 0.36, 0],
-  arcWidth: 0.5,
-  arcHeight: 0.22,
+  baseColor: [0.62, 0.22, 0.12],
+  markerColor: [0.62, 0.31, 0.87],
+  glowColor: [0.95, 0.28, 0.04],
+  arcColor: [1, 0.42, 0.05],
+  arcWidth: 0.6,
+  arcHeight: 0.2,
 }
 
 function buildWebArcs(markers: InteractiveMarker[]) {
@@ -42,9 +42,9 @@ function buildWebArcs(markers: InteractiveMarker[]) {
   if (!hub) return []
   const arcs: { from: [number, number]; to: [number, number] }[] = []
   // Radios desde el nodo con más actividad + anillo entre vecinos por longitud
-  sorted.slice(1, 9).forEach((m) => arcs.push({ from: hub.location, to: m.location }))
-  const ring = [...markers].sort((a, b) => a.location[1] - b.location[1]).slice(0, 14)
-  for (let i = 0; i < ring.length - 1; i += 2) arcs.push({ from: ring[i].location, to: ring[i + 1].location })
+  sorted.slice(1, 13).forEach((m) => arcs.push({ from: hub.location, to: m.location }))
+  const ring = [...markers].sort((a, b) => a.location[1] - b.location[1])
+  for (let i = 0; i < ring.length - 1; i++) arcs.push({ from: ring[i].location, to: ring[i + 1].location })
   return arcs
 }
 
@@ -139,7 +139,7 @@ export function GlobeInteractive({
           mapSamples: 16000,
           mapBrightness: 8,
           markerElevation: 0,
-          markers: markers.map((m) => ({ location: m.location, size: backgroundMode ? 0.045 : 0.03, id: m.id })),
+          markers: markers.map((m) => ({ location: m.location, size: isHalloween ? 0.022 : backgroundMode ? 0.045 : 0.03, id: m.id })),
           arcs: isHalloween ? buildWebArcs(markers) : [],
           opacity: 0.85,
         } as any)

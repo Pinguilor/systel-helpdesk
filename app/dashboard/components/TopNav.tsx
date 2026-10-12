@@ -12,7 +12,7 @@ import debounce from 'lodash.debounce';
 import { TicketForm } from '../usuario/components/TicketForm';
 import { CatalogConfigModal } from './CatalogConfigModal';
 import { motion, AnimatePresence } from 'framer-motion';
-import { HangingSpider } from '@/components/theme/HalloweenDecor';
+import { HangingSpider, WitchHat } from '@/components/theme/HalloweenDecor';
 
 interface TopNavProps {
     userFullName: string | null;
@@ -464,6 +464,7 @@ export default function TopNav({ userFullName, userRole }: TopNavProps) {
 
                         {/* Notifications Bell */}
                         <div className="relative" ref={notifRef}>
+                            <WitchHat />
                             <HangingSpider />
                             <button
                                 onClick={() => setIsNotifOpen(!isNotifOpen)}

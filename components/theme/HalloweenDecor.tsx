@@ -5,20 +5,96 @@ import { isHalloween } from '@/lib/theme';
    Con el tema apagado devuelven null. */
 
 const bat = (
-    <path d="M60 22c-4 0-6 5-9 5-4 0-6-6-14-9-10-4-22-1-33 8 8-1 14 1 17 6-5 0-9 3-11 8 7-3 13-2 17 3 4 5 8 6 12 2 3 3 5 9 5 13 0-4 2-10 5-13 4 4 8 3 12-2 4-5 10-6 17-3-2-5-6-8-11-8 3-5 9-7 17-6-11-9-23-12-33-8-8 3-10 9-14 9-3 0-5-5-9-5z" />
+    <>
+        <path d="M60 20L63 9 66 18C72 17 80 18 88 12 98 6 108 6 118 14 110 14 106 18 105 25 100 21 96 21 92 26 90 22 85 22 82 27 79 23 74 25 72 31 69 37 65 45 60 53z" />
+        <path d="M60 20L63 9 66 18C72 17 80 18 88 12 98 6 108 6 118 14 110 14 106 18 105 25 100 21 96 21 92 26 90 22 85 22 82 27 79 23 74 25 72 31 69 37 65 45 60 53z" transform="matrix(-1 0 0 1 120 0)" />
+    </>
 );
 
-/** Capa fija de fondo: murciélagos lejanos + telarañas en las esquinas de la pantalla. */
+/** Capa fija de fondo: murciélagos, neblina y telarañas grandes en las esquinas de la pantalla. */
 export function HalloweenBackdrop() {
     if (!isHalloween) return null;
     return (
         <div className="hw-backdrop" aria-hidden="true">
-            <svg className="hw-bat hw-bat-1" viewBox="0 0 120 60" fill="currentColor">{bat}</svg>
-            <svg className="hw-bat hw-bat-2" viewBox="0 0 120 60" fill="currentColor">{bat}</svg>
-            <svg className="hw-bat hw-bat-3" viewBox="0 0 120 60" fill="currentColor">{bat}</svg>
+            <span className="hw-fog hw-fog-l" />
+            <span className="hw-fog hw-fog-r" />
+            {[1, 2, 3, 4, 5].map((n) => (
+                <svg key={n} className={`hw-bat hw-bat-${n}`} viewBox="0 0 120 60" fill="currentColor">{bat}</svg>
+            ))}
+            <span className="hw-screen-web hw-screen-web-tl" />
+            <span className="hw-screen-web hw-screen-web-tr" />
             <span className="hw-screen-web hw-screen-web-bl" />
             <span className="hw-screen-web hw-screen-web-br" />
         </div>
+    );
+}
+
+const glowFace = (
+    <g fill="#ffd54a">
+        <path d="M-9 -6l5 -6 5 6z" transform="translate(0 4)" />
+        <path d="M4 -6l5 -6 5 6z" transform="translate(0 4)" />
+        <path d="M-2 4l3 -4 3 4z" transform="translate(0 4)" />
+        <path d="M-12 12q12 12 24 0l-4 -3 -3 3 -3 -3 -3 3 -3 -3 -3 3z" transform="translate(0 4)" />
+    </g>
+);
+
+/** Grupo de calabazas con hojas de otoño, apoyado sobre el borde superior del panel (posición absoluta). */
+export function PumpkinPatch({ className = '' }: { className?: string }) {
+    if (!isHalloween) return null;
+    return (
+        <svg className={`hw-patch ${className}`} viewBox="0 0 220 100" aria-hidden="true">
+            <defs>
+                <radialGradient id="hwPk" cx="50%" cy="40%" r="65%">
+                    <stop offset="0" stopColor="#ff9a2e" />
+                    <stop offset=".6" stopColor="#f26a00" />
+                    <stop offset="1" stopColor="#a63d00" />
+                </radialGradient>
+            </defs>
+            {/* hojas */}
+            <g opacity=".95">
+                <path d="M14 92c6-16 20-22 34-22-2 14-16 26-34 22z" fill="#b8460a" />
+                <path d="M40 96c2-14 12-24 26-26 2 12-8 24-26 26z" fill="#d97706" />
+                <path d="M170 94c-2-14-12-24-26-26-2 12 8 24 26 26z" fill="#c2410c" />
+                <path d="M200 90c-6-16-20-22-34-22 2 14 16 26 34 22z" fill="#a3330a" />
+                <path d="M96 98c0-10 4-18 14-22 2 10-4 18-14 22z" fill="#e08a1a" />
+            </g>
+            {/* calabaza izquierda */}
+            <g transform="translate(58 62)">
+                <ellipse cx="-12" cy="0" rx="17" ry="22" fill="url(#hwPk)" />
+                <ellipse cx="12" cy="0" rx="17" ry="22" fill="url(#hwPk)" />
+                <ellipse cx="0" cy="0" rx="15" ry="24" fill="url(#hwPk)" />
+                <path d="M0 -24c0-6 2-9 6-11" stroke="#4d7c0f" strokeWidth="3" strokeLinecap="round" fill="none" />
+                <g transform="scale(.8)">{glowFace}</g>
+            </g>
+            {/* calabaza central (grande) */}
+            <g transform="translate(112 52)">
+                <ellipse cx="-18" cy="2" rx="26" ry="32" fill="url(#hwPk)" />
+                <ellipse cx="18" cy="2" rx="26" ry="32" fill="url(#hwPk)" />
+                <ellipse cx="0" cy="2" rx="23" ry="35" fill="url(#hwPk)" />
+                <path d="M0 -33c0-8 3-12 8-14" stroke="#4d7c0f" strokeWidth="4" strokeLinecap="round" fill="none" />
+                <g transform="scale(1.25) translate(0 1)">{glowFace}</g>
+            </g>
+            {/* calabaza derecha (sin cara) */}
+            <g transform="translate(166 72)">
+                <ellipse cx="-9" cy="0" rx="13" ry="17" fill="url(#hwPk)" />
+                <ellipse cx="9" cy="0" rx="13" ry="17" fill="url(#hwPk)" />
+                <ellipse cx="0" cy="0" rx="11" ry="18" fill="url(#hwPk)" />
+                <path d="M0 -18c0-5 2-8 5-9" stroke="#4d7c0f" strokeWidth="3" strokeLinecap="round" fill="none" />
+            </g>
+        </svg>
+    );
+}
+
+/** Sombrero de bruja para la campana (posición absoluta; el padre debe ser `relative`). */
+export function WitchHat({ className = '' }: { className?: string }) {
+    if (!isHalloween) return null;
+    return (
+        <svg className={`hw-witchhat ${className}`} viewBox="0 0 40 36" aria-hidden="true">
+            <path d="M8 26c4-2 8-3 12-3s9 1 13 3c-2 4-7 6-13 6S10 30 8 26z" fill="#4c1d95" stroke="#9d4edd" strokeWidth="1" />
+            <path d="M14 24c2-8 4-16 9-22 1 8 2 16 4 22-5 2-9 2-13 0z" fill="#3b0f7a" stroke="#9d4edd" strokeWidth="1" />
+            <path d="M14.5 21c4 2 8 2 12 0l.6 3c-4 2-9 2-13.2 0z" fill="#ff6d00" />
+            <path d="M23 2c2-1 5 0 6 3" stroke="#9d4edd" strokeWidth="1.4" fill="none" strokeLinecap="round" />
+        </svg>
     );
 }
 
