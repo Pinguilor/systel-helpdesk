@@ -69,7 +69,8 @@ const FACES = {
 function Jack({ x, y, s, face }: { x: number; y: number; s: number; face: keyof typeof FACES }) {
     return (
         <g transform={`translate(${x} ${y}) scale(${s})`}>
-            <ellipse cx="0" cy="29" rx="40" ry="5.5" fill="#000" opacity=".5" />
+            <ellipse cx="3" cy="30" rx="46" ry="7" fill="#000" opacity=".55" filter="url(#hw-pk-ground)" />
+            <ellipse cx="0" cy="29" rx="30" ry="3.2" fill="#000" opacity=".5" filter="url(#hw-pk-contact)" />
             {/* Tallo y zarcillo */}
             <path d="M-5-22C-6-31-3-39 6-43L11-37C6-35 4-30 5-22Z" fill="url(#hw-pk-stem)" stroke="#2f3f12" strokeWidth=".8" />
             <path d="M-2-24C-3-31 0-37 6-40" fill="none" stroke="#a3c75a" strokeOpacity=".6" strokeWidth="1" strokeLinecap="round" />
@@ -127,6 +128,8 @@ export function PumpkinPatch() {
                 <linearGradient id="hw-leaf-red" x1="0" y1="0" x2="1" y2="1">
                     <stop offset="0" stopColor="#fca5a5" /><stop offset=".45" stopColor="#dc2626" /><stop offset="1" stopColor="#7f1d1d" />
                 </linearGradient>
+                <filter id="hw-pk-ground" x="-40%" y="-200%" width="180%" height="500%"><feGaussianBlur stdDeviation="3.4" /></filter>
+                <filter id="hw-pk-contact" x="-40%" y="-200%" width="180%" height="500%"><feGaussianBlur stdDeviation="1.2" /></filter>
                 <filter id="hw-pk-blur" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="2.6" /></filter>
             </defs>
             <ellipse className="hw-patch-glow" cx="130" cy="82" rx="124" ry="40" fill="url(#hw-pk-halo)" />
