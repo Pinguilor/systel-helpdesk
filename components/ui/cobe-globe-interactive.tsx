@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import createGlobe from "cobe"
 import { isHalloween } from "@/lib/theme"
 
@@ -39,7 +39,7 @@ const HALLOWEEN_GLOBE = {
 // Malla tipo telaraña: cada nodo se une a sus 2 vecinos más cercanos
 function buildWebArcs(markers: InteractiveMarker[]) {
   const seen = new Set<string>()
-  const arcs: { from: [number, number]; to: [number, number] }[] = []
+  const arcs: { from: [number, number]; to: [number, number]; fromUsers: number; toUsers: number }[] = []
   const dist = (a: InteractiveMarker, b: InteractiveMarker) => {
     const dLon = Math.abs(a.location[1] - b.location[1])
     return Math.hypot(a.location[0] - b.location[0], Math.min(dLon, 360 - dLon))
@@ -53,10 +53,20 @@ function buildWebArcs(markers: InteractiveMarker[]) {
         const key = [m.id, o.id].sort().join("|")
         if (seen.has(key)) return
         seen.add(key)
-        arcs.push({ from: m.location, to: o.location })
+        arcs.push({ from: m.location, to: o.location, fromUsers: m.users, toUsers: o.users })
       })
   })
   return arcs
+}
+
+// Proyecta un nodo (lat/lon) a coordenadas 2D del disco; z > 0 = cara visible
+function projectNode(location: [number, number], phi: number, theta: number, r: number, sphereRadius: number) {
+  const lat = (location[0] * Math.PI) / 180
+  const lon = (location[1] * Math.PI) / 180
+  const x3d = Math.cos(lat) * Math.sin(lon + phi)
+  const y3d = Math.sin(lat) * Math.cos(theta) - Math.cos(lat) * Math.cos(lon + phi) * Math.sin(theta)
+  const z3d = Math.sin(lat) * Math.sin(theta) + Math.cos(lat) * Math.cos(lon + phi) * Math.cos(theta)
+  return { x: r + sphereRadius * x3d, y: r - sphereRadius * y3d, z: z3d }
 }
 
 export function GlobeInteractive({
@@ -74,6 +84,13 @@ export function GlobeInteractive({
   const isPausedRef = useRef(false)
   const [expanded, setExpanded] = useState<string | null>(null)
   const [mounted, setMounted] = useState(false)
+  // Tema Halloween: la red de datos son líneas SVG sobre la luna (los nodos siguen proyectándose igual)
+  const moonArcs = useMemo(
+    () => (isHalloween
+      ? buildWebArcs(markers).map((a, i) => ({ ...a, key: i, hot: a.fromUsers > 0 || a.toUsers > 0 }))
+      : []),
+    [markers]
+  )
 
   useEffect(() => {
     setMounted(true)
@@ -139,7 +156,7 @@ export function GlobeInteractive({
 
       try {
         console.log("Calling createGlobe standard builder...")
-        globe = createGlobe(canvas, {
+        if (!isHalloween) globe = createGlobe(canvas, {
           devicePixelRatio: Math.min(window.devicePixelRatio || 1, 2),
           width,
           height: width,
@@ -151,7 +168,7 @@ export function GlobeInteractive({
           mapBrightness: 8,
           markerElevation: 0,
           markers: markers.map((m) => ({ location: m.location, size: backgroundMode ? 0.045 : 0.03, id: m.id })),
-          arcs: isHalloween ? buildWebArcs(markers) : [],
+          arcs: [],
           opacity: 0.85,
         } as any)
         console.log("Globe instance created successfully:", globe)
@@ -177,6 +194,24 @@ export function GlobeInteractive({
           const r = width / 2
           const sphereRadius = r * 0.83
           
+          if (isHalloween) {
+            moonArcs.forEach((a) => {
+              const el = document.getElementById(`hw-arc-${a.key}`)
+              if (!el) return
+              const p1 = projectNode(a.from, currentPhi, currentTheta, r, sphereRadius)
+              const p2 = projectNode(a.to, currentPhi, currentTheta, r, sphereRadius)
+              if (p1.z > 0.05 && p2.z > 0.05) {
+                // el arco de círculo máximo se abomba hacia afuera del centro respecto a la cuerda
+                const mx = (p1.x + p2.x) / 2, my = (p1.y + p2.y) / 2
+                const cx = r + (mx - r) * 1.18, cy = r + (my - r) * 1.18
+                el.setAttribute("d", `M${p1.x.toFixed(1)} ${p1.y.toFixed(1)}Q${cx.toFixed(1)} ${cy.toFixed(1)} ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`)
+                el.style.opacity = a.hot ? "0.9" : "0.55"
+              } else {
+                el.style.opacity = "0"
+              }
+            })
+          }
+
           markers.forEach((m) => {
             const lat = (m.location[0] * Math.PI) / 180
             const lon = (m.location[1] * Math.PI) / 180
@@ -243,7 +278,7 @@ export function GlobeInteractive({
         console.log("Globe instance destroyed successfully")
       }
     }
-  }, [mounted, canvasElement, markers, speed, backgroundMode])
+  }, [mounted, canvasElement, markers, moonArcs, speed, backgroundMode])
 
   if (!mounted) {
     return (
@@ -262,6 +297,14 @@ export function GlobeInteractive({
         }
       `}</style>
       {isHalloween && <div className="hw-globe-glow" aria-hidden="true" />}
+      {isHalloween && <div className="hw-moon" aria-hidden="true" />}
+      {isHalloween && (
+        <svg className="hw-moon-web" viewBox={`0 0 ${canvasElement?.offsetWidth || 1000} ${canvasElement?.offsetWidth || 1000}`} aria-hidden="true">
+          {moonArcs.map((a) => (
+            <path key={a.key} id={`hw-arc-${a.key}`} d="" fill="none" stroke={a.hot ? "var(--hw-moon-arc-hot)" : "var(--hw-moon-arc)"} strokeWidth={a.hot ? 1.6 : 1.1} strokeLinecap="round" style={{ opacity: 0 }} />
+          ))}
+        </svg>
+      )}
       <canvas
         ref={setCanvasElement}
         onPointerDown={handlePointerDown}
@@ -269,7 +312,7 @@ export function GlobeInteractive({
           width: "100%",
           height: "100%",
           cursor: backgroundMode ? "default" : "grab",
-          opacity: mounted ? (backgroundMode ? 0.85 : 1) : 0,
+          opacity: isHalloween ? 0 : mounted ? (backgroundMode ? 0.85 : 1) : 0,
           transition: "opacity 0.3s ease",
           borderRadius: "50%",
           touchAction: "none",
@@ -294,13 +337,13 @@ export function GlobeInteractive({
             alignItems: "center",
             padding: backgroundMode ? "0.2rem 0.4rem" : (expanded === m.id ? "0.35rem 0.55rem" : "0.25rem 0.45rem"),
             background: isHalloween
-              ? (m.users > 0 ? "rgba(26, 12, 4, 0.94)" : "rgba(22, 24, 36, 0.92)")
+              ? (m.users > 0 ? "var(--hw-node-hot, #c2410c)" : "var(--hw-node, #6d28d9)")
               : backgroundMode ? (m.users > 0 ? "rgba(14, 49, 135, 0.95)" : "rgba(15, 23, 42, 0.85)") : "#0e3187", // High contrast dark slate for inactive ones
             color: "#fff",
             borderRadius: backgroundMode ? 5 : 6,
             cursor: backgroundMode ? "default" : "pointer",
-            boxShadow: isHalloween ? (m.users > 0 ? "0 0 8px rgba(255,109,0,0.55)" : "0 0 6px rgba(157,78,221,0.35)") : backgroundMode ? "0 2px 5px rgba(0,0,0,0.15)" : "0 4px 10px rgba(14,49,135,0.25)",
-            border: isHalloween ? (m.users > 0 ? "1px solid #ff6d00" : "1px solid rgba(255,255,255,0.22)") : backgroundMode ? "1px solid rgba(255,255,255,0.2)" : "1px solid rgba(255,255,255,0.15)",
+            boxShadow: isHalloween ? (m.users > 0 ? "0 0 0 1px rgba(255,255,255,.9), 0 2px 8px rgba(255,84,0,.55)" : "0 0 0 1px rgba(255,255,255,.85), 0 2px 8px rgba(123,44,191,.5)") : backgroundMode ? "0 2px 5px rgba(0,0,0,0.15)" : "0 4px 10px rgba(14,49,135,0.25)",
+            border: isHalloween ? (m.users > 0 ? "1px solid #ff6d00" : "1px solid #9d4edd") : backgroundMode ? "1px solid rgba(255,255,255,0.2)" : "1px solid rgba(255,255,255,0.15)",
             opacity: 0,
             transition: backgroundMode ? "opacity 0.3s, transform 0.1s" : "opacity 0.3s, transform 0.1s, padding 0.2s, background-color 0.2s",
             zIndex: backgroundMode ? 1 : (expanded === m.id ? 10 : 2),
@@ -320,8 +363,8 @@ export function GlobeInteractive({
             <span>{m.name}</span>
             {m.users > 0 && (
               <span style={{
-                background: isHalloween ? "#ff6d00" : "#fff",
-                color: isHalloween ? "#1a0b00" : "#0e3187",
+                background: "#fff",
+                color: isHalloween ? "#7c2d12" : "#0e3187",
                 fontSize: backgroundMode ? "0.45rem" : "0.55rem",
                 fontWeight: 900,
                 padding: "0.01rem 0.2rem",

@@ -14,6 +14,7 @@ export function HalloweenBackdrop() {
     return (
         <div className="hw-backdrop" aria-hidden="true">
             <span className="hw-haze" />
+            <span className="hw-mist" />
             <span className="hw-fog hw-fog-1" />
             <span className="hw-fog hw-fog-2" />
             <span className="hw-fog hw-fog-3" />

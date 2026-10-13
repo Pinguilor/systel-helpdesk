@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">
+<defs>
+<filter id="cloud" x="0" y="0" width="100%" height="100%">
+<feTurbulence type="fractalNoise" baseFrequency=".0035 .007" numOctaves="5" seed="21"/>
+<feColorMatrix values="0 0 0 0 .62  0 0 0 0 .58  0 0 0 0 .78  0 0 0 1.5 -.62"/>
+<feGaussianBlur stdDeviation="14"/>
+</filter>
+<radialGradient id="m" cx="50%" cy="60%" r="62%"><stop offset="0" stop-color="#fff"/><stop offset=".6" stop-color="#fff" stop-opacity=".55"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
+<mask id="fade"><rect width="1600" height="900" fill="url(#m)"/></mask>
+</defs>
+<rect width="1600" height="900" filter="url(#cloud)" mask="url(#fade)"/>
+</svg>
