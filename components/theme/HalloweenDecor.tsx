@@ -34,30 +34,16 @@ const LOBES: [number, number, number][] = [
     [-33, 17, 33], [33, 17, 33], [-17, 21, 38], [17, 21, 38], [0, 22, 40],
 ];
 
-function Pumpkin3D({ face = false, id, uid }: { face?: boolean; id: string; uid: string }) {
-    const clip = `hwClip${uid}`;
+function Pumpkin3D({ face = false, id }: { face?: boolean; id: string }) {
     return (
         <g>
-            {/* sombra de contacto + charco de luz de la vela en el suelo */}
-            <ellipse cx="4" cy="41" rx="52" ry="8" fill="#000" opacity=".6" filter="url(#hwShadow)" />
-            {face && <ellipse cx="0" cy="42" rx="64" ry="10" fill="#ff7a00" opacity=".28" filter="url(#hwPool)" />}
-            <clipPath id={clip}>
-                {LOBES.map(([cx, rx, ry], i) => <ellipse key={i} cx={cx} cy="2" rx={rx} ry={ry} />)}
-            </clipPath>
+            <ellipse cx="0" cy="40" rx="46" ry="6" fill="#000" opacity=".35" />
             {LOBES.map(([cx, rx, ry], i) => (
-                <ellipse key={i} cx={cx} cy="2" rx={rx} ry={ry} fill={`url(#hwPk${i < 2 ? 'Dark' : i < 4 ? 'Mid' : 'Lite'})`} stroke="#7a2c00" strokeOpacity=".7" strokeWidth="1.3" />
+                <ellipse key={i} cx={cx} cy="2" rx={rx} ry={ry} fill={`url(#hwPk${i < 2 ? 'Dark' : i < 4 ? 'Mid' : 'Lite'})`} stroke="#8f3600" strokeOpacity=".55" strokeWidth="1.2" />
             ))}
-            {/* volumen: oscurece bordes y base, luz suave arriba a la izquierda */}
-            <g clipPath={`url(#${clip})`}>
-                <rect x="-60" y="-50" width="120" height="100" fill="url(#hwEdge)" />
-                <rect x="-60" y="-50" width="120" height="100" fill="url(#hwBase)" />
-                {face && <rect x="-60" y="-50" width="120" height="100" fill="url(#hwInner)" />}
-                <ellipse cx="-14" cy="-18" rx="8" ry="17" fill="#fff" opacity=".2" transform="rotate(14 -14 -18)" filter="url(#hwBlurB)" />
-                {/* sombras entre gomos */}
-                <path d="M-17 -34Q-23 2 -17 38M17 -34Q23 2 17 38M-33 -28Q-40 2 -33 32M33 -28Q40 2 33 32" stroke="#4a1700" strokeOpacity=".35" strokeWidth="2.4" fill="none" filter="url(#hwBlurB)" />
-            </g>
-            {/* sombra del tallo sobre la calabaza */}
-            <ellipse cx="2" cy="-31" rx="9" ry="3.5" fill="#2a0d00" opacity=".45" filter="url(#hwBlurB)" />
+            {/* brillo */}
+            <ellipse cx="-12" cy="-16" rx="9" ry="16" fill="#fff" opacity=".16" transform="rotate(14 -12 -16)" />
+            {/* tallo y zarcillo */}
             <path d="M-4 -37c-1-7 0-11 3-14l7 1c-1 4-1 9 0 13z" fill="#5b3a12" stroke="#3a2408" strokeWidth="1" />
             <path d="M5 -45c10-4 18 0 16 8-1 4-6 5-8 2" fill="none" stroke="#5aa616" strokeWidth="2.2" strokeLinecap="round" />
             {face && (
@@ -80,7 +66,7 @@ const LEAF = 'M0-21L4-11 13-15 9-5 20-4 11 4 17 13 6 10 3 21 0 15-3 21-6 10-17 1
 
 function Leaf({ x, y, r, s = 1, c }: { x: number; y: number; r: number; s?: number; c: 'Red' | 'Amber' | 'Gold' }) {
     return (
-        <g transform={`translate(${x} ${y}) rotate(${r}) scale(${s})`} filter="url(#hwLeafShadow)">
+        <g transform={`translate(${x} ${y}) rotate(${r}) scale(${s})`}>
             <path d={LEAF} fill={`url(#hwLeaf${c})`} stroke="#5c1d02" strokeOpacity=".55" strokeWidth=".9" strokeLinejoin="round" />
             <path d="M0 22V-14M0 4L-9 -4M0 4L9 -4M0 -5L-6 -10M0 -5L6 -10" stroke="#5c1d02" strokeOpacity=".5" strokeWidth=".8" strokeLinecap="round" fill="none" />
         </g>
@@ -100,17 +86,6 @@ export function PumpkinPatch({ className = '' }: { className?: string }) {
                 <linearGradient id="hwLeafRed" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stopColor="#8f1d0a" /><stop offset="1" stopColor="#e8420f" /></linearGradient>
                 <linearGradient id="hwLeafAmber" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stopColor="#b8470a" /><stop offset="1" stopColor="#ff9a1f" /></linearGradient>
                 <linearGradient id="hwLeafGold" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stopColor="#c27a0a" /><stop offset="1" stopColor="#ffd23f" /></linearGradient>
-                <linearGradient id="hwEdge" x1="0" y1="0" x2="1" y2="0">
-                    <stop offset="0" stopColor="#3a1000" stopOpacity=".6" /><stop offset=".22" stopColor="#3a1000" stopOpacity="0" />
-                    <stop offset=".72" stopColor="#3a1000" stopOpacity="0" /><stop offset="1" stopColor="#2a0a00" stopOpacity=".7" />
-                </linearGradient>
-                <linearGradient id="hwBase" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset=".55" stopColor="#2a0a00" stopOpacity="0" /><stop offset="1" stopColor="#2a0a00" stopOpacity=".55" />
-                </linearGradient>
-                <radialGradient id="hwInner" cx="50%" cy="48%" r="45%"><stop offset="0" stopColor="#ffd060" stopOpacity=".38" /><stop offset="1" stopColor="#ff8a00" stopOpacity="0" /></radialGradient>
-                <filter id="hwShadow" x="-30%" y="-100%" width="160%" height="300%"><feGaussianBlur stdDeviation="4" /></filter>
-                <filter id="hwPool" x="-30%" y="-150%" width="160%" height="400%"><feGaussianBlur stdDeviation="6" /></filter>
-                <filter id="hwLeafShadow" x="-40%" y="-40%" width="190%" height="190%"><feDropShadow dx="1.5" dy="2.5" stdDeviation="1.6" floodColor="#000" floodOpacity=".55" /></filter>
                 <filter id="hwBlurA" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="3.5" /></filter>
                 <filter id="hwBlurB" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="2.5" /></filter>
             </defs>
@@ -119,13 +94,11 @@ export function PumpkinPatch({ className = '' }: { className?: string }) {
             <Leaf x={56} y={108} r={14} s={.9} c="Gold" />
             <Leaf x={236} y={102} r={40} s={1.1} c="Amber" />
             {/* calabaza izquierda */}
-            <g transform="translate(70 76) scale(.62)"><Pumpkin3D face id="hwBlurB" uid="L" /></g>
+            <g transform="translate(70 76) scale(.62)"><Pumpkin3D face id="hwBlurB" /></g>
             {/* calabaza derecha */}
-            <g transform="translate(200 90) scale(.5) rotate(8)"><Pumpkin3D id="hwBlurB" uid="R" /></g>
+            <g transform="translate(200 90) scale(.5) rotate(8)"><Pumpkin3D id="hwBlurB" /></g>
             {/* calabaza central */}
-            {/* sombra que proyecta la calabaza grande sobre las vecinas */}
-            <ellipse cx="132" cy="70" rx="58" ry="34" fill="#1a0600" opacity=".55" filter="url(#hwShadow)" />
-            <g transform="translate(132 64) scale(.95)"><Pumpkin3D face id="hwBlurA" uid="C" /></g>
+            <g transform="translate(132 64) scale(.95)"><Pumpkin3D face id="hwBlurA" /></g>
             {/* hojas al frente */}
             <Leaf x={104} y={110} r={-20} s={.9} c="Amber" />
             <Leaf x={166} y={110} r={26} s={.85} c="Red" />
