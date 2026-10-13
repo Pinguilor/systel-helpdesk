@@ -38,7 +38,7 @@ export function AdminSegmentedNav({ rol }: { rol: string }) {
         <div className="w-full flex justify-center py-4 px-4 md:px-0">
             {isTransitioning && <LoopLoader fullScreen={true} text="Systel × Loop" />}
 
-            <div className="hw-nav hw-web hw-web-sm inline-flex items-center w-full md:w-auto p-1 bg-white/70 backdrop-blur-md border border-slate-200/40 rounded-2xl gap-1 relative shadow-sm shadow-slate-200/50">
+            <div className="hw-nav inline-flex items-center w-full md:w-auto p-1 bg-white/70 backdrop-blur-md border border-slate-200/40 rounded-2xl gap-1 relative shadow-sm shadow-slate-200/50">
                 {(rol === 'ADMIN' || rol === 'COORDINADOR') && (
                     <button
                         onClick={() => handleNavigation('/dashboard/admin')}

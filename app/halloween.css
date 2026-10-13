@@ -389,7 +389,7 @@ html[data-theme="halloween"] {
 
 /* ---- Telaraña compartida (una sola definición del SVG) ---- */
 [data-theme="halloween"] {
-  --hw-web-img: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 112 112' fill='none' stroke='%23e6dcff' stroke-width='1' stroke-linecap='round'><path d='M0 0L112.0 0.0M0 0L103.8 42.0M0 0L79.2 79.2M0 0L43.8 103.1M0 0L0.0 112.0M28.0 0.0Q21.4 4.2 26.0 10.5M26.0 10.5Q18.2 12.1 19.8 19.8M19.8 19.8Q12.2 18.1 10.9 25.8M10.9 25.8Q4.4 21.4 0.0 28.0M52.0 0.0Q39.8 7.7 48.2 19.5M48.2 19.5Q33.8 22.4 36.8 36.8M36.8 36.8Q22.7 33.6 20.3 47.9M20.3 47.9Q8.1 39.7 0.0 52.0M76.0 0.0Q58.2 11.3 70.5 28.5M70.5 28.5Q49.4 32.7 53.7 53.7M53.7 53.7Q33.1 49.1 29.7 70.0M29.7 70.0Q11.8 58.1 0.0 76.0M100.0 0.0Q76.6 14.9 92.7 37.5M92.7 37.5Q65.0 43.1 70.7 70.7M70.7 70.7Q43.6 64.7 39.1 92.1M39.1 92.1Q15.6 76.4 0.0 100.0'/></svg>");
+  --hw-web-img: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 112 112' fill='none' stroke='%23e6dcff' stroke-width='.5' stroke-linecap='round'><path d='M0 0L112.0 0.0M0 0L103.8 42.0M0 0L79.2 79.2M0 0L43.8 103.1M0 0L0.0 112.0M28.0 0.0Q21.4 4.2 26.0 10.5M26.0 10.5Q18.2 12.1 19.8 19.8M19.8 19.8Q12.2 18.1 10.9 25.8M10.9 25.8Q4.4 21.4 0.0 28.0M52.0 0.0Q39.8 7.7 48.2 19.5M48.2 19.5Q33.8 22.4 36.8 36.8M36.8 36.8Q22.7 33.6 20.3 47.9M20.3 47.9Q8.1 39.7 0.0 52.0M76.0 0.0Q58.2 11.3 70.5 28.5M70.5 28.5Q49.4 32.7 53.7 53.7M53.7 53.7Q33.1 49.1 29.7 70.0M29.7 70.0Q11.8 58.1 0.0 76.0M100.0 0.0Q76.6 14.9 92.7 37.5M92.7 37.5Q65.0 43.1 70.7 70.7M70.7 70.7Q43.6 64.7 39.1 92.1M39.1 92.1Q15.6 76.4 0.0 100.0'/></svg>");
 }
 
 /* ---- Navbar superior ---- */
@@ -499,7 +499,7 @@ html[data-theme="halloween"] {
 .hw-bat-2 svg, .hw-bat-5 svg { animation-duration: .42s; }
 .hw-bat-4 svg { animation-duration: .58s; }
 
-.hw-screen-web { position: absolute; width: 280px; height: 280px; opacity: .34; background: var(--hw-web-img) no-repeat top left / contain; }
+.hw-screen-web { position: absolute; width: 280px; height: 280px; opacity: .3; background: var(--hw-web-img) no-repeat top left / contain; }
 .hw-screen-web-tl { top: 0; left: 0; }
 .hw-screen-web-tr { top: 0; right: 0; transform: scaleX(-1); }
 .hw-screen-web-bl { bottom: 0; left: 0; transform: scaleY(-1); width: 200px; height: 200px; opacity: .16; }
