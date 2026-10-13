@@ -378,7 +378,7 @@ html[data-theme="halloween"] {
 [data-theme="halloween"] *:focus-visible { --tw-ring-color: var(--hw-orange); }
 [data-theme="halloween"] input, [data-theme="halloween"] textarea { color-scheme: dark; }
 /* Los lienzos de firma deben seguir siendo blancos (la tinta es oscura) */
-[data-theme="halloween"] canvas:not([style*="50%"]) { background-color: #f8fafc !important; border-radius: .5rem; }
+[data-theme="halloween"] canvas:not([style*="50%"]):not(.hw-moon-craters) { background-color: #f8fafc !important; border-radius: .5rem; }
 /* Editor Quill */
 [data-theme="halloween"] .ql-toolbar.ql-snow, [data-theme="halloween"] .ql-container.ql-snow { border-color: #2b2f4d; }
 [data-theme="halloween"] .ql-editor { color: var(--hw-text); }
@@ -486,9 +486,10 @@ html[data-theme="halloween"] {
 }
 .hw-moon {
   position: absolute; inset: 8.5%; border-radius: 50%; pointer-events: none;
-  background: url("/halloween/moon.svg") center / cover no-repeat, #e9e5d8;
+  background: url("/halloween/moon-base.svg") center / cover no-repeat, #e9e5d8;
   box-shadow: inset -26px -20px 60px rgba(30,24,60,.55), inset 8px 6px 30px rgba(255,255,255,.35);
 }
+.hw-moon-craters { position: absolute; inset: 8.5%; width: 83%; height: 83%; border-radius: 50%; pointer-events: none; }
 .hw-moon-web { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
 
 /* ---- Fondo fijo: neblina, murciélagos y telarañas de pantalla ---- */

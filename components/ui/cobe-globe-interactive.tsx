@@ -69,6 +69,76 @@ function projectNode(location: [number, number], phi: number, theta: number, r: 
   return { x: r + sphereRadius * x3d, y: r - sphereRadius * y3d, z: z3d }
 }
 
+// Cráteres y mares de la luna: viven en lat/lon y rotan junto con los nodos
+type MoonSpot = { lat: number; lon: number; ang: number; maria: boolean }
+const MOON_SPOTS: MoonSpot[] = (() => {
+  let t = 20261031
+  const rnd = () => {
+    t = (t + 0x6d2b79f5) | 0
+    let x = Math.imul(t ^ (t >>> 15), 1 | t)
+    x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x
+    return ((x ^ (x >>> 14)) >>> 0) / 4294967296
+  }
+  const spots: MoonSpot[] = []
+  for (let i = 0; i < 9; i++) spots.push({ lat: Math.asin(rnd() * 1.6 - 0.8), lon: rnd() * Math.PI * 2, ang: 0.3 + rnd() * 0.3, maria: true })
+  for (let i = 0; i < 56; i++) {
+    const big = rnd() < 0.18
+    spots.push({ lat: Math.asin(rnd() * 1.9 - 0.95), lon: rnd() * Math.PI * 2, ang: big ? 0.13 + rnd() * 0.07 : 0.035 + rnd() * 0.07, maria: false })
+  }
+  return spots
+})()
+
+function drawMoonCraters(canvas: HTMLCanvasElement, phi: number, theta: number) {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2)
+  const size = Math.round(canvas.clientWidth * dpr)
+  if (!size) return
+  if (canvas.width !== size) { canvas.width = size; canvas.height = size }
+  const ctx = canvas.getContext("2d")
+  if (!ctx) return
+  ctx.setTransform(1, 0, 0, 1, 0, 0)
+  ctx.clearRect(0, 0, size, size)
+  const R = size / 2
+  for (const s of MOON_SPOTS) {
+    const x3d = Math.cos(s.lat) * Math.sin(s.lon + phi)
+    const y3d = Math.sin(s.lat) * Math.cos(theta) - Math.cos(s.lat) * Math.cos(s.lon + phi) * Math.sin(theta)
+    const z3d = Math.sin(s.lat) * Math.sin(theta) + Math.cos(s.lat) * Math.cos(s.lon + phi) * Math.cos(theta)
+    if (z3d < 0.04) continue
+    const px = R + R * x3d, py = R - R * y3d
+    const rr = R * Math.sin(s.ang)
+    const ang = Math.atan2(py - R, px - R)
+    const fade = Math.min(1, z3d / 0.3) * Math.pow(z3d, 0.35)
+    ctx.save()
+    ctx.translate(px, py)
+    ctx.rotate(ang)
+    ctx.scale(Math.max(z3d, 0.05), 1)
+    ctx.globalAlpha = fade
+    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, rr)
+    if (s.maria) {
+      g.addColorStop(0, "rgba(120,114,100,.20)")
+      g.addColorStop(0.6, "rgba(120,114,100,.12)")
+      g.addColorStop(1, "rgba(120,114,100,0)")
+      ctx.fillStyle = g
+      ctx.beginPath(); ctx.arc(0, 0, rr, 0, Math.PI * 2); ctx.fill()
+    } else {
+      g.addColorStop(0, "rgba(141,136,120,.12)")
+      g.addColorStop(0.7, "rgba(125,120,104,.28)")
+      g.addColorStop(0.92, "rgba(95,90,76,.44)")
+      g.addColorStop(1, "rgba(95,90,76,0)")
+      ctx.fillStyle = g
+      ctx.beginPath(); ctx.arc(0, 0, rr, 0, Math.PI * 2); ctx.fill()
+      // borde iluminado hacia la luz (arriba-izquierda), girado al marco local del cráter
+      const sh = rr * 0.09
+      const lx = (0.7 * Math.cos(-ang) - 0.7 * Math.sin(-ang)) * sh
+      const ly = (0.7 * Math.sin(-ang) + 0.7 * Math.cos(-ang)) * sh
+      ctx.beginPath(); ctx.arc(0, 0, rr * 0.96, 0, Math.PI * 2); ctx.clip()
+      ctx.strokeStyle = "rgba(255,255,255,.4)"
+      ctx.lineWidth = Math.max(1, rr * 0.06)
+      ctx.beginPath(); ctx.arc(lx, ly, rr * 0.9, 0, Math.PI * 2); ctx.stroke()
+    }
+    ctx.restore()
+  }
+}
+
 export function GlobeInteractive({
   markers = [],
   className = "",
@@ -76,6 +146,7 @@ export function GlobeInteractive({
   backgroundMode = false,
 }: GlobeInteractiveProps) {
   const [canvasElement, setCanvasElement] = useState<HTMLCanvasElement | null>(null)
+  const moonCratersRef = useRef<HTMLCanvasElement>(null)
   const phiRef = useRef(0)
   const pointerInteracting = useRef<{ x: number; y: number } | null>(null)
   const dragOffset = useRef({ phi: 0, theta: 0 })
@@ -195,6 +266,7 @@ export function GlobeInteractive({
           const sphereRadius = r * 0.83
           
           if (isHalloween) {
+            if (moonCratersRef.current) drawMoonCraters(moonCratersRef.current, currentPhi, currentTheta)
             moonArcs.forEach((a) => {
               const el = document.getElementById(`hw-arc-${a.key}`)
               if (!el) return
@@ -298,6 +370,7 @@ export function GlobeInteractive({
       `}</style>
       {isHalloween && <div className="hw-globe-glow" aria-hidden="true" />}
       {isHalloween && <div className="hw-moon" aria-hidden="true" />}
+      {isHalloween && <canvas ref={moonCratersRef} className="hw-moon-craters" aria-hidden="true" />}
       {isHalloween && (
         <svg className="hw-moon-web" viewBox={`0 0 ${canvasElement?.offsetWidth || 1000} ${canvasElement?.offsetWidth || 1000}`} aria-hidden="true">
           {moonArcs.map((a) => (
