@@ -308,12 +308,13 @@ export function AdminTicketList({ initialTickets, currentAgentId, agentName, tot
                 </div>
             )}
 
-            {/* Main Ticket List Card */}
             <PumpkinPatch />
+
+            {/* Main Ticket List Card */}
             <div className="hw-panel hw-web relative z-10 bg-white/70 backdrop-blur-md shadow-lg rounded-3xl overflow-hidden border border-slate-200/40 w-full">
             
                 {/* Header / Controles Principales (Visible Móvil y Desktop) */}
-            <div className="p-5 border-b border-slate-100 flex flex-col bg-white/40 gap-4 w-full">
+            <div className="hw-panel-head p-5 border-b border-slate-100 flex flex-col bg-white/40 gap-4 w-full">
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 w-full">
                     {/* Título y Badge */}
                     <div className="flex items-center gap-2">
@@ -337,13 +338,13 @@ export function AdminTicketList({ initialTickets, currentAgentId, agentName, tot
                             placeholder="Buscar por ID (NC-XX), título, descripción o restaurante..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="block w-full pl-10 pr-3 py-2.5 border border-slate-200 rounded-2xl leading-5 bg-slate-50/50 placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-4 focus:ring-[#0e3187]/10 focus:border-[#0e3187] text-[15px] sm:text-sm transition-all font-semibold shadow-inner"
+                            className="hw-panel-search block w-full pl-10 pr-3 py-2.5 border border-slate-200 rounded-2xl leading-5 bg-slate-50/50 placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-4 focus:ring-[#0e3187]/10 focus:border-[#0e3187] text-[15px] sm:text-sm transition-all font-semibold shadow-inner"
                         />
                     </div>
                 </div>
 
                 {/* Filtros Estrictos (Tabs) */}
-                <div className="flex p-1.5 rounded-2xl bg-slate-100/80 border border-slate-200/50 shadow-inner mt-1 sm:mt-0 relative overflow-hidden">
+                <div className="hw-filter-bar flex p-1.5 rounded-2xl bg-slate-100/80 border border-slate-200/50 shadow-inner mt-1 sm:mt-0 relative overflow-hidden">
                     <div className="flex space-x-1 min-w-max w-full">
                         <button 
                             onClick={() => setFilter('TODOS')} 
@@ -355,7 +356,7 @@ export function AdminTicketList({ initialTickets, currentAgentId, agentName, tot
                             {filter === 'TODOS' && (
                                 <motion.div
                                     layoutId="activeAdminFilterPill"
-                                    className="hw-filter-active absolute inset-0 bg-white rounded-xl shadow-sm border border-slate-200/60"
+                                    className="hw-filter-pill absolute inset-0 bg-white rounded-xl shadow-sm border border-slate-200/60"
                                     transition={{ type: "spring", stiffness: 350, damping: 25 }}
                                 />
                             )}
@@ -370,7 +371,7 @@ export function AdminTicketList({ initialTickets, currentAgentId, agentName, tot
                             {filter === 'PENDIENTES' && (
                                 <motion.div
                                     layoutId="activeAdminFilterPill"
-                                    className="hw-filter-active absolute inset-0 bg-white rounded-xl shadow-sm border border-slate-200/60"
+                                    className="hw-filter-pill absolute inset-0 bg-white rounded-xl shadow-sm border border-slate-200/60"
                                     transition={{ type: "spring", stiffness: 350, damping: 25 }}
                                 />
                             )}
@@ -385,7 +386,7 @@ export function AdminTicketList({ initialTickets, currentAgentId, agentName, tot
                             {filter === 'RESUELTOS' && (
                                 <motion.div
                                     layoutId="activeAdminFilterPill"
-                                    className="hw-filter-active absolute inset-0 bg-white rounded-xl shadow-sm border border-slate-200/60"
+                                    className="hw-filter-pill absolute inset-0 bg-white rounded-xl shadow-sm border border-slate-200/60"
                                     transition={{ type: "spring", stiffness: 350, damping: 25 }}
                                 />
                             )}
@@ -396,7 +397,7 @@ export function AdminTicketList({ initialTickets, currentAgentId, agentName, tot
 
             {/* Paneles de Resumen (Top 3) */}
             <div className="grid grid-cols-3 gap-4 p-5 bg-slate-50/30 border-b border-slate-100/85">
-                <div className="hw-card hw-web-diag hw-card--total bg-white/60 backdrop-blur-sm p-4 rounded-2xl border border-slate-200/50 shadow-sm flex flex-col items-center justify-center transition-all hover:shadow-md hover:scale-[1.02] duration-200">
+                <div className="hw-card hw-card--total bg-white/60 backdrop-blur-sm p-4 rounded-2xl border border-slate-200/50 shadow-sm flex flex-col items-center justify-center transition-all hover:shadow-md hover:scale-[1.02] duration-200">
                     <span className="hw-card-label text-[10px] sm:text-xs font-black text-slate-400 uppercase tracking-widest mb-1.5">Totales</span>
                     <motion.span
                         initial={{ scale: 0.9, opacity: 0 }}
@@ -407,7 +408,7 @@ export function AdminTicketList({ initialTickets, currentAgentId, agentName, tot
                         {displayTotal}
                     </motion.span>
                 </div>
-                <div className="hw-card hw-web-diag hw-card--pending bg-white/60 backdrop-blur-sm p-4 rounded-2xl border border-slate-200/50 shadow-sm flex flex-col items-center justify-center transition-all hover:shadow-md hover:scale-[1.02] duration-200">
+                <div className="hw-card hw-card--pending bg-white/60 backdrop-blur-sm p-4 rounded-2xl border border-slate-200/50 shadow-sm flex flex-col items-center justify-center transition-all hover:shadow-md hover:scale-[1.02] duration-200">
                     <TinySpider />
                     <span className="hw-card-label text-[10px] sm:text-xs font-black text-slate-400 uppercase tracking-widest mb-1.5">Pendientes</span>
                     <motion.span
@@ -419,7 +420,7 @@ export function AdminTicketList({ initialTickets, currentAgentId, agentName, tot
                         {displayPending}
                     </motion.span>
                 </div>
-                <div className="hw-card hw-web-diag hw-card--resolved bg-white/60 backdrop-blur-sm p-4 rounded-2xl border border-slate-200/50 shadow-sm flex flex-col items-center justify-center transition-all hover:shadow-md hover:scale-[1.02] duration-200">
+                <div className="hw-card hw-card--resolved bg-white/60 backdrop-blur-sm p-4 rounded-2xl border border-slate-200/50 shadow-sm flex flex-col items-center justify-center transition-all hover:shadow-md hover:scale-[1.02] duration-200">
                     <span className="hw-card-label text-[10px] sm:text-xs font-black text-slate-400 uppercase tracking-widest mb-1.5">Resueltos</span>
                     <motion.span
                         initial={{ scale: 0.9, opacity: 0 }}
@@ -482,7 +483,7 @@ export function AdminTicketList({ initialTickets, currentAgentId, agentName, tot
                                     <td className="pl-6 pr-3 py-4 whitespace-nowrap">
                                         <div className="flex flex-col">
                                             <div className="text-xs font-bold tracking-wider mb-1">
-                                                <span className="inline-flex items-center px-2.5 py-1 rounded-xl bg-[#0e3187] text-white text-xs font-black tracking-wide shadow-sm group-hover:scale-105 transition-transform duration-200 ease-out">
+                                                <span className="hw-id inline-flex items-center px-2.5 py-1 rounded-xl bg-[#0e3187] text-white text-xs font-black tracking-wide shadow-sm group-hover:scale-105 transition-transform duration-200 ease-out">
                                                     NC-{ticket.numero_ticket}
                                                 </span>
                                             </div>

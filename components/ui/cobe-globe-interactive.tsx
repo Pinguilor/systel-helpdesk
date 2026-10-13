@@ -25,26 +25,37 @@ const DEFAULT_GLOBE = {
   glowColor: [0.3, 0.5, 0.8], // Blue glow
 }
 
-// Tema Halloween: continentes violeta, marcadores naranja y "telaraña de datos" de arcos
+// Tema Halloween: globo naranja incandescente, nodos violeta y "telaraña de datos" de arcos
 const HALLOWEEN_GLOBE = {
   dark: 1,
-  baseColor: [0.62, 0.22, 0.12],
-  markerColor: [0.62, 0.31, 0.87],
-  glowColor: [0.95, 0.28, 0.04],
-  arcColor: [1, 0.42, 0.05],
-  arcWidth: 0.6,
-  arcHeight: 0.2,
+  baseColor: [1, 0.42, 0.12],
+  markerColor: [0.62, 0.36, 0.95],
+  glowColor: [0.45, 0.12, 0.1],
+  arcColor: [1, 0.72, 0.5],
+  arcWidth: 0.35,
+  arcHeight: 0.12,
 }
 
+// Malla tipo telaraña: cada nodo se une a sus 2 vecinos más cercanos
 function buildWebArcs(markers: InteractiveMarker[]) {
-  const sorted = [...markers].sort((a, b) => b.users - a.users || a.location[1] - b.location[1])
-  const hub = sorted[0]
-  if (!hub) return []
+  const seen = new Set<string>()
   const arcs: { from: [number, number]; to: [number, number] }[] = []
-  // Radios desde el nodo con más actividad + anillo entre vecinos por longitud
-  sorted.slice(1, 13).forEach((m) => arcs.push({ from: hub.location, to: m.location }))
-  const ring = [...markers].sort((a, b) => a.location[1] - b.location[1])
-  for (let i = 0; i < ring.length - 1; i++) arcs.push({ from: ring[i].location, to: ring[i + 1].location })
+  const dist = (a: InteractiveMarker, b: InteractiveMarker) => {
+    const dLon = Math.abs(a.location[1] - b.location[1])
+    return Math.hypot(a.location[0] - b.location[0], Math.min(dLon, 360 - dLon))
+  }
+  markers.forEach((m) => {
+    [...markers]
+      .filter((o) => o.id !== m.id)
+      .sort((a, b) => dist(m, a) - dist(m, b))
+      .slice(0, 2)
+      .forEach((o) => {
+        const key = [m.id, o.id].sort().join("|")
+        if (seen.has(key)) return
+        seen.add(key)
+        arcs.push({ from: m.location, to: o.location })
+      })
+  })
   return arcs
 }
 
@@ -139,7 +150,7 @@ export function GlobeInteractive({
           mapSamples: 16000,
           mapBrightness: 8,
           markerElevation: 0,
-          markers: markers.map((m) => ({ location: m.location, size: isHalloween ? 0.022 : backgroundMode ? 0.045 : 0.03, id: m.id })),
+          markers: markers.map((m) => ({ location: m.location, size: backgroundMode ? 0.045 : 0.03, id: m.id })),
           arcs: isHalloween ? buildWebArcs(markers) : [],
           opacity: 0.85,
         } as any)
@@ -250,6 +261,7 @@ export function GlobeInteractive({
           to { opacity: 0.9; transform: translateY(0); }
         }
       `}</style>
+      {isHalloween && <div className="hw-globe-glow" aria-hidden="true" />}
       <canvas
         ref={setCanvasElement}
         onPointerDown={handlePointerDown}
@@ -282,13 +294,13 @@ export function GlobeInteractive({
             alignItems: "center",
             padding: backgroundMode ? "0.2rem 0.4rem" : (expanded === m.id ? "0.35rem 0.55rem" : "0.25rem 0.45rem"),
             background: isHalloween
-              ? (m.users > 0 ? "rgba(26, 12, 4, 0.94)" : "rgba(18, 14, 36, 0.9)")
+              ? (m.users > 0 ? "rgba(26, 12, 4, 0.94)" : "rgba(22, 24, 36, 0.92)")
               : backgroundMode ? (m.users > 0 ? "rgba(14, 49, 135, 0.95)" : "rgba(15, 23, 42, 0.85)") : "#0e3187", // High contrast dark slate for inactive ones
             color: "#fff",
             borderRadius: backgroundMode ? 5 : 6,
             cursor: backgroundMode ? "default" : "pointer",
             boxShadow: isHalloween ? (m.users > 0 ? "0 0 8px rgba(255,109,0,0.55)" : "0 0 6px rgba(157,78,221,0.35)") : backgroundMode ? "0 2px 5px rgba(0,0,0,0.15)" : "0 4px 10px rgba(14,49,135,0.25)",
-            border: isHalloween ? (m.users > 0 ? "1px solid #ff6d00" : "1px solid rgba(157,78,221,0.7)") : backgroundMode ? "1px solid rgba(255,255,255,0.2)" : "1px solid rgba(255,255,255,0.15)",
+            border: isHalloween ? (m.users > 0 ? "1px solid #ff6d00" : "1px solid rgba(255,255,255,0.22)") : backgroundMode ? "1px solid rgba(255,255,255,0.2)" : "1px solid rgba(255,255,255,0.15)",
             opacity: 0,
             transition: backgroundMode ? "opacity 0.3s, transform 0.1s" : "opacity 0.3s, transform 0.1s, padding 0.2s, background-color 0.2s",
             zIndex: backgroundMode ? 1 : (expanded === m.id ? 10 : 2),

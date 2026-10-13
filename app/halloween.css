@@ -7,9 +7,9 @@
 
 [data-theme="halloween"] {
   color-scheme: dark;
-  --hw-bg-0: #0b0f19;
-  --hw-bg-1: #121824;
-  --hw-violet-deep: #1a1030;
+  --hw-bg-0: #07080f;
+  --hw-bg-1: #0d0f1a;
+  --hw-violet-deep: #150d26;
   --hw-surface: #151b2d;
   --hw-orange: #ff6d00;
   --hw-orange-2: #ff5400;
@@ -47,15 +47,17 @@
   --color-pink-50: color-mix(in oklab, #ec4899 12%, #121826); --color-pink-100: color-mix(in oklab, #ec4899 20%, #121826); --color-pink-200: color-mix(in oklab, #ec4899 34%, #121826);
 }
 
+/* El fondo va solo en <html>: si <body> pinta el suyo, tapa la capa .hw-backdrop (z-index: -1) */
+[data-theme="halloween"] body { background: transparent; color: var(--hw-text); }
 html[data-theme="halloween"] {
   background-color: var(--hw-bg-0);
   background-image:
-    radial-gradient(1100px 600px at 85% -10%, rgba(123,44,191,.28), transparent 60%),
+    radial-gradient(1100px 620px at 88% 0%, rgba(123,44,191,.34), transparent 62%),
     radial-gradient(900px 520px at 5% 105%, rgba(255,84,0,.10), transparent 60%),
     linear-gradient(180deg, var(--hw-bg-0) 0%, var(--hw-bg-1) 55%, var(--hw-violet-deep) 100%);
   background-attachment: fixed;
+  color: var(--hw-text);
 }
-[data-theme="halloween"] body { background: transparent; color: var(--hw-text); }
 [data-theme="halloween"] ::selection { background: rgba(255,109,0,.45); color: #fff; }
 
 @layer utilities {
@@ -385,121 +387,146 @@ html[data-theme="halloween"] {
 [data-theme="halloween"] .ql-snow .ql-fill { fill: #c8cde0; }
 [data-theme="halloween"] .ql-snow .ql-picker { color: #c8cde0; }
 
+/* ---- Telaraña compartida (una sola definición del SVG) ---- */
+[data-theme="halloween"] {
+  --hw-web-img: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 112 112' fill='none' stroke='%23e6dcff' stroke-width='1' stroke-linecap='round'><path d='M0 0L112.0 0.0M0 0L103.8 42.0M0 0L79.2 79.2M0 0L43.8 103.1M0 0L0.0 112.0M28.0 0.0Q21.4 4.2 26.0 10.5M26.0 10.5Q18.2 12.1 19.8 19.8M19.8 19.8Q12.2 18.1 10.9 25.8M10.9 25.8Q4.4 21.4 0.0 28.0M52.0 0.0Q39.8 7.7 48.2 19.5M48.2 19.5Q33.8 22.4 36.8 36.8M36.8 36.8Q22.7 33.6 20.3 47.9M20.3 47.9Q8.1 39.7 0.0 52.0M76.0 0.0Q58.2 11.3 70.5 28.5M70.5 28.5Q49.4 32.7 53.7 53.7M53.7 53.7Q33.1 49.1 29.7 70.0M29.7 70.0Q11.8 58.1 0.0 76.0M100.0 0.0Q76.6 14.9 92.7 37.5M92.7 37.5Q65.0 43.1 70.7 70.7M70.7 70.7Q43.6 64.7 39.1 92.1M39.1 92.1Q15.6 76.4 0.0 100.0'/></svg>");
+}
+
 /* ---- Navbar superior ---- */
 [data-theme="halloween"] .hw-navbar input::placeholder { color: #c9c3dc; opacity: 1; }
 [data-theme="halloween"] .hw-navbar {
-  background-image: linear-gradient(90deg, rgba(26,16,48,.88), rgba(11,15,25,.88));
-  border-color: rgba(157,78,221,.40);
-  box-shadow: 0 0 0 1px rgba(255,109,0,.14), 0 10px 32px rgba(123,44,191,.28), inset 0 1px 0 rgba(255,255,255,.05);
+  background-image: linear-gradient(90deg, rgba(16,11,26,.93), rgba(8,9,16,.93));
+  border-color: rgba(255,255,255,.10);
+  box-shadow: 0 0 0 1px rgba(157,78,221,.14), 0 12px 34px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.05);
+}
+[data-theme="halloween"] .hw-navbar input[type="text"]:not(:focus) {
+  background-color: rgba(8,8,14,.65);
+  border-color: rgba(255,122,26,.8);
+  box-shadow: 0 0 0 1px rgba(255,109,0,.22), 0 0 16px rgba(255,109,0,.28), inset 0 0 10px rgba(255,109,0,.08);
 }
 
 /* ---- Navegador de secciones ---- */
-[data-theme="halloween"] .hw-nav { border-color: rgba(157,78,221,.30); box-shadow: 0 6px 24px rgba(123,44,191,.20); }
+[data-theme="halloween"] .hw-nav { background-color: rgba(12,12,22,.84); border-color: rgba(255,255,255,.10); box-shadow: 0 8px 26px rgba(0,0,0,.5); }
+[data-theme="halloween"] .hw-nav-tab svg.lucide { color: #ff8a3d; }
 [data-theme="halloween"] .hw-nav-tab:hover { background: rgba(157,78,221,.16); color: #ffb27a; }
 [data-theme="halloween"] .hw-nav-active {
-  background-image: linear-gradient(135deg, #c2410c 0%, #7c2d12 38%, #140a0e 100%);
-  box-shadow: 0 0 14px rgba(255,109,0,.38), inset 0 0 0 1px rgba(255,160,90,.35);
+  background-color: transparent;
+  background-image: linear-gradient(180deg, rgba(74,34,20,.92), rgba(30,18,34,.96));
+  box-shadow: 0 0 0 1.5px #ff7a1a, 0 0 18px rgba(255,109,0,.45), inset 0 0 14px rgba(255,109,0,.16);
 }
+.hw-pumpkin-ico { width: 20px; height: 20px; flex-shrink: 0; filter: drop-shadow(0 0 5px rgba(255,109,0,.7)); animation: hw-flicker 3.2s ease-in-out infinite; }
+
+/* ---- Encabezado de página ---- */
+[data-theme="halloween"] .hw-title-icon { background-color: rgba(58,38,108,.62); box-shadow: inset 0 0 0 1px rgba(157,78,221,.5), 0 0 18px rgba(123,44,191,.3); }
+[data-theme="halloween"] .hw-title-icon svg { color: #ff8a3d; }
 
 /* ---- Tarjetas de métricas ---- */
-[data-theme="halloween"] .hw-card { position: relative; overflow: hidden; background-color: rgba(14,18,32,.5); transition: box-shadow .2s, transform .2s; }
-[data-theme="halloween"] .hw-card--total   { border-color: rgba(123,44,191,.55); background-image: radial-gradient(120% 140% at 50% -20%, rgba(123,44,191,.38), rgba(40,60,140,.14) 55%, transparent 80%); box-shadow: 0 0 22px rgba(123,44,191,.28); }
-[data-theme="halloween"] .hw-card--pending { border-color: rgba(255,109,0,.55);  background-image: radial-gradient(120% 140% at 50% -20%, rgba(255,109,0,.34), rgba(255,84,0,.08) 55%, transparent 80%);  box-shadow: 0 0 22px rgba(255,109,0,.26); }
-[data-theme="halloween"] .hw-card--resolved{ border-color: rgba(46,196,182,.55); background-image: radial-gradient(120% 140% at 50% -20%, rgba(46,196,182,.30), rgba(57,255,20,.05) 55%, transparent 80%); box-shadow: 0 0 22px rgba(46,196,182,.24); }
-[data-theme="halloween"] .hw-card:hover { box-shadow: 0 0 30px rgba(157,78,221,.40); }
-[data-theme="halloween"] .hw-card--total   .hw-num { color: #cdb8ff; text-shadow: 0 0 14px rgba(157,78,221,.65); }
-[data-theme="halloween"] .hw-card--pending .hw-num { color: #ff9b4d; text-shadow: 0 0 14px rgba(255,109,0,.6); }
-[data-theme="halloween"] .hw-card--resolved .hw-num { color: #5eead4; text-shadow: 0 0 14px rgba(46,196,182,.55); }
-[data-theme="halloween"] .hw-card-label { color: var(--hw-text-soft); }
+[data-theme="halloween"] .hw-card { position: relative; overflow: hidden; background-color: rgba(14,16,28,.42); transition: box-shadow .2s, transform .2s; }
+[data-theme="halloween"] .hw-card::before,
+[data-theme="halloween"] .hw-card::after {
+  content: ""; position: absolute; width: 58px; height: 58px; pointer-events: none; opacity: .26;
+  background: var(--hw-web-img) no-repeat top left / contain;
+}
+[data-theme="halloween"] .hw-card::before { top: 0; left: 0; }
+[data-theme="halloween"] .hw-card::after { bottom: 0; right: 0; transform: rotate(180deg); }
+[data-theme="halloween"] .hw-card--total   { border-color: rgba(168,160,205,.5);  background-image: linear-gradient(135deg, rgba(96,86,140,.36), rgba(30,30,56,.5));  box-shadow: 0 0 20px rgba(123,44,191,.18), inset 0 1px 0 rgba(255,255,255,.06); }
+[data-theme="halloween"] .hw-card--pending { border-color: #ff7a1a;               background-image: linear-gradient(135deg, rgba(128,52,10,.6), rgba(44,20,12,.62));  box-shadow: 0 0 0 1px rgba(255,122,26,.55), 0 0 24px rgba(255,109,0,.32), inset 0 0 22px rgba(255,109,0,.12); }
+[data-theme="halloween"] .hw-card--resolved{ border-color: rgba(214,245,228,.72); background-image: linear-gradient(135deg, rgba(52,92,80,.46), rgba(20,34,40,.56));  box-shadow: 0 0 20px rgba(46,196,182,.2), inset 0 1px 0 rgba(255,255,255,.08); }
+[data-theme="halloween"] .hw-card--total   .hw-num { color: #c9a8ff; text-shadow: 0 0 14px rgba(157,78,221,.65); }
+[data-theme="halloween"] .hw-card--pending .hw-num { color: #ff8a3d; text-shadow: 0 0 14px rgba(255,109,0,.65); }
+[data-theme="halloween"] .hw-card--resolved .hw-num { color: #7ddba3; text-shadow: 0 0 14px rgba(46,196,140,.5); }
+[data-theme="halloween"] .hw-card-label { color: #d9d4e8; }
 
 /* ---- Contenedor principal y tabla ---- */
 [data-theme="halloween"] .hw-panel {
-  background-color: rgba(12,15,28,.38);
-  -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
-  border-color: rgba(157,78,221,.28);
-  box-shadow: 0 0 0 1px rgba(255,109,0,.06), 0 18px 50px rgba(5,5,15,.55), 0 0 40px rgba(123,44,191,.12);
+  background-color: rgba(10,12,22,.46);
+  border-color: rgba(255,255,255,.10);
+  box-shadow: 0 0 0 1px rgba(157,78,221,.10), 0 22px 60px rgba(0,0,0,.65);
 }
-[data-theme="halloween"] .hw-table tbody tr { background-color: rgba(14,18,32,.46); }
-[data-theme="halloween"] .hw-table tbody tr:nth-child(even) { background-color: rgba(26,30,52,.5); }
-[data-theme="halloween"] .hw-table tbody tr:hover { background-color: rgba(123,44,191,.26); box-shadow: inset 3px 0 0 var(--hw-orange); }
+[data-theme="halloween"] .hw-panel-head { background-color: rgba(21,27,45,.16); }
+[data-theme="halloween"] .hw-panel-search { background-color: rgba(8,9,16,.55); border-color: rgba(255,255,255,.16); }
+[data-theme="halloween"] .hw-filter-bar { background-color: rgba(8,9,16,.55); border-color: rgba(255,255,255,.10); }
+[data-theme="halloween"] .hw-filter-pill { background-color: rgba(34,24,30,.92); border-color: #ff7a1a; box-shadow: 0 0 12px rgba(255,109,0,.32), inset 0 0 10px rgba(255,109,0,.10); }
+[data-theme="halloween"] .hw-table thead { background-color: rgba(40,44,60,.5); }
+/* Panel translúcido: el globo se alcanza a ver detrás, como en el tema claro */
+[data-theme="halloween"] .hw-table tbody { background-color: transparent; }
+[data-theme="halloween"] .hw-table tbody tr { background-color: rgba(14,16,28,.26); }
+[data-theme="halloween"] .hw-table tbody tr:nth-child(even) { background-color: rgba(34,36,58,.32); }
+[data-theme="halloween"] .hw-table tbody tr:hover { background-color: rgba(123,44,191,.24); box-shadow: inset 3px 0 0 var(--hw-orange); }
+[data-theme="halloween"] .hw-id { background-color: #2a1a4a; color: #e6dcff; box-shadow: inset 0 0 0 1px rgba(157,78,221,.5); }
 
-/* ---- Exportar Reporte (verde espectral) ---- */
-[data-theme="halloween"] .hw-export { background-color: var(--hw-ghost); color: #04201d; box-shadow: 0 0 16px rgba(46,196,182,.45); }
-[data-theme="halloween"] .hw-export:hover { background-color: #39ff14; color: #04200a; box-shadow: 0 0 20px rgba(57,255,20,.5); }
+/* ---- Exportar Reporte (verde espectral, contorno) ---- */
+[data-theme="halloween"] .hw-export { background-color: rgba(6,40,30,.88); color: #a7f3d0; box-shadow: inset 0 0 0 1px rgba(52,211,153,.7), 0 0 16px rgba(16,185,129,.28); }
+[data-theme="halloween"] .hw-export:hover { background-color: rgba(8,58,42,.95); color: #d1fae5; box-shadow: inset 0 0 0 1px #34d399, 0 0 22px rgba(52,211,153,.45); }
 
 /* ---- Brillos suaves en acciones activas ---- */
 [data-theme="halloween"] .hw-glow:hover { box-shadow: 0 0 16px rgba(255,109,0,.4); }
 
-/* ---- Telarañas en esquinas de contenedores (opacidad ~15%) ---- */
+/* ---- Telarañas en esquinas de contenedores ---- */
 [data-theme="halloween"] .hw-web::before,
 [data-theme="halloween"] .hw-web::after {
-  content: ""; position: absolute; top: 0; width: 96px; height: 96px; pointer-events: none; opacity: .15;
-  background: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 112 112' fill='none' stroke='%23d8c8ff' stroke-width='1' stroke-linecap='round'><path d='M0 0L112.0 0.0M0 0L103.8 42.0M0 0L79.2 79.2M0 0L43.8 103.1M0 0L0.0 112.0M28.0 0.0Q21.4 4.2 26.0 10.5M26.0 10.5Q18.2 12.1 19.8 19.8M19.8 19.8Q12.2 18.1 10.9 25.8M10.9 25.8Q4.4 21.4 0.0 28.0M52.0 0.0Q39.8 7.7 48.2 19.5M48.2 19.5Q33.8 22.4 36.8 36.8M36.8 36.8Q22.7 33.6 20.3 47.9M20.3 47.9Q8.1 39.7 0.0 52.0M76.0 0.0Q58.2 11.3 70.5 28.5M70.5 28.5Q49.4 32.7 53.7 53.7M53.7 53.7Q33.1 49.1 29.7 70.0M29.7 70.0Q11.8 58.1 0.0 76.0M100.0 0.0Q76.6 14.9 92.7 37.5M92.7 37.5Q65.0 43.1 70.7 70.7M70.7 70.7Q43.6 64.7 39.1 92.1M39.1 92.1Q15.6 76.4 0.0 100.0'/></svg>") no-repeat top left / contain; z-index: 1;
+  content: ""; position: absolute; top: 0; width: 96px; height: 96px; pointer-events: none; opacity: .3;
+  background: var(--hw-web-img) no-repeat top left / contain; z-index: 1;
 }
 [data-theme="halloween"] .hw-web::before { left: 0; }
 [data-theme="halloween"] .hw-web::after { right: 0; transform: scaleX(-1); }
-[data-theme="halloween"] .hw-web-sm::before, [data-theme="halloween"] .hw-web-sm::after { width: 56px; height: 56px; }
+[data-theme="halloween"] .hw-web-sm::before, [data-theme="halloween"] .hw-web-sm::after { width: 52px; height: 52px; opacity: .22; }
 
-/* ---- Fondo fijo: murciélagos, neblina y telarañas de pantalla ---- */
+/* ---- Globo: resplandor naranja -> violeta detrás del lienzo ---- */
+.hw-globe-glow {
+  position: absolute; inset: 8.5%; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle at 34% 38%, rgba(255,120,30,.55) 0%, rgba(214,48,40,.42) 38%, rgba(120,40,190,.42) 72%, rgba(60,20,120,.5) 100%);
+  box-shadow: 0 0 70px 14px rgba(255,90,20,.28), 0 0 130px 40px rgba(123,44,191,.22);
+}
+
+/* ---- Fondo fijo: neblina, murciélagos y telarañas de pantalla ---- */
 .hw-backdrop { position: fixed; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; }
-.hw-bat { position: absolute; color: #05050c; opacity: .95; filter: drop-shadow(0 0 1.5px rgba(214,190,255,.9)) drop-shadow(0 0 6px rgba(157,78,221,.55)); }
-.hw-bat-1 { width: 74px; top: 21%; left: 36%; animation: hw-flap 5s ease-in-out infinite; }
-.hw-bat-2 { width: 52px; top: 26%; left: 47%; animation: hw-flap 6s ease-in-out infinite 1s; }
-.hw-bat-3 { width: 40px; top: 17%; left: 55%; animation: hw-flap 4.5s ease-in-out infinite .5s; }
-.hw-bat-4 { width: 34px; top: 31%; left: 33%; animation: hw-flap 7s ease-in-out infinite 2s; opacity: .7; }
-.hw-bat-5 { width: 90px; top: 9%; left: -10%; animation: hw-fly 46s linear infinite 4s; opacity: .55; }
-.hw-fog { position: absolute; bottom: -8%; width: 70vw; height: 38vh; filter: blur(46px); opacity: .5; background: radial-gradient(closest-side, rgba(120,110,170,.38), transparent 75%); animation: hw-drift 26s ease-in-out infinite alternate; }
-.hw-fog-l { left: -18vw; }
-.hw-fog-r { right: -22vw; animation-delay: -9s; opacity: .35; }
-.hw-screen-web { position: absolute; width: 300px; height: 300px; opacity: .30; background: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 112 112' fill='none' stroke='%23d8c8ff' stroke-width='1' stroke-linecap='round'><path d='M0 0L112.0 0.0M0 0L103.8 42.0M0 0L79.2 79.2M0 0L43.8 103.1M0 0L0.0 112.0M28.0 0.0Q21.4 4.2 26.0 10.5M26.0 10.5Q18.2 12.1 19.8 19.8M19.8 19.8Q12.2 18.1 10.9 25.8M10.9 25.8Q4.4 21.4 0.0 28.0M52.0 0.0Q39.8 7.7 48.2 19.5M48.2 19.5Q33.8 22.4 36.8 36.8M36.8 36.8Q22.7 33.6 20.3 47.9M20.3 47.9Q8.1 39.7 0.0 52.0M76.0 0.0Q58.2 11.3 70.5 28.5M70.5 28.5Q49.4 32.7 53.7 53.7M53.7 53.7Q33.1 49.1 29.7 70.0M29.7 70.0Q11.8 58.1 0.0 76.0M100.0 0.0Q76.6 14.9 92.7 37.5M92.7 37.5Q65.0 43.1 70.7 70.7M70.7 70.7Q43.6 64.7 39.1 92.1M39.1 92.1Q15.6 76.4 0.0 100.0'/></svg>") no-repeat top left / contain; filter: drop-shadow(0 0 2px rgba(200,180,255,.3)); }
-.hw-screen-web-tl { left: 0; top: 0; }
-.hw-screen-web-tr { right: 0; top: 0; transform: scaleX(-1); }
-.hw-screen-web-bl { left: 0; bottom: 0; width: 220px; height: 220px; opacity: .22; transform: scaleY(-1); }
-.hw-screen-web-br { right: 0; bottom: 0; width: 220px; height: 220px; opacity: .22; transform: scale(-1, -1); }
+.hw-haze { position: absolute; left: 22%; top: 6%; width: 62%; height: 46%; background: radial-gradient(closest-side, rgba(150,124,200,.42), rgba(100,80,150,.18) 60%, transparent); filter: blur(24px); }
+.hw-fog { position: absolute; border-radius: 50%; filter: blur(34px); background: radial-gradient(closest-side, rgba(176,168,210,.42), rgba(124,114,170,.16) 62%, transparent); animation: hw-drift 46s ease-in-out infinite alternate; }
+.hw-fog-1 { left: -12%; bottom: -14%; width: 62vw; height: 44vh; }
+.hw-fog-2 { right: -10%; bottom: -18%; width: 56vw; height: 40vh; animation-duration: 58s; animation-direction: alternate-reverse; }
+.hw-fog-3 { left: -14%; top: 30%; width: 34vw; height: 36vh; opacity: .75; animation-duration: 64s; }
+.hw-fog-4 { left: 28%; bottom: -22%; width: 50vw; height: 34vh; opacity: .8; animation-duration: 52s; animation-direction: alternate-reverse; }
 
-/* ---- Pumpkin / arañas ---- */
-.hw-pumpkin { position: absolute; width: 26px; height: 26px; pointer-events: none; top: -13px; right: -6px; z-index: 20; filter: drop-shadow(0 0 6px rgba(255,109,0,.7)); animation: hw-flicker 3.2s ease-in-out infinite; }
-.hw-pumpkin-face { animation: hw-face 3.2s ease-in-out infinite; }
-.hw-spider-hang { position: absolute; width: 18px; height: 33px; left: 50%; top: -22px; margin-left: -9px; pointer-events: none; z-index: 60; transform-origin: 50% 0; animation: hw-sway 4.5s ease-in-out infinite; }
-.hw-spider-tiny { position: absolute; width: 16px; height: 16px; top: 3px; right: 4px; pointer-events: none; opacity: .95; animation: hw-sway 5s ease-in-out infinite; transform-origin: 50% 0; }
+.hw-bat { position: absolute; color: #050308; opacity: .92; filter: drop-shadow(0 2px 6px rgba(0,0,0,.5)); animation: hw-hover 5s ease-in-out infinite; }
+.hw-bat svg { display: block; width: 100%; transform-origin: 50% 40%; animation: hw-flap .5s ease-in-out infinite alternate; }
+.hw-bat-1 { width: 58px; top: 176px; left: 33%; rotate: -8deg; animation-delay: -.6s; }
+.hw-bat-2 { width: 112px; top: 150px; left: 37%; rotate: 6deg; }
+.hw-bat-3 { width: 84px; top: 160px; left: 44.5%; rotate: -10deg; animation-delay: -2.1s; }
+.hw-bat-4 { width: 128px; top: 118px; left: 54%; rotate: 12deg; animation-delay: -1.2s; }
+.hw-bat-5 { width: 56px; top: 96px; left: 59.5%; rotate: -14deg; animation-delay: -3s; }
+.hw-bat-6 { width: 50px; top: 188px; left: 58%; rotate: 8deg; animation-delay: -3.8s; }
+.hw-bat-2 svg, .hw-bat-5 svg { animation-duration: .42s; }
+.hw-bat-4 svg { animation-duration: .58s; }
 
-@keyframes hw-fly { from { transform: translateX(0) translateY(0); } 50% { transform: translateX(60vw) translateY(-30px); } to { transform: translateX(120vw) translateY(10px); } }
-@keyframes hw-flicker { 0%,100% { filter: drop-shadow(0 0 5px rgba(255,109,0,.6)); } 50% { filter: drop-shadow(0 0 10px rgba(255,160,40,.95)); } }
-@keyframes hw-face { 0%,100% { fill: #2b1000; } 50% { fill: #ffd27a; } }
-@keyframes hw-sway { 0%,100% { transform: rotate(-5deg); } 50% { transform: rotate(5deg); } }
+.hw-screen-web { position: absolute; width: 280px; height: 280px; opacity: .34; background: var(--hw-web-img) no-repeat top left / contain; }
+.hw-screen-web-tl { top: 0; left: 0; }
+.hw-screen-web-tr { top: 0; right: 0; transform: scaleX(-1); }
+.hw-screen-web-bl { bottom: 0; left: 0; transform: scaleY(-1); width: 200px; height: 200px; opacity: .16; }
+.hw-screen-web-br { bottom: 0; right: 0; transform: scale(-1, -1); width: 200px; height: 200px; opacity: .16; }
+
+/* ---- Calabazas sobre el panel, sombrero de bruja y araña ---- */
+.hw-patch { display: none; position: absolute; left: 50%; top: 0; width: 290px; transform: translate(-50%, -88%); pointer-events: none; z-index: 11; filter: drop-shadow(0 8px 14px rgba(0,0,0,.55)); }
+@media (min-width: 1180px) { .hw-patch { display: block; } }
+.hw-patch-glow { animation: hw-candle 3.4s ease-in-out infinite; }
+.hw-hat { position: absolute; width: 32px; height: 32px; left: -12px; top: -19px; rotate: -20deg; pointer-events: none; z-index: 5; filter: drop-shadow(0 2px 3px rgba(0,0,0,.6)); }
+.hw-spider-tiny { position: absolute; width: 24px; height: 24px; top: 50%; right: 16px; margin-top: -12px; pointer-events: none; filter: drop-shadow(0 0 6px rgba(255,109,0,.75)); animation: hw-sway 5s ease-in-out infinite; transform-origin: 50% 0; z-index: 2; }
+
+@keyframes hw-drift { from { transform: translateX(-3%) scale(1); } to { transform: translateX(5%) scale(1.08); } }
+@keyframes hw-hover { 0%,100% { translate: 0 0; } 50% { translate: 6px -9px; } }
+@keyframes hw-flap { from { transform: scaleX(1); } to { transform: scaleX(.78) scaleY(1.06); } }
+@keyframes hw-flicker { 0%,100% { filter: drop-shadow(0 0 4px rgba(255,109,0,.6)); } 50% { filter: drop-shadow(0 0 9px rgba(255,160,40,.95)); } }
+@keyframes hw-candle { 0%,100% { opacity: 1; } 45% { opacity: .78; } 60% { opacity: .95; } 72% { opacity: .7; } }
+@keyframes hw-sway { 0%,100% { transform: rotate(-6deg); } 50% { transform: rotate(6deg); } }
 
 @media (prefers-reduced-motion: reduce) {
-  .hw-bat, .hw-fog, .hw-pumpkin, .hw-pumpkin-face, .hw-spider-hang, .hw-spider-tiny { animation: none !important; }
+  .hw-bat, .hw-bat svg, .hw-fog, .hw-pumpkin-ico, .hw-patch-glow, .hw-spider-tiny { animation: none !important; }
 }
 @media (max-width: 640px) {
-  .hw-patch { display: none; }
-  .hw-screen-web-tl, .hw-screen-web-tr { width: 150px; height: 150px; }
-  .hw-screen-web { width: 120px; height: 120px; }
+  .hw-screen-web { width: 130px; height: 130px; }
+  .hw-bat-1, .hw-bat-5, .hw-bat-6 { display: none; }
+  .hw-bat { scale: .7; opacity: .6; }
+  .hw-spider-tiny { width: 16px; height: 16px; right: 5px; top: 5px; margin-top: 0; }
   [data-theme="halloween"] .hw-web::before, [data-theme="halloween"] .hw-web::after { width: 64px; height: 64px; }
+  [data-theme="halloween"] .hw-card::before, [data-theme="halloween"] .hw-card::after { width: 36px; height: 36px; }
 }
-
-@keyframes hw-flap { 0%,100% { transform: translate(0,0) rotate(-4deg) scaleY(1); } 25% { transform: translate(8px,-6px) rotate(3deg) scaleY(.82); } 50% { transform: translate(14px,2px) rotate(-2deg) scaleY(1); } 75% { transform: translate(6px,-4px) rotate(4deg) scaleY(.85); } }
-@keyframes hw-drift { from { transform: translateX(0); } to { transform: translateX(8vw); } }
-
-/* ---- Grupo de calabazas sobre el panel y sombrero en la campana ---- */
-.hw-patch { position: absolute; left: 36%; top: -108px; width: 250px; height: 115px; pointer-events: none; z-index: 11; filter: drop-shadow(0 0 14px rgba(255,109,0,.55)); }
-.hw-witchhat { position: absolute; width: 30px; height: 27px; left: -9px; top: -16px; pointer-events: none; z-index: 61; transform: rotate(-16deg); filter: drop-shadow(0 0 4px rgba(123,44,191,.7)); }
-
-/* Pestaña activa: píldora violeta con borde naranja y calabaza en lugar del icono */
-[data-theme="halloween"] .hw-nav-active {
-  background-image: linear-gradient(135deg, rgba(255,109,0,.30), rgba(123,44,191,.42));
-  box-shadow: 0 0 14px rgba(255,109,0,.35), inset 0 0 0 1px rgba(255,140,60,.75);
-}
-[data-theme="halloween"] .hw-nav-active + span .lucide-layout-grid { display: none; }
-.hw-pumpkin-inline { position: static; top: auto; right: auto; width: 20px; height: 20px; margin-right: -2px; flex: none; }
-
-/* Buscador de la barra superior y filtros con borde naranja */
-[data-theme="halloween"] .hw-navbar input[type="text"], [data-theme="halloween"] .hw-navbar input:not([type]) { border-color: rgba(255,109,0,.7); box-shadow: 0 0 12px rgba(255,109,0,.22); }
-[data-theme="halloween"] .hw-filter-active { border-color: rgba(255,109,0,.85) !important; box-shadow: 0 0 12px rgba(255,109,0,.3); background-color: rgba(255,109,0,.10) !important; }
-[data-theme="halloween"] .hw-headicon { background: rgba(123,44,191,.22); border: 1px solid rgba(157,78,221,.55); box-shadow: 0 0 18px rgba(123,44,191,.35); }
-[data-theme="halloween"] .hw-headicon svg { color: #ff8a3d; }
-
-/* Telaraña diagonal (esquina superior izquierda e inferior derecha) para tarjetas */
-[data-theme="halloween"] .hw-web-diag::before, [data-theme="halloween"] .hw-web-diag::after { content: ""; position: absolute; width: 64px; height: 64px; pointer-events: none; opacity: .3; background: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 112 112' fill='none' stroke='%23d8c8ff' stroke-width='1' stroke-linecap='round'><path d='M0 0L112.0 0.0M0 0L103.8 42.0M0 0L79.2 79.2M0 0L43.8 103.1M0 0L0.0 112.0M28.0 0.0Q21.4 4.2 26.0 10.5M26.0 10.5Q18.2 12.1 19.8 19.8M19.8 19.8Q12.2 18.1 10.9 25.8M10.9 25.8Q4.4 21.4 0.0 28.0M52.0 0.0Q39.8 7.7 48.2 19.5M48.2 19.5Q33.8 22.4 36.8 36.8M36.8 36.8Q22.7 33.6 20.3 47.9M20.3 47.9Q8.1 39.7 0.0 52.0M76.0 0.0Q58.2 11.3 70.5 28.5M70.5 28.5Q49.4 32.7 53.7 53.7M53.7 53.7Q33.1 49.1 29.7 70.0M29.7 70.0Q11.8 58.1 0.0 76.0M100.0 0.0Q76.6 14.9 92.7 37.5M92.7 37.5Q65.0 43.1 70.7 70.7M70.7 70.7Q43.6 64.7 39.1 92.1M39.1 92.1Q15.6 76.4 0.0 100.0'/></svg>") no-repeat top left / contain; z-index: 1; }
-[data-theme="halloween"] .hw-web-diag::before { left: 0; top: 0; right: auto; transform: none; }
-[data-theme="halloween"] .hw-web-diag::after { right: 0; bottom: 0; top: auto; left: auto; transform: rotate(180deg); }

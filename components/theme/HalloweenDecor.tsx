@@ -5,21 +5,23 @@ import { isHalloween } from '@/lib/theme';
    Con el tema apagado devuelven null. */
 
 const bat = (
-    <>
-        <path d="M60 20L63 9 66 18C72 17 80 18 88 12 98 6 108 6 118 14 110 14 106 18 105 25 100 21 96 21 92 26 90 22 85 22 82 27 79 23 74 25 72 31 69 37 65 45 60 53z" />
-        <path d="M60 20L63 9 66 18C72 17 80 18 88 12 98 6 108 6 118 14 110 14 106 18 105 25 100 21 96 21 92 26 90 22 85 22 82 27 79 23 74 25 72 31 69 37 65 45 60 53z" transform="matrix(-1 0 0 1 120 0)" />
-    </>
+    <path d="M60 14l-4-8-3 9c-8-6-20-9-33-6-10 2-17 7-20 13 7-3 13-2 17 2 3 3 4 7 3 11 5-5 11-6 16-3 4 2 6 6 6 10 4-5 9-7 14-5 2 1 3 3 4 6 1-3 2-5 4-6 5-2 10 0 14 5 0-4 2-8 6-10 5-3 11-2 16 3-1-4 0-8 3-11 4-4 10-5 17-2-3-6-10-11-20-13-13-3-25 0-33 6l-3-9z" />
 );
 
-/** Capa fija de fondo: murciélagos, neblina y telarañas grandes en las esquinas de la pantalla. */
+/** Capa fija de fondo: neblina, bandada de murciélagos y telarañas en las esquinas de la pantalla. */
 export function HalloweenBackdrop() {
     if (!isHalloween) return null;
     return (
         <div className="hw-backdrop" aria-hidden="true">
-            <span className="hw-fog hw-fog-l" />
-            <span className="hw-fog hw-fog-r" />
-            {[1, 2, 3, 4, 5].map((n) => (
-                <svg key={n} className={`hw-bat hw-bat-${n}`} viewBox="0 0 120 60" fill="currentColor">{bat}</svg>
+            <span className="hw-haze" />
+            <span className="hw-fog hw-fog-1" />
+            <span className="hw-fog hw-fog-2" />
+            <span className="hw-fog hw-fog-3" />
+            <span className="hw-fog hw-fog-4" />
+            {[1, 2, 3, 4, 5, 6].map((n) => (
+                <span key={n} className={`hw-bat hw-bat-${n}`}>
+                    <svg viewBox="0 0 120 60" fill="currentColor">{bat}</svg>
+                </span>
             ))}
             <span className="hw-screen-web hw-screen-web-tl" />
             <span className="hw-screen-web hw-screen-web-tr" />
@@ -29,138 +31,150 @@ export function HalloweenBackdrop() {
     );
 }
 
-/* ---- Calabazas y hojas (SVG): gomos con sombreado, tallo con zarcillo, cara encendida ---- */
-const LOBES: [number, number, number][] = [
-    [-33, 17, 33], [33, 17, 33], [-17, 21, 38], [17, 21, 38], [0, 22, 40],
-];
-
-function Pumpkin3D({ face = false, id }: { face?: boolean; id: string }) {
-    return (
-        <g>
-            <ellipse cx="0" cy="40" rx="46" ry="6" fill="#000" opacity=".35" />
-            {LOBES.map(([cx, rx, ry], i) => (
-                <ellipse key={i} cx={cx} cy="2" rx={rx} ry={ry} fill={`url(#hwPk${i < 2 ? 'Dark' : i < 4 ? 'Mid' : 'Lite'})`} stroke="#8f3600" strokeOpacity=".55" strokeWidth="1.2" />
-            ))}
-            {/* brillo */}
-            <ellipse cx="-12" cy="-16" rx="9" ry="16" fill="#fff" opacity=".16" transform="rotate(14 -12 -16)" />
-            {/* tallo y zarcillo */}
-            <path d="M-4 -37c-1-7 0-11 3-14l7 1c-1 4-1 9 0 13z" fill="#5b3a12" stroke="#3a2408" strokeWidth="1" />
-            <path d="M5 -45c10-4 18 0 16 8-1 4-6 5-8 2" fill="none" stroke="#5aa616" strokeWidth="2.2" strokeLinecap="round" />
-            {face && (
-                <g>
-                    <g fill="#ffb300" opacity=".75" filter={`url(#${id})`}>
-                        <path d="M-28 -6L-11 -10 -19 -24z" /><path d="M28 -6L11 -10 19 -24z" /><path d="M0 -1L-7 11 7 11z" />
-                        <path d="M-31 14Q0 42 31 14L25 11 19 20 11 12 0 22-11 12-19 20-25 11z" />
-                    </g>
-                    <g fill="url(#hwFace)" stroke="#5a1f00" strokeWidth="1.2" strokeLinejoin="round">
-                        <path d="M-28 -6L-11 -10 -19 -24z" /><path d="M28 -6L11 -10 19 -24z" /><path d="M0 -1L-7 11 7 11z" />
-                        <path d="M-31 14Q0 42 31 14L25 11 19 20 11 12 0 22-11 12-19 20-25 11z" />
-                    </g>
-                </g>
-            )}
-        </g>
-    );
-}
-
-const LEAF = 'M0-21L4-11 13-15 9-5 20-4 11 4 17 13 6 10 3 21 0 15-3 21-6 10-17 13-11 4-20-4-9-5-13-15-4-11z';
-
-function Leaf({ x, y, r, s = 1, c }: { x: number; y: number; r: number; s?: number; c: 'Red' | 'Amber' | 'Gold' }) {
-    return (
-        <g transform={`translate(${x} ${y}) rotate(${r}) scale(${s})`}>
-            <path d={LEAF} fill={`url(#hwLeaf${c})`} stroke="#5c1d02" strokeOpacity=".55" strokeWidth=".9" strokeLinejoin="round" />
-            <path d="M0 22V-14M0 4L-9 -4M0 4L9 -4M0 -5L-6 -10M0 -5L6 -10" stroke="#5c1d02" strokeOpacity=".5" strokeWidth=".8" strokeLinecap="round" fill="none" />
-        </g>
-    );
-}
-
-/** Grupo de calabazas con hojas de otoño, apoyado sobre el borde superior del panel (posición absoluta). */
-export function PumpkinPatch({ className = '' }: { className?: string }) {
+/** Jack-o'-lantern pequeña en línea, para usar como icono de una pestaña. */
+export function PumpkinIcon({ className = '' }: { className?: string }) {
     if (!isHalloween) return null;
     return (
-        <svg className={`hw-patch ${className}`} viewBox="0 0 260 120" aria-hidden="true">
-            <defs>
-                <radialGradient id="hwPkLite" cx="45%" cy="35%" r="75%"><stop offset="0" stopColor="#ffb347" /><stop offset=".55" stopColor="#ff7a00" /><stop offset="1" stopColor="#b84300" /></radialGradient>
-                <radialGradient id="hwPkMid" cx="45%" cy="35%" r="75%"><stop offset="0" stopColor="#ff9d2e" /><stop offset=".55" stopColor="#f06400" /><stop offset="1" stopColor="#9c3700" /></radialGradient>
-                <radialGradient id="hwPkDark" cx="45%" cy="35%" r="75%"><stop offset="0" stopColor="#f58a1f" /><stop offset=".55" stopColor="#d65500" /><stop offset="1" stopColor="#7a2c00" /></radialGradient>
-                <radialGradient id="hwFace" cx="50%" cy="45%" r="70%"><stop offset="0" stopColor="#fff6b8" /><stop offset=".6" stopColor="#ffc933" /><stop offset="1" stopColor="#ff8a00" /></radialGradient>
-                <linearGradient id="hwLeafRed" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stopColor="#8f1d0a" /><stop offset="1" stopColor="#e8420f" /></linearGradient>
-                <linearGradient id="hwLeafAmber" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stopColor="#b8470a" /><stop offset="1" stopColor="#ff9a1f" /></linearGradient>
-                <linearGradient id="hwLeafGold" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stopColor="#c27a0a" /><stop offset="1" stopColor="#ffd23f" /></linearGradient>
-                <filter id="hwBlurA" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="3.5" /></filter>
-                <filter id="hwBlurB" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="2.5" /></filter>
-            </defs>
-            {/* hojas al fondo */}
-            <Leaf x={22} y={100} r={-38} s={1.1} c="Red" />
-            <Leaf x={56} y={108} r={14} s={.9} c="Gold" />
-            <Leaf x={236} y={102} r={40} s={1.1} c="Amber" />
-            {/* calabaza izquierda */}
-            <g transform="translate(70 76) scale(.62)"><Pumpkin3D face id="hwBlurB" /></g>
-            {/* calabaza derecha */}
-            <g transform="translate(200 90) scale(.5) rotate(8)"><Pumpkin3D id="hwBlurB" /></g>
-            {/* calabaza central */}
-            <g transform="translate(132 64) scale(.95)"><Pumpkin3D face id="hwBlurA" /></g>
-            {/* hojas al frente */}
-            <Leaf x={104} y={110} r={-20} s={.9} c="Amber" />
-            <Leaf x={166} y={110} r={26} s={.85} c="Red" />
-            <Leaf x={36} y={114} r={64} s={.7} c="Amber" />
-            <Leaf x={222} y={114} r={-50} s={.7} c="Gold" />
+        <svg className={`hw-pumpkin-ico ${className}`} viewBox="0 0 32 32" aria-hidden="true">
+            <path d="M16 8c0-2.5 1-4.5 3.5-5" stroke="#5b8c2a" strokeWidth="2.4" strokeLinecap="round" fill="none" />
+            <ellipse cx="9.5" cy="19" rx="7.5" ry="10" fill="#e85d04" />
+            <ellipse cx="22.5" cy="19" rx="7.5" ry="10" fill="#e85d04" />
+            <ellipse cx="16" cy="19" rx="7" ry="11" fill="#ff7a1a" />
+            <path d="M8 15l4.5 4h-7zM24 15l2.5 4h-7zM7 22l3 2 3-2 3 2 3-2 3 2 3-2-1 3-3 2.5-2-1.5-3 2-3-2-2 1.5-3-2.5z" fill="#ffe08a" />
         </svg>
     );
 }
 
-/** Sombrero de bruja para la campana (posición absoluta; el padre debe ser `relative`). */
+// Hoja de arce (punta hacia arriba, tallo en 0,20) y sus nervaduras
+const mapleLeaf = "M0 20L-1.5 9C-6 12-11 13-15 12L-13 9-21 3-17 1.5-20-6-13-5-12-9-6-3-8-17-4-15 0-23 4-15 8-17 6-3 12-9 13-5 20-6 17 1.5 21 3 13 9 15 12C11 13 6 12 1.5 9Z";
+const mapleVeins = "M0 12V-20M0 8L-17-4M0 8L17-4M0 10L-12 10M0 10L12 10M0 2L-7-14M0 2L7-14";
+
+function Leaf({ x, y, s, r, tone }: { x: number; y: number; s: number; r: number; tone: 'amber' | 'orange' | 'red' }) {
+    return (
+        <g transform={`translate(${x} ${y}) rotate(${r}) scale(${s})`}>
+            <path d={mapleLeaf} fill={`url(#hw-leaf-${tone})`} stroke="#431407" strokeOpacity=".45" strokeWidth=".8" strokeLinejoin="round" />
+            <path d={mapleVeins} fill="none" stroke="#431407" strokeOpacity=".4" strokeWidth=".7" strokeLinecap="round" />
+        </g>
+    );
+}
+
+// Caras talladas (coordenadas locales de la calabaza). evenodd deja los dientes sin recortar.
+const FACES = {
+    wicked: "M-23-9L-8-4-11 5Q-19 4-23-9ZM23-9L8-4 11 5Q19 4 23-9ZM0-1L4 6H-4ZM-27 9Q-14 15-10 13L-7 18-3 14H3L7 18 10 13Q14 15 27 9 21 25 0 26-21 25-27 9ZM-15 23.500L-12 18-9 24.500ZM9 24.500L12 18 15 23.500Z",
+    happy: "M-19-4L-8-4-13.5-14ZM19-4L8-4 13.5-14ZM0 0L3.5 5H-3.500ZM-22 8Q-12 13-8 12L-5 16-2 12H2L5 16 8 12Q12 13 22 8 16 24 0 24-16 24-22 8Z",
+    spooked: "M-13-13A5.5 6.5 0 1 0-12.99-13ZM13-13A5.5 6.5 0 1 0 13.01-13ZM0 1L3 6H-3ZM-14 11Q0 6 14 11 10 25 0 25-10 25-14 11ZM-4 9.500L0 15 4 9.500Z",
+};
+
+function Jack({ x, y, s, face }: { x: number; y: number; s: number; face: keyof typeof FACES }) {
+    return (
+        <g transform={`translate(${x} ${y}) scale(${s})`}>
+            <ellipse cx="0" cy="29" rx="40" ry="5.5" fill="#000" opacity=".5" />
+            {/* Tallo y zarcillo */}
+            <path d="M-5-22C-6-31-3-39 6-43L11-37C6-35 4-30 5-22Z" fill="url(#hw-pk-stem)" stroke="#2f3f12" strokeWidth=".8" />
+            <path d="M-2-24C-3-31 0-37 6-40" fill="none" stroke="#a3c75a" strokeOpacity=".6" strokeWidth="1" strokeLinecap="round" />
+            <path d="M5-31c8-3 14 1 12 6-2 4-8 2-6-2 1-2 4-2 5 0" fill="none" stroke="#5b8c2a" strokeWidth="1.3" strokeLinecap="round" />
+            {/* Gajos: cada uno con su propio degradado para marcar los surcos */}
+            <ellipse cx="-27" cy="4" rx="11.5" ry="20" fill="url(#hw-pk-outer)" />
+            <ellipse cx="27" cy="4" rx="11.5" ry="20" fill="url(#hw-pk-outer)" />
+            <ellipse cx="-15" cy="2" rx="14" ry="25" fill="url(#hw-pk-mid)" />
+            <ellipse cx="15" cy="2" rx="14" ry="25" fill="url(#hw-pk-mid)" />
+            <ellipse cx="0" cy="1.5" rx="12.5" ry="27" fill="url(#hw-pk-core)" />
+            <ellipse cx="0" cy="-23.5" rx="8" ry="2.5" fill="#7c2d12" opacity=".6" />
+            {/* Brillos */}
+            <ellipse cx="-19" cy="-11" rx="2.6" ry="8" fill="#fff" opacity=".3" transform="rotate(16 -19 -11)" />
+            <ellipse cx="-3.5" cy="-15" rx="1.8" ry="6" fill="#fff" opacity=".22" transform="rotate(6 -3.5 -15)" />
+            <ellipse cx="-30" cy="-2" rx="1.5" ry="5" fill="#fff" opacity=".18" transform="rotate(14 -30 -2)" />
+            {/* Cara: halo de la vela, borde tallado y fuego */}
+            <g className="hw-patch-glow">
+                <path d={FACES[face]} fillRule="evenodd" fill="#ffae1a" opacity=".9" filter="url(#hw-pk-blur)" />
+                <path d={FACES[face]} fillRule="evenodd" fill="url(#hw-pk-fire)" stroke="#7c2d12" strokeWidth="1.4" strokeLinejoin="round" paintOrder="stroke" />
+            </g>
+        </g>
+    );
+}
+
+/** Tres calabazas talladas con hojas de arce, apoyadas sobre el borde superior de un panel (el padre debe ser `relative`). */
+export function PumpkinPatch() {
+    if (!isHalloween) return null;
+    return (
+        <svg className="hw-patch" viewBox="0 0 260 122" aria-hidden="true">
+            <defs>
+                <radialGradient id="hw-pk-core" cx="42%" cy="24%" r="85%">
+                    <stop offset="0" stopColor="#ffc46b" /><stop offset=".45" stopColor="#ff8a1f" /><stop offset=".85" stopColor="#d9530c" /><stop offset="1" stopColor="#9a3a0b" />
+                </radialGradient>
+                <radialGradient id="hw-pk-mid" cx="40%" cy="24%" r="85%">
+                    <stop offset="0" stopColor="#ffab4a" /><stop offset=".5" stopColor="#f47312" /><stop offset=".88" stopColor="#c2470c" /><stop offset="1" stopColor="#84300b" />
+                </radialGradient>
+                <radialGradient id="hw-pk-outer" cx="45%" cy="26%" r="85%">
+                    <stop offset="0" stopColor="#f08a2c" /><stop offset=".55" stopColor="#cf520d" /><stop offset="1" stopColor="#6b2409" />
+                </radialGradient>
+                <radialGradient id="hw-pk-fire" cx="50%" cy="62%" r="70%">
+                    <stop offset="0" stopColor="#fffbe0" /><stop offset=".45" stopColor="#ffd34d" /><stop offset="1" stopColor="#ff8a00" />
+                </radialGradient>
+                <radialGradient id="hw-pk-halo" cx="50%" cy="50%" r="50%">
+                    <stop offset="0" stopColor="#ff7a1a" stopOpacity=".5" /><stop offset="1" stopColor="#ff7a1a" stopOpacity="0" />
+                </radialGradient>
+                <linearGradient id="hw-pk-stem" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0" stopColor="#8aa83a" /><stop offset=".6" stopColor="#4d6b1f" /><stop offset="1" stopColor="#2f3f12" />
+                </linearGradient>
+                <linearGradient id="hw-leaf-amber" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0" stopColor="#fde68a" /><stop offset=".5" stopColor="#f59e0b" /><stop offset="1" stopColor="#b45309" />
+                </linearGradient>
+                <linearGradient id="hw-leaf-orange" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0" stopColor="#fdba74" /><stop offset=".5" stopColor="#ea580c" /><stop offset="1" stopColor="#7c2d12" />
+                </linearGradient>
+                <linearGradient id="hw-leaf-red" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0" stopColor="#fca5a5" /><stop offset=".45" stopColor="#dc2626" /><stop offset="1" stopColor="#7f1d1d" />
+                </linearGradient>
+                <filter id="hw-pk-blur" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="2.6" /></filter>
+            </defs>
+            <ellipse className="hw-patch-glow" cx="130" cy="82" rx="124" ry="40" fill="url(#hw-pk-halo)" />
+            {/* Hojas detrás */}
+            <Leaf x={22} y={84} s={0.6} r={-62} tone="orange" />
+            <Leaf x={238} y={80} s={0.62} r={70} tone="amber" />
+            <Leaf x={92} y={50} s={0.42} r={-28} tone="red" />
+            <Leaf x={172} y={56} s={0.4} r={36} tone="orange" />
+            <Jack x={200} y={90} s={0.72} face="spooked" />
+            <Jack x={58} y={86} s={0.86} face="happy" />
+            <Jack x={130} y={74} s={1.25} face="wicked" />
+            {/* Hojas delante, sobre el borde del panel */}
+            <Leaf x={24} y={108} s={0.72} r={-38} tone="amber" />
+            <Leaf x={88} y={112} s={0.5} r={24} tone="red" />
+            <Leaf x={166} y={112} s={0.55} r={-18} tone="amber" />
+            <Leaf x={232} y={108} s={0.7} r={48} tone="red" />
+            <Leaf x={250} y={114} s={0.4} r={-25} tone="orange" />
+            <Leaf x={6} y={114} s={0.4} r={30} tone="orange" />
+        </svg>
+    );
+}
+
+/** Sombrero de bruja ladeado sobre un botón (posición absoluta; el padre debe ser `relative`). */
 export function WitchHat({ className = '' }: { className?: string }) {
     if (!isHalloween) return null;
     return (
-        <svg className={`hw-witchhat ${className}`} viewBox="0 0 40 36" aria-hidden="true">
-            <path d="M8 26c4-2 8-3 12-3s9 1 13 3c-2 4-7 6-13 6S10 30 8 26z" fill="#4c1d95" stroke="#9d4edd" strokeWidth="1" />
-            <path d="M14 24c2-8 4-16 9-22 1 8 2 16 4 22-5 2-9 2-13 0z" fill="#3b0f7a" stroke="#9d4edd" strokeWidth="1" />
-            <path d="M14.5 21c4 2 8 2 12 0l.6 3c-4 2-9 2-13.2 0z" fill="#ff6d00" />
-            <path d="M23 2c2-1 5 0 6 3" stroke="#9d4edd" strokeWidth="1.4" fill="none" strokeLinecap="round" />
+        <svg className={`hw-hat ${className}`} viewBox="0 0 32 32" aria-hidden="true">
+            <path d="M17 2c3 1 5 3 6 6l-3-1 4 15H8z" fill="#5b21b6" />
+            <path d="M17 2c3 1 5 3 6 6l-3-1 1 4-6-4z" fill="#7c3aed" />
+            <path d="M9.2 18.500h13.8l1 3.5H8z" fill="#ff7a1a" />
+            <rect x="14" y="18" width="4.5" height="4.5" rx=".8" fill="none" stroke="#ffd27a" strokeWidth="1.3" />
+            <ellipse cx="16" cy="24" rx="14.5" ry="4" fill="#3b1a7a" />
+            <ellipse cx="16" cy="23.2" rx="9" ry="2" fill="#2a1158" />
         </svg>
     );
 }
 
-/** Jack-o'-lantern pequeña (posición absoluta; el padre debe ser `relative`). */
-export function Pumpkin({ className = '' }: { className?: string }) {
-    if (!isHalloween) return null;
-    return (
-        <svg className={`hw-pumpkin ${className}`} viewBox="0 0 32 32" aria-hidden="true">
-            <path d="M16 6c0-2 1-3.5 3-4" stroke="#39ff14" strokeWidth="2" strokeLinecap="round" fill="none" />
-            <ellipse cx="10" cy="19" rx="8" ry="10" fill="#e85d04" />
-            <ellipse cx="22" cy="19" rx="8" ry="10" fill="#e85d04" />
-            <ellipse cx="16" cy="19" rx="7" ry="11" fill="#ff6d00" />
-            <path className="hw-pumpkin-face" d="M9 15l4 4-8 0zM23 15l4 4-8 0zM10 24l3 2 3-2 3 2 3-2 0 2-3 3-3-2-3 2-3-3z" fill="#2b1000" transform="translate(-1 0) scale(1.03)" />
-        </svg>
-    );
-}
-
-/** Araña colgando de un hilo (posición absoluta; el padre debe ser `relative`). */
-export function HangingSpider({ className = '' }: { className?: string }) {
-    if (!isHalloween) return null;
-    return (
-        <svg className={`hw-spider-hang ${className}`} viewBox="0 0 24 44" aria-hidden="true">
-            <line x1="12" y1="0" x2="12" y2="28" stroke="#b9a3e3" strokeOpacity=".55" strokeWidth="1" />
-            <g stroke="#cbb8f2" strokeWidth="1.2" strokeLinecap="round" fill="none">
-                <path d="M9 32l-6-4M9 34l-7 1M9 37l-6 5M15 32l6-4M15 34l7 1M15 37l6 5" />
-            </g>
-            <ellipse cx="12" cy="33" rx="4.2" ry="5" fill="#2a1747" stroke="#9d4edd" strokeWidth="1" />
-            <circle cx="10.6" cy="31.6" r=".9" fill="#ff6d00" />
-            <circle cx="13.4" cy="31.6" r=".9" fill="#ff6d00" />
-        </svg>
-    );
-}
-
-/** Araña diminuta para la tarjeta "Pendientes". */
+/** Araña para la tarjeta "Pendientes". */
 export function TinySpider({ className = '' }: { className?: string }) {
     if (!isHalloween) return null;
     return (
         <svg className={`hw-spider-tiny ${className}`} viewBox="0 0 24 24" aria-hidden="true">
-            <g stroke="#ffb27a" strokeWidth="1.3" strokeLinecap="round" fill="none">
-                <path d="M9 11l-6-5M9 13l-7 0M9 15l-6 5M15 11l6-5M15 13l7 0M15 15l6 5" />
+            <g stroke="#ff8a3d" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" fill="none">
+                <path d="M9 11L5 8 3 3M9 13l-5 0-3 3M9 15l-4 3-1 4M15 11l4-3 2-5M15 13l5 0 3 3M15 15l4 3 1 4" />
             </g>
-            <ellipse cx="12" cy="14" rx="4" ry="4.8" fill="#2a1747" stroke="#ff6d00" strokeWidth="1.2" />
-            <circle cx="12" cy="8.8" r="2.4" fill="#2a1747" stroke="#ff6d00" strokeWidth="1.2" />
+            <ellipse cx="12" cy="14.5" rx="4.2" ry="5" fill="#ff6d00" />
+            <circle cx="12" cy="8.8" r="2.6" fill="#ff8a3d" />
+            <circle cx="11" cy="8.2" r=".6" fill="#1a0b00" />
+            <circle cx="13" cy="8.2" r=".6" fill="#1a0b00" />
         </svg>
     );
 }
