@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import createGlobe from "cobe"
 import { isHalloween } from "@/lib/theme"
 
@@ -39,7 +39,7 @@ const HALLOWEEN_GLOBE = {
 // Malla tipo telaraña: cada nodo se une a sus 2 vecinos más cercanos
 function buildWebArcs(markers: InteractiveMarker[]) {
   const seen = new Set<string>()
-  const arcs: { from: [number, number]; to: [number, number]; fromUsers: number; toUsers: number }[] = []
+  const arcs: { from: [number, number]; to: [number, number] }[] = []
   const dist = (a: InteractiveMarker, b: InteractiveMarker) => {
     const dLon = Math.abs(a.location[1] - b.location[1])
     return Math.hypot(a.location[0] - b.location[0], Math.min(dLon, 360 - dLon))
@@ -53,90 +53,10 @@ function buildWebArcs(markers: InteractiveMarker[]) {
         const key = [m.id, o.id].sort().join("|")
         if (seen.has(key)) return
         seen.add(key)
-        arcs.push({ from: m.location, to: o.location, fromUsers: m.users, toUsers: o.users })
+        arcs.push({ from: m.location, to: o.location })
       })
   })
   return arcs
-}
-
-// Proyecta un nodo (lat/lon) a coordenadas 2D del disco; z > 0 = cara visible
-function projectNode(location: [number, number], phi: number, theta: number, r: number, sphereRadius: number) {
-  const lat = (location[0] * Math.PI) / 180
-  const lon = (location[1] * Math.PI) / 180
-  const x3d = Math.cos(lat) * Math.sin(lon + phi)
-  const y3d = Math.sin(lat) * Math.cos(theta) - Math.cos(lat) * Math.cos(lon + phi) * Math.sin(theta)
-  const z3d = Math.sin(lat) * Math.sin(theta) + Math.cos(lat) * Math.cos(lon + phi) * Math.cos(theta)
-  return { x: r + sphereRadius * x3d, y: r - sphereRadius * y3d, z: z3d }
-}
-
-// Cráteres y mares de la luna: viven en lat/lon y rotan junto con los nodos
-type MoonSpot = { lat: number; lon: number; ang: number; maria: boolean }
-const MOON_SPOTS: MoonSpot[] = (() => {
-  let t = 20261031
-  const rnd = () => {
-    t = (t + 0x6d2b79f5) | 0
-    let x = Math.imul(t ^ (t >>> 15), 1 | t)
-    x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x
-    return ((x ^ (x >>> 14)) >>> 0) / 4294967296
-  }
-  const spots: MoonSpot[] = []
-  for (let i = 0; i < 9; i++) spots.push({ lat: Math.asin(rnd() * 1.6 - 0.8), lon: rnd() * Math.PI * 2, ang: 0.3 + rnd() * 0.3, maria: true })
-  for (let i = 0; i < 56; i++) {
-    const big = rnd() < 0.18
-    spots.push({ lat: Math.asin(rnd() * 1.9 - 0.95), lon: rnd() * Math.PI * 2, ang: big ? 0.13 + rnd() * 0.07 : 0.035 + rnd() * 0.07, maria: false })
-  }
-  return spots
-})()
-
-function drawMoonCraters(canvas: HTMLCanvasElement, phi: number, theta: number) {
-  const dpr = Math.min(window.devicePixelRatio || 1, 2)
-  const size = Math.round(canvas.clientWidth * dpr)
-  if (!size) return
-  if (canvas.width !== size) { canvas.width = size; canvas.height = size }
-  const ctx = canvas.getContext("2d")
-  if (!ctx) return
-  ctx.setTransform(1, 0, 0, 1, 0, 0)
-  ctx.clearRect(0, 0, size, size)
-  const R = size / 2
-  for (const s of MOON_SPOTS) {
-    const x3d = Math.cos(s.lat) * Math.sin(s.lon + phi)
-    const y3d = Math.sin(s.lat) * Math.cos(theta) - Math.cos(s.lat) * Math.cos(s.lon + phi) * Math.sin(theta)
-    const z3d = Math.sin(s.lat) * Math.sin(theta) + Math.cos(s.lat) * Math.cos(s.lon + phi) * Math.cos(theta)
-    if (z3d < 0.04) continue
-    const px = R + R * x3d, py = R - R * y3d
-    const rr = R * Math.sin(s.ang)
-    const ang = Math.atan2(py - R, px - R)
-    const fade = Math.min(1, z3d / 0.3) * Math.pow(z3d, 0.35)
-    ctx.save()
-    ctx.translate(px, py)
-    ctx.rotate(ang)
-    ctx.scale(Math.max(z3d, 0.05), 1)
-    ctx.globalAlpha = fade
-    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, rr)
-    if (s.maria) {
-      g.addColorStop(0, "rgba(120,114,100,.20)")
-      g.addColorStop(0.6, "rgba(120,114,100,.12)")
-      g.addColorStop(1, "rgba(120,114,100,0)")
-      ctx.fillStyle = g
-      ctx.beginPath(); ctx.arc(0, 0, rr, 0, Math.PI * 2); ctx.fill()
-    } else {
-      g.addColorStop(0, "rgba(141,136,120,.12)")
-      g.addColorStop(0.7, "rgba(125,120,104,.28)")
-      g.addColorStop(0.92, "rgba(95,90,76,.44)")
-      g.addColorStop(1, "rgba(95,90,76,0)")
-      ctx.fillStyle = g
-      ctx.beginPath(); ctx.arc(0, 0, rr, 0, Math.PI * 2); ctx.fill()
-      // borde iluminado hacia la luz (arriba-izquierda), girado al marco local del cráter
-      const sh = rr * 0.09
-      const lx = (0.7 * Math.cos(-ang) - 0.7 * Math.sin(-ang)) * sh
-      const ly = (0.7 * Math.sin(-ang) + 0.7 * Math.cos(-ang)) * sh
-      ctx.beginPath(); ctx.arc(0, 0, rr * 0.96, 0, Math.PI * 2); ctx.clip()
-      ctx.strokeStyle = "rgba(255,255,255,.4)"
-      ctx.lineWidth = Math.max(1, rr * 0.06)
-      ctx.beginPath(); ctx.arc(lx, ly, rr * 0.9, 0, Math.PI * 2); ctx.stroke()
-    }
-    ctx.restore()
-  }
 }
 
 export function GlobeInteractive({
@@ -146,7 +66,6 @@ export function GlobeInteractive({
   backgroundMode = false,
 }: GlobeInteractiveProps) {
   const [canvasElement, setCanvasElement] = useState<HTMLCanvasElement | null>(null)
-  const moonCratersRef = useRef<HTMLCanvasElement>(null)
   const phiRef = useRef(0)
   const pointerInteracting = useRef<{ x: number; y: number } | null>(null)
   const dragOffset = useRef({ phi: 0, theta: 0 })
@@ -155,13 +74,6 @@ export function GlobeInteractive({
   const isPausedRef = useRef(false)
   const [expanded, setExpanded] = useState<string | null>(null)
   const [mounted, setMounted] = useState(false)
-  // Tema Halloween: la red de datos son líneas SVG sobre la luna (los nodos siguen proyectándose igual)
-  const moonArcs = useMemo(
-    () => (isHalloween
-      ? buildWebArcs(markers).map((a, i) => ({ ...a, key: i, hot: a.fromUsers > 0 || a.toUsers > 0 }))
-      : []),
-    [markers]
-  )
 
   useEffect(() => {
     setMounted(true)
@@ -227,7 +139,7 @@ export function GlobeInteractive({
 
       try {
         console.log("Calling createGlobe standard builder...")
-        if (!isHalloween) globe = createGlobe(canvas, {
+        globe = createGlobe(canvas, {
           devicePixelRatio: Math.min(window.devicePixelRatio || 1, 2),
           width,
           height: width,
@@ -239,7 +151,7 @@ export function GlobeInteractive({
           mapBrightness: 8,
           markerElevation: 0,
           markers: markers.map((m) => ({ location: m.location, size: backgroundMode ? 0.045 : 0.03, id: m.id })),
-          arcs: [],
+          arcs: isHalloween ? buildWebArcs(markers) : [],
           opacity: 0.85,
         } as any)
         console.log("Globe instance created successfully:", globe)
@@ -265,25 +177,6 @@ export function GlobeInteractive({
           const r = width / 2
           const sphereRadius = r * 0.83
           
-          if (isHalloween) {
-            if (moonCratersRef.current) drawMoonCraters(moonCratersRef.current, currentPhi, currentTheta)
-            moonArcs.forEach((a) => {
-              const el = document.getElementById(`hw-arc-${a.key}`)
-              if (!el) return
-              const p1 = projectNode(a.from, currentPhi, currentTheta, r, sphereRadius)
-              const p2 = projectNode(a.to, currentPhi, currentTheta, r, sphereRadius)
-              if (p1.z > 0.05 && p2.z > 0.05) {
-                // el arco de círculo máximo se abomba hacia afuera del centro respecto a la cuerda
-                const mx = (p1.x + p2.x) / 2, my = (p1.y + p2.y) / 2
-                const cx = r + (mx - r) * 1.18, cy = r + (my - r) * 1.18
-                el.setAttribute("d", `M${p1.x.toFixed(1)} ${p1.y.toFixed(1)}Q${cx.toFixed(1)} ${cy.toFixed(1)} ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`)
-                el.style.opacity = a.hot ? "0.9" : "0.55"
-              } else {
-                el.style.opacity = "0"
-              }
-            })
-          }
-
           markers.forEach((m) => {
             const lat = (m.location[0] * Math.PI) / 180
             const lon = (m.location[1] * Math.PI) / 180
@@ -350,7 +243,7 @@ export function GlobeInteractive({
         console.log("Globe instance destroyed successfully")
       }
     }
-  }, [mounted, canvasElement, markers, moonArcs, speed, backgroundMode])
+  }, [mounted, canvasElement, markers, speed, backgroundMode])
 
   if (!mounted) {
     return (
@@ -369,15 +262,6 @@ export function GlobeInteractive({
         }
       `}</style>
       {isHalloween && <div className="hw-globe-glow" aria-hidden="true" />}
-      {isHalloween && <div className="hw-moon" aria-hidden="true" />}
-      {isHalloween && <canvas ref={moonCratersRef} className="hw-moon-craters" aria-hidden="true" />}
-      {isHalloween && (
-        <svg className="hw-moon-web" viewBox={`0 0 ${canvasElement?.offsetWidth || 1000} ${canvasElement?.offsetWidth || 1000}`} aria-hidden="true">
-          {moonArcs.map((a) => (
-            <path key={a.key} id={`hw-arc-${a.key}`} d="" fill="none" stroke={a.hot ? "var(--hw-moon-arc-hot)" : "var(--hw-moon-arc)"} strokeWidth={a.hot ? 1.6 : 1.1} strokeLinecap="round" style={{ opacity: 0 }} />
-          ))}
-        </svg>
-      )}
       <canvas
         ref={setCanvasElement}
         onPointerDown={handlePointerDown}
@@ -385,7 +269,7 @@ export function GlobeInteractive({
           width: "100%",
           height: "100%",
           cursor: backgroundMode ? "default" : "grab",
-          opacity: isHalloween ? 0 : mounted ? (backgroundMode ? 0.85 : 1) : 0,
+          opacity: mounted ? (backgroundMode ? 0.85 : 1) : 0,
           transition: "opacity 0.3s ease",
           borderRadius: "50%",
           touchAction: "none",
@@ -410,13 +294,13 @@ export function GlobeInteractive({
             alignItems: "center",
             padding: backgroundMode ? "0.2rem 0.4rem" : (expanded === m.id ? "0.35rem 0.55rem" : "0.25rem 0.45rem"),
             background: isHalloween
-              ? (m.users > 0 ? "var(--hw-node-hot, #c2410c)" : "var(--hw-node, #6d28d9)")
+              ? (m.users > 0 ? "rgba(26, 12, 4, 0.94)" : "rgba(22, 24, 36, 0.92)")
               : backgroundMode ? (m.users > 0 ? "rgba(14, 49, 135, 0.95)" : "rgba(15, 23, 42, 0.85)") : "#0e3187", // High contrast dark slate for inactive ones
             color: "#fff",
             borderRadius: backgroundMode ? 5 : 6,
             cursor: backgroundMode ? "default" : "pointer",
-            boxShadow: isHalloween ? (m.users > 0 ? "0 0 0 1px rgba(255,255,255,.9), 0 2px 8px rgba(255,84,0,.55)" : "0 0 0 1px rgba(255,255,255,.85), 0 2px 8px rgba(123,44,191,.5)") : backgroundMode ? "0 2px 5px rgba(0,0,0,0.15)" : "0 4px 10px rgba(14,49,135,0.25)",
-            border: isHalloween ? (m.users > 0 ? "1px solid #ff6d00" : "1px solid #9d4edd") : backgroundMode ? "1px solid rgba(255,255,255,0.2)" : "1px solid rgba(255,255,255,0.15)",
+            boxShadow: isHalloween ? (m.users > 0 ? "0 0 8px rgba(255,109,0,0.55)" : "0 0 6px rgba(157,78,221,0.35)") : backgroundMode ? "0 2px 5px rgba(0,0,0,0.15)" : "0 4px 10px rgba(14,49,135,0.25)",
+            border: isHalloween ? (m.users > 0 ? "1px solid #ff6d00" : "1px solid rgba(255,255,255,0.22)") : backgroundMode ? "1px solid rgba(255,255,255,0.2)" : "1px solid rgba(255,255,255,0.15)",
             opacity: 0,
             transition: backgroundMode ? "opacity 0.3s, transform 0.1s" : "opacity 0.3s, transform 0.1s, padding 0.2s, background-color 0.2s",
             zIndex: backgroundMode ? 1 : (expanded === m.id ? 10 : 2),
@@ -436,8 +320,8 @@ export function GlobeInteractive({
             <span>{m.name}</span>
             {m.users > 0 && (
               <span style={{
-                background: "#fff",
-                color: isHalloween ? "#7c2d12" : "#0e3187",
+                background: isHalloween ? "#ff6d00" : "#fff",
+                color: isHalloween ? "#1a0b00" : "#0e3187",
                 fontSize: backgroundMode ? "0.45rem" : "0.55rem",
                 fontWeight: 900,
                 padding: "0.01rem 0.2rem",
