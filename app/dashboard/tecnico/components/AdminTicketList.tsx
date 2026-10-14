@@ -750,4 +750,4 @@ export function AdminTicketList({ initialTickets, currentAgentId, agentName, tot
             </div>
         </div>
     );
-}
+}
