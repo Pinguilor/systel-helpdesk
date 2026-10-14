@@ -1,10 +1,12 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useMemo, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { X, Loader2, Trash2, Zap, ArrowUpFromLine } from 'lucide-react';
-import type { RackPuerto, RackRecetaItem, RackPatchPanel, RackBoca } from '../actions';
+import type { RackPuerto, RackRecetaItem, RackPatchPanel, RackBoca, RackDispositivoPlantilla } from '../actions';
 import { asignarPuertoAction, liberarPuertoAction } from '../actions';
+import { SearchableCombobox } from './SearchableCombobox';
+import { opcionesDispositivos } from './dispositivoOpciones';
 
 export function PortModal({
     proyectoId,
@@ -13,10 +15,11 @@ export function PortModal({
     numero,
     puerto,
     receta,
+    dispositivos,
     patchPanels,
     bocas,
     bocasCruzadas,
-    equipamientoNombres,
+    dispositivoNombres,
     onClose,
 }: {
     proyectoId: string;
@@ -25,23 +28,24 @@ export function PortModal({
     numero: number;
     puerto?: RackPuerto;
     receta: RackRecetaItem[];
+    dispositivos: RackDispositivoPlantilla[];
     patchPanels: RackPatchPanel[];
     bocas: RackBoca[];
     bocasCruzadas: Set<string>;
-    equipamientoNombres: Map<string, string>;
+    dispositivoNombres: Map<string, string>;
     onClose: () => void;
 }) {
     const router = useRouter();
     const [rol, setRol] = useState<'acceso' | 'uplink'>(puerto?.rol ?? 'acceso');
     const [esPoe, setEsPoe] = useState(puerto?.es_poe ?? false);
-    const [equipId, setEquipId] = useState(puerto?.proyecto_equipamiento_id ?? '');
+    const [plantillaId, setPlantillaId] = useState(puerto?.dispositivo_plantilla_id ?? '');
     const [etiqueta, setEtiqueta] = useState(puerto?.etiqueta_libre ?? '');
     const [notas, setNotas] = useState(puerto?.notas ?? '');
     const [vlan, setVlan] = useState(puerto?.vlan != null ? String(puerto.vlan) : '');
     const [error, setError] = useState('');
     const [isPending, startTransition] = useTransition();
 
-    // Origen del dispositivo: conexión directa a la Receta Maestra, o cruzada
+    // Origen del dispositivo: conexión directa (plantilla de dispositivo), o cruzada
     // a una boca de Patch Panel (que hereda su dispositivo/ubicación documentado).
     const bocaActual = bocas.find(b => b.id === puerto?.cruzado_boca_id);
     const [modo, setModo] = useState<'directo' | 'cruzada'>(puerto?.cruzado_boca_id ? 'cruzada' : 'directo');
@@ -53,16 +57,57 @@ export function PortModal({
         b.patch_panel_id === panelId && (!bocasCruzadas.has(b.id) || b.id === puerto?.cruzado_boca_id),
     );
     const bocaSeleccionada = bocasDelPanel.find(b => b.id === bocaId);
-    const nombreHeredado = bocaSeleccionada?.proyecto_equipamiento_id
-        ? equipamientoNombres.get(bocaSeleccionada.proyecto_equipamiento_id)
+    const nombreHeredado = bocaSeleccionada?.dispositivo_plantilla_id
+        ? dispositivoNombres.get(bocaSeleccionada.dispositivo_plantilla_id)
         : undefined;
 
-    // Al elegir un dispositivo, autocompleta la VLAN con el default de ese equipo
-    // en la Receta (si tiene). El usuario puede sobreescribirla manualmente luego.
-    const handleEquipChange = (id: string) => {
-        setEquipId(id);
-        const item = receta.find(r => r.id === id);
-        if (item?.vlan_default != null) setVlan(String(item.vlan_default));
+    // VLAN por defecto de cada plantilla de dispositivo (id → vlan).
+    const vlanDefaultDe = useMemo(() => {
+        const m = new Map<string, number>();
+        dispositivos.forEach(d => { if (d.vlan_default != null) m.set(d.id, d.vlan_default); });
+        return m;
+    }, [dispositivos]);
+
+    const vlanHeredadaDeBoca = bocaSeleccionada?.dispositivo_plantilla_id
+        ? vlanDefaultDe.get(bocaSeleccionada.dispositivo_plantilla_id)
+        : undefined;
+
+    // Equipo de la Receta que tenía el puerto antes de migrar a plantillas (solo informativo).
+    const equipoLegacy = puerto?.proyecto_equipamiento_id
+        ? receta.find(r => r.id === puerto.proyecto_equipamiento_id)?.modelo ?? 'equipo de la Receta'
+        : null;
+
+    const opcionesDisp = useMemo(
+        () => opcionesDispositivos(dispositivos, puerto?.dispositivo_plantilla_id),
+        [dispositivos, puerto?.dispositivo_plantilla_id],
+    );
+    const opcionesPaneles = useMemo(
+        () => patchPanels.map(p => ({ value: p.id, label: p.nombre })),
+        [patchPanels],
+    );
+    const opcionesBocas = bocasDelPanel
+        .slice()
+        .sort((x, y) => x.numero_boca - y.numero_boca)
+        .map(b => ({
+            value: b.id,
+            label: `Boca ${b.numero_boca}`,
+            hint: [b.etiqueta_libre, b.dispositivo_plantilla_id ? dispositivoNombres.get(b.dispositivo_plantilla_id) : null]
+                .filter(Boolean).join(' · ') || undefined,
+        }));
+
+    // Al elegir un dispositivo (o una boca), autocompleta la VLAN con la VLAN por defecto
+    // de su plantilla (si tiene). El usuario puede sobreescribirla manualmente luego.
+    const handleDispositivoChange = (id: string) => {
+        setPlantillaId(id);
+        const v = vlanDefaultDe.get(id);
+        if (v != null) setVlan(String(v));
+    };
+
+    const handleBocaChange = (id: string) => {
+        setBocaId(id);
+        const pid = bocas.find(b => b.id === id)?.dispositivo_plantilla_id;
+        const v = pid ? vlanDefaultDe.get(pid) : undefined;
+        if (v != null) setVlan(String(v));
     };
 
     const guardar = () => {
@@ -79,7 +124,7 @@ export function PortModal({
             }
             const res = await asignarPuertoAction({
                 proyectoId, switchId, numeroPuerto: numero, rol, esPoe,
-                proyectoEquipamientoId: modo === 'directo' ? (equipId || null) : null,
+                dispositivoPlantillaId: modo === 'directo' ? (plantillaId || null) : null,
                 cruzadoBocaId: modo === 'cruzada' ? (bocaId || null) : null,
                 etiquetaLibre: etiqueta || null,
                 notas: notas || null,
@@ -161,17 +206,21 @@ export function PortModal({
 
                         {modo === 'directo' ? (
                             <div className="grid grid-cols-3 gap-3">
+                                {equipoLegacy && !plantillaId && (
+                                    <p className="col-span-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                                        Este puerto tenía asignado <b>{equipoLegacy}</b> (Receta). Elige un dispositivo de las plantillas; al guardar, el equipo anterior se reemplaza.
+                                    </p>
+                                )}
                                 <div className="col-span-2">
-                                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Dispositivo (Receta Maestra)</label>
-                                    <select value={equipId} onChange={e => handleEquipChange(e.target.value)}
-                                        className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent">
-                                        <option value="">— Ninguno —</option>
-                                        {receta.map(r => (
-                                            <option key={r.id} value={r.id}>
-                                                {r.modelo} · {r.familia}{r.es_serializado ? ' (serializado)' : ''}
-                                            </option>
-                                        ))}
-                                    </select>
+                                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Dispositivo</label>
+                                    <SearchableCombobox
+                                        options={opcionesDisp}
+                                        value={plantillaId}
+                                        onChange={handleDispositivoChange}
+                                        placeholder="Seleccionar dispositivo…"
+                                        searchPlaceholder="Buscar zona o dispositivo…"
+                                        emptyLabel="— Ninguno —"
+                                    />
                                 </div>
                                 <div>
                                     <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">VLAN</label>
@@ -188,26 +237,32 @@ export function PortModal({
                                 <div className="grid grid-cols-2 gap-3">
                                     <div>
                                         <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Patch Panel</label>
-                                        <select value={panelId} onChange={e => { setPanelId(e.target.value); setBocaId(''); }}
-                                            className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-400 focus:border-transparent">
-                                            <option value="">— Seleccionar —</option>
-                                            {patchPanels.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-                                        </select>
+                                        <SearchableCombobox
+                                            options={opcionesPaneles}
+                                            value={panelId}
+                                            onChange={v => { setPanelId(v); setBocaId(''); }}
+                                            placeholder="Seleccionar…"
+                                            searchPlaceholder="Buscar panel…"
+                                            accent="violet"
+                                        />
                                     </div>
                                     <div>
                                         <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Boca de origen</label>
-                                        <select value={bocaId} onChange={e => setBocaId(e.target.value)} disabled={!panelId}
-                                            className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-400 focus:border-transparent disabled:opacity-50">
-                                            <option value="">— Seleccionar —</option>
-                                            {bocasDelPanel.map(b => (
-                                                <option key={b.id} value={b.id}>Boca {b.numero_boca}{b.etiqueta_libre ? ` · ${b.etiqueta_libre}` : ''}</option>
-                                            ))}
-                                        </select>
+                                        <SearchableCombobox
+                                            options={opcionesBocas}
+                                            value={bocaId}
+                                            onChange={handleBocaChange}
+                                            placeholder="Seleccionar…"
+                                            searchPlaceholder="Buscar boca o ubicación…"
+                                            disabled={!panelId}
+                                            accent="violet"
+                                        />
                                     </div>
                                 </div>
                                 {bocaSeleccionada && (
                                     <div className="text-xs text-violet-700 bg-violet-50 border border-violet-200 rounded-xl px-3 py-2">
-                                        Hereda: <b>{bocaSeleccionada.etiqueta_libre || nombreHeredado || 'Sin documentar aún'}</b>
+                                        Hereda: <b>{[nombreHeredado, bocaSeleccionada.etiqueta_libre].filter(Boolean).join(' · ') || 'Sin documentar aún'}</b>
+                                        {vlanHeredadaDeBoca != null && <> · VLAN por defecto <b>{vlanHeredadaDeBoca}</b></>}
                                     </div>
                                 )}
                                 <div className="w-1/3">

@@ -3,13 +3,14 @@
 import { useState, useEffect, useTransition, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Network, Plus, Loader2, X, LayoutTemplate, Save, PanelsTopLeft } from 'lucide-react';
-import type { RackSwitch, RackPuerto, RackPatchPanel, RackBoca, RackRecetaItem, RackTemplate } from '../actions';
+import type { RackSwitch, RackPuerto, RackPatchPanel, RackBoca, RackDispositivoPlantilla, RackRecetaItem, RackTemplate } from '../actions';
 import { crearSwitchAction, eliminarSwitchAction, crearPatchPanelAction, eliminarPatchPanelAction } from '../actions';
 import { SwitchPortGrid } from './SwitchPortGrid';
 import { PortModal } from './PortModal';
 import { PatchPanelGrid } from './PatchPanelGrid';
 import { BocaModal } from './BocaModal';
 import { AutogenerarBocasModal } from './AutogenerarBocasModal';
+import { SearchableCombobox } from './SearchableCombobox';
 import { ApplyTemplateModal, SaveAsTemplateModal } from './TemplateModals';
 
 const OPCIONES_PUERTOS = [8, 24, 48];
@@ -21,6 +22,7 @@ export function RackBoard({
     initialPuertos,
     initialPatchPanels,
     initialBocas,
+    dispositivos,
     receta,
     plantillas,
     canEdit,
@@ -30,6 +32,7 @@ export function RackBoard({
     initialPuertos: RackPuerto[];
     initialPatchPanels: RackPatchPanel[];
     initialBocas: RackBoca[];
+    dispositivos: RackDispositivoPlantilla[];
     receta: RackRecetaItem[];
     plantillas: RackTemplate[];
     canEdit: boolean;
@@ -46,12 +49,31 @@ export function RackBoard({
     useEffect(() => { setPatchPanels(initialPatchPanels); }, [initialPatchPanels]);
     useEffect(() => { setBocas(initialBocas); }, [initialBocas]);
 
-    // Mapa equipamiento.id → modelo, para tooltips de puertos/bocas asignados.
+    // Mapa equipamiento.id → modelo, para tooltips de puertos asignados.
     const equipamientoNombres = useMemo(() => {
         const m = new Map<string, string>();
         receta.forEach(r => m.set(r.id, r.modelo));
         return m;
     }, [receta]);
+
+    // Mapa plantilla de dispositivo.id → nombre, para bocas de patch panel.
+    const dispositivoNombres = useMemo(() => {
+        const m = new Map<string, string>();
+        dispositivos.forEach(d => m.set(d.id, d.nombre));
+        return m;
+    }, [dispositivos]);
+
+    // boca.id → "Panel · Boca N · Zona · Dispositivo" (tooltip de puertos cruzados).
+    const bocaInfo = useMemo(() => {
+        const paneles = new Map(patchPanels.map(p => [p.id, p.nombre]));
+        const m = new Map<string, string>();
+        bocas.forEach(b => m.set(b.id, [
+            paneles.get(b.patch_panel_id) ?? 'Panel',
+            `Boca ${b.numero_boca}`,
+            b.dispositivo_plantilla_id ? dispositivoNombres.get(b.dispositivo_plantilla_id) : null,
+        ].filter(Boolean).join(' · ')));
+        return m;
+    }, [patchPanels, bocas, dispositivoNombres]);
 
     // Bocas cruzadas a algún puerto de switch (estado derivado, no almacenado).
     const bocasCruzadas = useMemo(
@@ -183,13 +205,13 @@ export function RackBoard({
                     </div>
                     <div>
                         <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Bocas</label>
-                        <select
-                            value={numBocas}
-                            onChange={e => setNumBocas(Number(e.target.value))}
-                            className="rounded-xl border border-slate-200 px-3.5 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400"
-                        >
-                            {OPCIONES_BOCAS.map(n => <option key={n} value={n}>{n}</option>)}
-                        </select>
+                        <SearchableCombobox
+                            options={OPCIONES_BOCAS.map(n => ({ value: String(n), label: String(n) }))}
+                            value={String(numBocas)}
+                            onChange={v => setNumBocas(Number(v))}
+                            searchable={false}
+                            accent="amber"
+                        />
                     </div>
                     <div className="flex items-center gap-2">
                         <button
@@ -226,13 +248,12 @@ export function RackBoard({
                     </div>
                     <div>
                         <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Puertos</label>
-                        <select
-                            value={numPuertos}
-                            onChange={e => setNumPuertos(Number(e.target.value))}
-                            className="rounded-xl border border-slate-200 px-3.5 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                        >
-                            {OPCIONES_PUERTOS.map(n => <option key={n} value={n}>{n}</option>)}
-                        </select>
+                        <SearchableCombobox
+                            options={OPCIONES_PUERTOS.map(n => ({ value: String(n), label: String(n) }))}
+                            value={String(numPuertos)}
+                            onChange={v => setNumPuertos(Number(v))}
+                            searchable={false}
+                        />
                     </div>
                     <div className="flex items-center gap-2">
                         <button
@@ -264,12 +285,13 @@ export function RackBoard({
                     {patchPanels.map(panel => (
                         <PatchPanelGrid
                             key={panel.id}
+                            proyectoId={proyectoId}
                             panel={panel}
                             bocas={bocasDe(panel.id)}
                             bocasCruzadas={bocasCruzadas}
                             canEdit={canEdit}
                             onDelete={handleEliminarPanel}
-                            equipamientoNombres={equipamientoNombres}
+                            dispositivoNombres={dispositivoNombres}
                             onBocaClick={canEdit ? (numero, boca) => setBocaModal({ panel, numero, boca }) : undefined}
                             onAutogenerar={canEdit ? () => setAutogenModal(panel) : undefined}
                         />
@@ -289,11 +311,14 @@ export function RackBoard({
                     {switches.map(sw => (
                         <SwitchPortGrid
                             key={sw.id}
+                            proyectoId={proyectoId}
                             sw={sw}
                             puertos={puertosDe(sw.id)}
                             canEdit={canEdit}
                             onDelete={handleEliminar}
                             equipamientoNombres={equipamientoNombres}
+                            dispositivoNombres={dispositivoNombres}
+                            bocaInfo={bocaInfo}
                             onPortClick={canEdit ? (numero, puerto) => setPortModal({ sw, numero, puerto }) : undefined}
                         />
                     ))}
@@ -309,10 +334,11 @@ export function RackBoard({
                     numero={portModal.numero}
                     puerto={portModal.puerto}
                     receta={receta}
+                    dispositivos={dispositivos}
                     patchPanels={patchPanels}
                     bocas={bocas}
                     bocasCruzadas={bocasCruzadas}
-                    equipamientoNombres={equipamientoNombres}
+                    dispositivoNombres={dispositivoNombres}
                     onClose={() => setPortModal(null)}
                 />
             )}
@@ -325,7 +351,9 @@ export function RackBoard({
                     panelNombre={bocaModal.panel.nombre}
                     numero={bocaModal.numero}
                     boca={bocaModal.boca}
-                    receta={receta}
+                    dispositivos={dispositivos}
+                    switches={switches}
+                    puertos={puertos}
                     onClose={() => setBocaModal(null)}
                 />
             )}
@@ -337,6 +365,8 @@ export function RackBoard({
                     patchPanelId={autogenModal.id}
                     panelNombre={autogenModal.nombre}
                     numBocas={autogenModal.num_bocas}
+                    dispositivos={dispositivos}
+                    switches={switches}
                     onClose={() => setAutogenModal(null)}
                 />
             )}

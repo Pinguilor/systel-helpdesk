@@ -115,6 +115,7 @@ export default async function ProyectoWorkspacePage({
                         initialPuertos={rack.puertos}
                         initialPatchPanels={rack.patchPanels}
                         initialBocas={rack.bocas}
+                        dispositivos={rack.dispositivos}
                         receta={rack.receta}
                         plantillas={rack.plantillas}
                         canEdit={currentUserRol === 'admin' || currentUserRol === 'coordinador'}

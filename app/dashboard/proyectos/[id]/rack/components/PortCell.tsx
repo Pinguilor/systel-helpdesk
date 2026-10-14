@@ -7,7 +7,7 @@ import type { RackPuerto } from '../actions';
 function colorClasses(p?: RackPuerto): string {
     if (!p) return 'bg-slate-100 text-slate-400 border-slate-200';          // libre
     if (p.rol === 'uplink') return 'bg-blue-500 text-white border-blue-600'; // uplink
-    if (p.proyecto_equipamiento_id || p.inventario_id || p.etiqueta_libre)
+    if (p.proyecto_equipamiento_id || p.inventario_id || p.dispositivo_plantilla_id || p.cruzado_boca_id || p.etiqueta_libre)
         return 'bg-emerald-500 text-white border-emerald-600';               // ocupado
     return 'bg-indigo-200 text-indigo-800 border-indigo-300';                // reservado (fila sin equipo)
 }
@@ -19,8 +19,8 @@ function tooltip(numero: number, p?: RackPuerto, equipNombre?: string): string {
     if (p.es_poe) partes.push('PoE');
     if (p.vlan != null) partes.push(`VLAN ${p.vlan}`);
     if (p.etiqueta_libre) partes.push(p.etiqueta_libre);
-    else if (equipNombre) partes.push(equipNombre);
-    else if (p.proyecto_equipamiento_id || p.inventario_id) partes.push('Equipo asignado');
+    if (equipNombre) partes.push(equipNombre);
+    else if (p.proyecto_equipamiento_id || p.inventario_id || p.dispositivo_plantilla_id) partes.push('Equipo asignado');
     return partes.join(' · ');
 }
 
