@@ -1,7 +1,12 @@
 import { LoginForm } from './LoginForm'
 import Image from 'next/image'
+import { isHalloween } from '@/lib/theme'
+import { HalloweenLogin } from './HalloweenLogin'
 
 export default function LoginPage() {
+    // Temporada de Halloween: login temático (mismo server action). Se apaga con lib/theme.ts
+    if (isHalloween) return <HalloweenLogin />
+
     return (
         <div className="min-h-screen bg-cover bg-center flex items-center justify-center p-4 relative overflow-hidden" style={{ backgroundImage: "url('/login-bg-ai.png')" }}>
             {/* Subtle dark overlay */}

@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { isHalloween } from '@/lib/theme';
+import { HalloweenLoaderContent } from '@/components/theme/HalloweenLoader';
 
 interface LoopLoaderProps {
   fullScreen?: boolean;
@@ -15,7 +17,9 @@ export const LoopLoader: React.FC<LoopLoaderProps> = ({ fullScreen = false, text
     setMounted(true);
   }, []);
 
-  const content = (
+  const content = isHalloween ? (
+    <HalloweenLoaderContent text={text} fullScreen={fullScreen} />
+  ) : (
     <div className="flex flex-col items-center justify-center gap-6 animate-in fade-in zoom-in duration-500">
       <div className="relative w-32 h-16 flex items-center justify-center">
         <svg className="w-full h-full overflow-visible" viewBox="0 0 100 50">
@@ -116,7 +120,7 @@ export const LoopLoader: React.FC<LoopLoaderProps> = ({ fullScreen = false, text
 
   if (fullScreen) {
     const loader = (
-      <div className="fixed inset-0 z-[999999] flex items-center justify-center bg-zinc-950 border-transparent transition-all">
+      <div className={`fixed inset-0 z-[999999] flex items-center justify-center border-transparent transition-all ${isHalloween ? 'hwk-backdrop' : 'bg-zinc-950'}`}>
         {content}
       </div>
     );
