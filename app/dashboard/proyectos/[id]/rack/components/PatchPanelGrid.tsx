@@ -4,8 +4,10 @@ import { useState, useTransition } from 'react';
 import { Trash2, Loader2, PanelsTopLeft, ListPlus } from 'lucide-react';
 import type { RackPatchPanel, RackBoca } from '../actions';
 import { BocaCell } from './BocaCell';
+import { DescargarPdfButton } from './DescargarPdfButton';
 
 export function PatchPanelGrid({
+    proyectoId,
     panel,
     bocas,
     bocasCruzadas,
@@ -13,8 +15,9 @@ export function PatchPanelGrid({
     onDelete,
     onBocaClick,
     onAutogenerar,
-    equipamientoNombres,
+    dispositivoNombres,
 }: {
+    proyectoId: string;
     panel: RackPatchPanel;
     bocas: RackBoca[];
     bocasCruzadas: Set<string>;
@@ -22,7 +25,7 @@ export function PatchPanelGrid({
     onDelete: (patchPanelId: string) => Promise<void>;
     onBocaClick?: (numero: number, boca?: RackBoca) => void;
     onAutogenerar?: () => void;
-    equipamientoNombres?: Map<string, string>;
+    dispositivoNombres?: Map<string, string>;
 }) {
     const [isPending, startTransition] = useTransition();
     const [confirmDelete, setConfirmDelete] = useState(false);
@@ -54,45 +57,48 @@ export function PatchPanelGrid({
                         </p>
                     </div>
                 </div>
-                {canEdit && (
-                    <div className="flex items-center gap-1.5">
-                        {onAutogenerar && (
-                            <button
-                                onClick={onAutogenerar}
-                                title="Autogenerar bocas"
-                                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-500 text-xs font-bold hover:bg-slate-50 transition-colors"
-                            >
-                                <ListPlus className="w-3.5 h-3.5" /> Autogenerar
-                            </button>
-                        )}
-                        {confirmDelete ? (
-                            <div className="flex items-center gap-1.5">
+                <div className="flex flex-col items-end gap-1.5">
+                    {canEdit && (
+                        <div className="flex items-center gap-1.5">
+                            {onAutogenerar && (
                                 <button
-                                    onClick={() => startTransition(async () => { await onDelete(panel.id); setConfirmDelete(false); })}
-                                    disabled={isPending}
-                                    className="px-2.5 py-1.5 rounded-lg bg-red-600 text-white text-xs font-bold hover:bg-red-700 disabled:opacity-50"
+                                    onClick={onAutogenerar}
+                                    title="Autogenerar bocas"
+                                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-500 text-xs font-bold hover:bg-slate-50 transition-colors"
                                 >
-                                    {isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Confirmar'}
+                                    <ListPlus className="w-3.5 h-3.5" /> Autogenerar
                                 </button>
+                            )}
+                            {confirmDelete ? (
+                                <div className="flex items-center gap-1.5">
+                                    <button
+                                        onClick={() => startTransition(async () => { await onDelete(panel.id); setConfirmDelete(false); })}
+                                        disabled={isPending}
+                                        className="px-2.5 py-1.5 rounded-lg bg-red-600 text-white text-xs font-bold hover:bg-red-700 disabled:opacity-50"
+                                    >
+                                        {isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Confirmar'}
+                                    </button>
+                                    <button
+                                        onClick={() => setConfirmDelete(false)}
+                                        disabled={isPending}
+                                        className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-500 text-xs font-bold hover:bg-slate-50"
+                                    >
+                                        Cancelar
+                                    </button>
+                                </div>
+                            ) : (
                                 <button
-                                    onClick={() => setConfirmDelete(false)}
-                                    disabled={isPending}
-                                    className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-500 text-xs font-bold hover:bg-slate-50"
+                                    onClick={() => setConfirmDelete(true)}
+                                    title="Eliminar patch panel"
+                                    className="p-1.5 rounded-lg border border-slate-200 text-slate-400 hover:text-red-500 hover:border-red-200 hover:bg-red-50 transition-colors"
                                 >
-                                    Cancelar
+                                    <Trash2 className="w-3.5 h-3.5" />
                                 </button>
-                            </div>
-                        ) : (
-                            <button
-                                onClick={() => setConfirmDelete(true)}
-                                title="Eliminar patch panel"
-                                className="p-1.5 rounded-lg border border-slate-200 text-slate-400 hover:text-red-500 hover:border-red-200 hover:bg-red-50 transition-colors"
-                            >
-                                <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                        )}
-                    </div>
-                )}
+                            )}
+                        </div>
+                    )}
+                    <DescargarPdfButton proyectoId={proyectoId} tipo="patch_panel" equipoId={panel.id} />
+                </div>
             </div>
 
             {/* Grilla de bocas */}
@@ -102,8 +108,8 @@ export function PatchPanelGrid({
                     const bottom = 2 * c + 2;
                     const cell = (numero: number) => {
                         const b = porNumero.get(numero);
-                        const nombre = b?.proyecto_equipamiento_id
-                            ? equipamientoNombres?.get(b.proyecto_equipamiento_id)
+                        const nombre = b?.dispositivo_plantilla_id
+                            ? dispositivoNombres?.get(b.dispositivo_plantilla_id)
                             : undefined;
                         return (
                             <BocaCell

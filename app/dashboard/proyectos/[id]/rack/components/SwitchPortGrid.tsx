@@ -4,23 +4,32 @@ import { useState, useTransition } from 'react';
 import { Trash2, Loader2, Server } from 'lucide-react';
 import type { RackSwitch, RackPuerto } from '../actions';
 import { PortCell } from './PortCell';
+import { DescargarPdfButton } from './DescargarPdfButton';
 
 export function SwitchPortGrid({
+    proyectoId,
     sw,
     puertos,
     canEdit,
     onDelete,
     onPortClick,
     equipamientoNombres,
+    dispositivoNombres,
+    bocaInfo,
 }: {
+    proyectoId: string;
     sw: RackSwitch;
     puertos: RackPuerto[];
     canEdit: boolean;
     onDelete: (switchId: string) => Promise<void>;
     onPortClick?: (numero: number, puerto?: RackPuerto) => void;
     equipamientoNombres?: Map<string, string>;
+    dispositivoNombres?: Map<string, string>;
+    /** boca.id → "Panel · Boca N · Zona · Dispositivo", para el tooltip de puertos cruzados. */
+    bocaInfo?: Map<string, string>;
 }) {
     const [isPending, startTransition] = useTransition();
+    const [confirmDelete, setConfirmDelete] = useState(false);
 
     // Lookup por número de puerto (modelo disperso: lo no presente es libre)
     const porNumero = new Map<number, RackPuerto>();
@@ -28,7 +37,7 @@ export function SwitchPortGrid({
 
     // Columnas pareadas como un switch real: arriba impares, abajo pares.
     const columnas = Math.ceil(sw.num_puertos / 2);
-    const ocupados = puertos.filter(p => p.proyecto_equipamiento_id || p.inventario_id || p.etiqueta_libre).length;
+    const ocupados = puertos.filter(p => p.proyecto_equipamiento_id || p.inventario_id || p.dispositivo_plantilla_id || p.cruzado_boca_id || p.etiqueta_libre).length;
 
     return (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
@@ -45,19 +54,35 @@ export function SwitchPortGrid({
                         </p>
                     </div>
                 </div>
-                {canEdit && (
-                    <button
-                        onClick={() => {
-                            if (!confirm(`¿Eliminar el switch "${sw.nombre}" y todos sus puertos?`)) return;
-                            startTransition(() => onDelete(sw.id));
-                        }}
-                        disabled={isPending}
-                        title="Eliminar switch"
-                        className="p-1.5 rounded-lg border border-slate-200 text-slate-400 hover:text-red-500 hover:border-red-200 hover:bg-red-50 transition-colors disabled:opacity-50"
-                    >
-                        {isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-                    </button>
-                )}
+                <div className="flex flex-col items-end gap-1.5">
+                    {canEdit && (confirmDelete ? (
+                        <div className="flex items-center gap-1.5">
+                            <button
+                                onClick={() => startTransition(async () => { await onDelete(sw.id); setConfirmDelete(false); })}
+                                disabled={isPending}
+                                className="px-2.5 py-1.5 rounded-lg bg-red-600 text-white text-xs font-bold hover:bg-red-700 disabled:opacity-50"
+                            >
+                                {isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Confirmar'}
+                            </button>
+                            <button
+                                onClick={() => setConfirmDelete(false)}
+                                disabled={isPending}
+                                className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-500 text-xs font-bold hover:bg-slate-50"
+                            >
+                                Cancelar
+                            </button>
+                        </div>
+                    ) : (
+                        <button
+                            onClick={() => setConfirmDelete(true)}
+                            title="Eliminar switch"
+                            className="p-1.5 rounded-lg border border-slate-200 text-slate-400 hover:text-red-500 hover:border-red-200 hover:bg-red-50 transition-colors"
+                        >
+                            <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                    ))}
+                    <DescargarPdfButton proyectoId={proyectoId} tipo="switch" equipoId={sw.id} />
+                </div>
             </div>
 
             {/* Grilla de puertos */}
@@ -67,9 +92,13 @@ export function SwitchPortGrid({
                     const bottom = 2 * c + 2;
                     const cell = (numero: number) => {
                         const p = porNumero.get(numero);
-                        const nombre = p?.proyecto_equipamiento_id
-                            ? equipamientoNombres?.get(p.proyecto_equipamiento_id)
-                            : undefined;
+                        const nombre = p?.cruzado_boca_id
+                            ? `Cruzada · ${bocaInfo?.get(p.cruzado_boca_id) ?? 'boca'}`
+                            : p?.dispositivo_plantilla_id
+                                ? dispositivoNombres?.get(p.dispositivo_plantilla_id)
+                                : p?.proyecto_equipamiento_id
+                                    ? equipamientoNombres?.get(p.proyecto_equipamiento_id)
+                                    : undefined;
                         return (
                             <PortCell
                                 numero={numero}

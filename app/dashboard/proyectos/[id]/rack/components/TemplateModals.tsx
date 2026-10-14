@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { X, Loader2, LayoutTemplate, Save } from 'lucide-react';
 import type { RackTemplate } from '../actions';
 import { aplicarPlantillaAction, guardarComoPlantillaAction } from '../actions';
+import { SearchableCombobox } from './SearchableCombobox';
 
 function contar(tpl: RackTemplate) {
     const switches = tpl.payload?.switches ?? [];
@@ -60,10 +61,13 @@ export function ApplyTemplateModal({
 
                     <div>
                         <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Plantilla</label>
-                        <select value={templateId} onChange={e => setTemplateId(e.target.value)}
-                            className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400">
-                            {plantillas.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-                        </select>
+                        <SearchableCombobox
+                            options={plantillas.map(p => ({ value: p.id, label: p.nombre }))}
+                            value={templateId}
+                            onChange={setTemplateId}
+                            placeholder="Seleccionar plantilla…"
+                            searchPlaceholder="Buscar plantilla…"
+                        />
                         {seleccionada && (
                             <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
                                 {seleccionada.descripcion ? `${seleccionada.descripcion} · ` : ''}

@@ -4,6 +4,8 @@ import { ProyectosDashboardView } from './components/ProyectosDashboardView';
 import { ProyectoFormModal } from './components/ProyectoFormModal';
 import { GestorPlantillasModal } from './components/GestorPlantillasModal';
 import { GestorPlantillasBOMModal } from './components/GestorPlantillasBOMModal';
+import { GestorDispositivosModal } from './components/GestorDispositivosModal';
+import { getZonasConDispositivos } from './dispositivos/actions';
 import { FolderKanban } from 'lucide-react';
 import { createClient } from '@/lib/supabase/server';
 
@@ -23,6 +25,9 @@ export default async function ProyectosPage() {
         const { data: profile } = await supabase.from('profiles').select('rol').eq('id', user.id).single();
         currentUserRol = profile?.rol?.toUpperCase() || '';
     }
+
+    // Maestro de zonas/dispositivos: solo lo gestiona el admin.
+    const dispositivosData = currentUserRol === 'ADMIN' ? await getZonasConDispositivos() : null;
 
     return (
         <div className="relative min-h-screen bg-slate-50/30">
@@ -47,6 +52,7 @@ export default async function ProyectosPage() {
                         <div className="flex items-center gap-3 shrink-0">
                             <GestorPlantillasBOMModal plantillas={recetasBOM as any} catalogo={catalogo} />
                             <GestorPlantillasModal plantillas={plantillas as any} />
+                            {dispositivosData && <GestorDispositivosModal data={dispositivosData} />}
                             <ProyectoFormModal
                                 empresas={empresas}
                                 sucursales={sucursales}
