@@ -536,7 +536,7 @@ html[data-theme="halloween"] {
 }
 
 /* ==========================================================================
-   LOGIN DE HALLOWEEN (app/login/HalloweenLogin.tsx): calavera guardiana que
+   LOGIN DE HALLOWEEN (app/login/HalloweenLogin.tsx): fantasmita guardián que
    sigue el cursor y cierra los ojos en la contraseña, y una lápida con el form.
    ========================================================================== */
 .hwl-root { position: relative; min-height: 100vh; min-height: 100dvh; overflow: hidden; color: #f1eef8; display: flex; flex-direction: column; }
@@ -564,12 +564,14 @@ html[data-theme="halloween"] {
 .hwl-stage { position: relative; z-index: 2; flex: 1; display: flex; align-items: flex-end; justify-content: center; gap: clamp(16px, 5vw, 90px); padding: 24px 16px 13vh; }
 .hwl-guard { position: relative; width: clamp(220px, 30vw, 380px); margin-bottom: -2vh; animation: hwl-rise 1.4s .3s cubic-bezier(.2,.7,.2,1) both; }
 .hwl-jack { display: block; width: 100%; overflow: visible; filter: drop-shadow(0 0 40px rgba(255,120,30,.35)); }
-.hwl-skull { filter: drop-shadow(0 0 30px rgba(157,78,221,.35)) drop-shadow(0 12px 18px rgba(0,0,0,.6)); animation: hwl-hover 5s ease-in-out infinite; }
-.hwl-eyeglow { transition: opacity .3s ease; animation: hw-candle 2.6s ease-in-out infinite; }
-.hwl-jaw { transition: transform .25s cubic-bezier(.3,1.6,.5,1); animation: hwl-chatter 7s ease-in-out infinite; }
-.hwl-jack--lit .hwl-jaw { animation: none; }
-.hwl-jack--sad .hwl-jaw { animation: hwl-chatter-fast .12s linear 4; }
-.hwl-jack--lit .hwl-eyeglow { animation: hwl-blaze .35s ease-in-out infinite alternate; }
+.hwl-ghost { filter: drop-shadow(0 0 26px rgba(170,150,255,.45)) drop-shadow(0 0 60px rgba(123,92,255,.25)); }
+.hwl-ghost-body { animation: hwl-float 4s ease-in-out infinite; }
+.hwl-ghost-shadow { transform-box: fill-box; transform-origin: center; animation: hwl-shadow 4s ease-in-out infinite; }
+.hwl-ghost-tail { transform-box: fill-box; transform-origin: 50% 0; animation: hwl-wave 1.8s ease-in-out infinite alternate; }
+.hwl-ghost-eyes { transition: transform .15s ease-out; }
+.hwl-arm { transform-box: fill-box; transform-origin: center; transition: transform .35s cubic-bezier(.3,1.4,.5,1); }
+.hwl-tears { animation: hwl-tear 1s ease-in infinite; }
+.hwl-jack--lit .hwl-ghost-body { animation: hwl-hop .5s ease-in-out infinite alternate; }
 .hwl-jack--lit { filter: drop-shadow(0 0 50px rgba(255,140,30,.6)) drop-shadow(0 12px 18px rgba(0,0,0,.6)); }
 .hwl-jack--sad { animation: hwl-shake .5s ease-in-out 1; }
 .hwl-pupil { transition: cx .12s ease-out, cy .12s ease-out; }
@@ -621,9 +623,11 @@ html[data-theme="halloween"] {
 @keyframes hwl-rise { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes hwl-pop { from { transform: translateX(-50%) scale(.8); opacity: 0; } to { transform: translateX(-50%) scale(1); opacity: 1; } }
 @keyframes hwl-ember { 0% { transform: translate(0, 0); opacity: 0; } 10% { opacity: .9; } 50% { transform: translate(18px, -50vh); } 90% { opacity: .6; } 100% { transform: translate(-12px, -100vh); opacity: 0; } }
-@keyframes hwl-hover { 0%,100% { transform: translateY(0) rotate(-1deg); } 50% { transform: translateY(-8px) rotate(1deg); } }
-@keyframes hwl-chatter { 0%,88%,100% { translate: 0 0; } 90% { translate: 0 3px; } 92% { translate: 0 0; } 94% { translate: 0 3px; } 96% { translate: 0 0; } }
-@keyframes hwl-chatter-fast { 0%,100% { translate: 0 0; } 50% { translate: 0 4px; } }
+@keyframes hwl-float { 0%,100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-9px) rotate(2deg); } }
+@keyframes hwl-shadow { 0%,100% { transform: scaleX(1); opacity: .45; } 50% { transform: scaleX(.8); opacity: .3; } }
+@keyframes hwl-wave { from { transform: skewX(-3deg); } to { transform: skewX(3deg); } }
+@keyframes hwl-tear { from { transform: translateY(0); opacity: 1; } to { transform: translateY(10px); opacity: 0; } }
+@keyframes hwl-hop { from { transform: translateY(0) scale(1); } to { transform: translateY(-10px) scale(1.04); } }
 @keyframes hwl-blaze { from { opacity: .85; } to { opacity: 1; filter: brightness(1.25); } }
 @keyframes hwl-shake { 0%,100% { transform: translateX(0); } 20% { transform: translateX(-8px) rotate(-3deg); } 40% { transform: translateX(7px) rotate(2deg); } 60% { transform: translateX(-5px); } 80% { transform: translateX(3px); } }
 
@@ -636,7 +640,7 @@ html[data-theme="halloween"] {
   .hwl-stone { padding: 56px 22px 46px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .hwl-moon, .hwl-guard, .hwl-stone, .hwl-bubble, .hwl-skull, .hwl-eyeglow, .hwl-jaw, .hwl-swing, .hwl-mist, .hwl-embers span, .hwl-jack--sad, .hwl-jack--sad .hwl-jaw, .hwl-jack--lit .hwl-eyeglow { animation: none !important; }
+  .hwl-moon, .hwl-guard, .hwl-stone, .hwl-bubble, .hwl-ghost-body, .hwl-ghost-shadow, .hwl-ghost-tail, .hwl-tears, .hwl-swing, .hwl-mist, .hwl-embers span, .hwl-jack--sad, .hwl-jack--lit .hwl-ghost-body { animation: none !important; }
   .hwl-embers { display: none; }
 }
 

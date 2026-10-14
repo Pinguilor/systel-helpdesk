@@ -7,25 +7,27 @@ import { useFormStatus } from 'react-dom';
 import { Loader2 } from 'lucide-react';
 import { login } from './actions';
 
-/* Login de temporada (Halloween): calavera guardiana y lápida. Lo usa page.tsx solo con el tema activo;
+/* Login de temporada (Halloween): fantasmita guardián y lápida. Lo usa page.tsx solo con el tema activo;
    el formulario envía al mismo server action `login` que el login normal. */
 
 type Focus = 'none' | 'email' | 'password';
 type Mood = 'idle' | 'email' | 'password' | 'error' | 'pending';
 
 const LINES: Record<Mood, string> = {
-    idle: 'Bienvenido a la cripta… ¿vienes por tus tickets?',
-    email: 'Puedo sentir tu presencia… déjame ver quién eres.',
-    password: 'Cierro los ojos… tu secreto está a salvo conmigo.',
-    error: '¡Ese no es tu nombre, mortal!',
-    pending: '¡Se abre la cripta!',
+    idle: 'Buuu… ¡hola! ¿Vienes por tus tickets?',
+    email: '¿Quién anda ahí? Déjame ver…',
+    password: '¡No estoy mirando, lo prometo!',
+    error: 'Buaaa… ese hechizo no funcionó.',
+    pending: '¡Buuu! ¡Abriendo la puerta!',
 };
 
-// Cuencas de los ojos (coordenadas locales de la calavera)
-const EYE_L = 'M-35-14L-9-8C-4-6-3 1-7 6-11 11-21 11-28 6-35 1-38-7-35-14Z';
-const EYE_R = 'M35-14L9-8C4-6 3 1 7 6 11 11 21 11 28 6 35 1 38-7 35-14Z';
-const CRANIUM = 'M0-62C-30-62-46-42-46-16-46-3-42 5-38 10-38 19-34 26-30 29L-28 36C-26 40-22 41-18 41H18C22 41 26 40 28 36L30 29C34 26 38 19 38 10 42 5 46-3 46-16 46-42 30-62 0-62Z';
-const JAW = 'M-27 36C-28 45-24 54-17 59-11 63-5 64 0 64S11 63 17 59C24 54 28 45 27 36L20 39H-20Z';
+// Cuerpo del fantasma con el borde inferior ondulado (coordenadas locales)
+const GHOST_BODY = 'M-38 46V-14C-38-40-21-58 0-58S38-40 38-14V46C34 54 27 54 23 47 19 40 13 40 9 47 5 54-1 54-5 47-9 40-15 40-19 47-23 54-33 55-38 46Z';
+const MOUTHS = {
+    smile: 'M-6 6Q0 12 6 6',
+    sad: 'M-6 11Q0 5 6 11',
+    shout: 'M-7 6A7 8 0 1 0 7 6 7 8 0 1 0-7 6Z',
+};
 
 // Brasas que suben (posiciones fijas para que el render de servidor y cliente coincidan)
 const EMBERS = [
@@ -33,92 +35,61 @@ const EMBERS = [
     [63, 7, 12], [70, 5, 15], [78, 1, 10], [86, 6, 13], [93, 3, 11], [10, 9, 16], [58, 10, 14],
 ];
 
-function Skull({ mood, look }: { mood: Mood; look: { x: number; y: number } }) {
-    const closed = mood === 'password';
-    const angry = mood === 'error';
-    const px = closed ? 0 : look.x * 5;
-    const py = closed ? 0 : look.y * 3.2;
-    const jawDrop = mood === 'pending' ? 10 : 0;
-    const glow = angry ? 'url(#hwl-glow-red)' : 'url(#hwl-glow)';
+function Ghost({ mood, look }: { mood: Mood; look: { x: number; y: number } }) {
+    const covering = mood === 'password';
+    const sad = mood === 'error';
+    const happy = mood === 'pending';
+    const px = covering ? 0 : look.x * 3.4;
+    const py = covering ? 0 : look.y * 2.6;
     return (
-        <svg className={`hwl-jack hwl-skull ${mood === 'pending' ? 'hwl-jack--lit' : ''} ${angry ? 'hwl-jack--sad' : ''}`} viewBox="-62 -68 124 140" aria-hidden="true">
+        <svg className={`hwl-jack hwl-ghost ${happy ? 'hwl-jack--lit' : ''} ${sad ? 'hwl-jack--sad' : ''}`} viewBox="-60 -66 120 136" aria-hidden="true">
             <defs>
-                <radialGradient id="hwl-bone" cx="42%" cy="26%" r="82%">
-                    <stop offset="0" stopColor="#e8dfc4" /><stop offset=".4" stopColor="#c7b890" /><stop offset=".75" stopColor="#857552" /><stop offset="1" stopColor="#3a3124" />
-                </radialGradient>
-                <radialGradient id="hwl-jawbone" cx="45%" cy="5%" r="95%">
-                    <stop offset="0" stopColor="#bfae86" /><stop offset=".6" stopColor="#7d6e50" /><stop offset="1" stopColor="#2e271c" />
-                </radialGradient>
-                <linearGradient id="hwl-under" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset=".35" stopColor="#1a0f08" stopOpacity="0" /><stop offset="1" stopColor="#1a0f08" stopOpacity=".55" />
+                <linearGradient id="hwl-sheet" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stopColor="#ffffff" /><stop offset=".55" stopColor="#eef0ff" /><stop offset="1" stopColor="#c9c6f2" stopOpacity=".72" />
                 </linearGradient>
-                <radialGradient id="hwl-glow" cx="50%" cy="50%" r="50%">
-                    <stop offset="0" stopColor="#fff1b8" /><stop offset=".25" stopColor="#ff9a1f" /><stop offset=".6" stopColor="#ff4d00" stopOpacity=".6" /><stop offset="1" stopColor="#ff3d00" stopOpacity="0" />
+                <radialGradient id="hwl-sheen" cx="35%" cy="22%" r="60%">
+                    <stop offset="0" stopColor="#fff" stopOpacity=".9" /><stop offset="1" stopColor="#fff" stopOpacity="0" />
                 </radialGradient>
-                <radialGradient id="hwl-glow-red" cx="50%" cy="50%" r="50%">
-                    <stop offset="0" stopColor="#ffd6d6" /><stop offset=".25" stopColor="#ff2a2a" /><stop offset=".6" stopColor="#a30000" stopOpacity=".65" /><stop offset="1" stopColor="#5c0000" stopOpacity="0" />
+                <radialGradient id="hwl-aura" cx="50%" cy="50%" r="50%">
+                    <stop offset="0" stopColor="#b9a8ff" stopOpacity=".45" /><stop offset="1" stopColor="#7b5cff" stopOpacity="0" />
                 </radialGradient>
-                <filter id="hwl-blur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="2.2" /></filter>
-                <filter id="hwl-soft" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3.5" /></filter>
-                <clipPath id="hwl-eye-l"><path d={EYE_L} /></clipPath>
-                <clipPath id="hwl-eye-r"><path d={EYE_R} /></clipPath>
-                <clipPath id="hwl-head"><path d={CRANIUM} /></clipPath>
             </defs>
 
-            <ellipse cx="0" cy="68" rx="42" ry="5" fill="#000" opacity=".6" />
-
-            {/* Mandíbula articulada, detrás del cráneo */}
-            <g className="hwl-jaw" style={{ transform: `translateY(${jawDrop}px)` }}>
-                <path d={JAW} fill="url(#hwl-jawbone)" stroke="#1c160f" strokeWidth=".8" />
-                <path d="M-20 39H20L18 46H-18Z" fill="#0a0605" />
-                <g fill="#d9cba6" stroke="#4a3f2e" strokeWidth=".5">
-                    <path d="M-17.5 39h4.200l-.6 6.400h-3z" /><path d="M-12.6 39h4.400l-.4 8h-3.600z" /><path d="M-7.4 39h4.200l-.2 7.200h-3.800z" />
-                    <path d="M3.4 39h4.400l-.4 8.200h-3.800z" /><path d="M8.6 39h4.200l-.6 6.800h-3.400z" /><path d="M13.6 39h4l-1.2 5.400h-2.400z" />
-                    <path d="M-2.4 39h4.600l-1.6 4.400h-1.800z" />
+            <ellipse cx="0" cy="64" rx="30" ry="4.5" fill="#000" opacity=".45" className="hwl-ghost-shadow" />
+            <g className="hwl-ghost-body">
+                <ellipse cx="0" cy="0" rx="58" ry="62" fill="url(#hwl-aura)" />
+                <g className="hwl-ghost-tail">
+                    <path d={GHOST_BODY} fill="url(#hwl-sheet)" stroke="#9f97d9" strokeOpacity=".55" strokeWidth="1" />
                 </g>
-                <path d="M-22 48C-16 56-8 59 0 59S16 56 22 48" fill="none" stroke="#1c160f" strokeOpacity=".6" strokeWidth="1" />
-            </g>
+                <ellipse cx="-14" cy="-38" rx="14" ry="10" fill="url(#hwl-sheen)" />
 
-            {/* Cráneo con sombras: sienes hundidas, luz desde arriba y oscuridad hacia abajo */}
-            <path d={CRANIUM} fill="url(#hwl-bone)" stroke="#1c160f" strokeWidth=".9" />
-            <g clipPath="url(#hwl-head)">
-                <path d={CRANIUM} fill="url(#hwl-under)" />
-                <ellipse cx="-44" cy="0" rx="10" ry="20" fill="#1a0f08" opacity=".55" filter="url(#hwl-soft)" />
-                <ellipse cx="44" cy="0" rx="10" ry="20" fill="#1a0f08" opacity=".55" filter="url(#hwl-soft)" />
-                <ellipse cx="-14" cy="-44" rx="13" ry="6" fill="#fff6dc" opacity=".16" transform="rotate(-18 -14 -44)" />
-                <path d={EYE_L} fill="none" stroke="#120a06" strokeWidth="9" opacity=".55" filter="url(#hwl-soft)" />
-                <path d={EYE_R} fill="none" stroke="#120a06" strokeWidth="9" opacity=".55" filter="url(#hwl-soft)" />
-                <path d="M-30 16C-24 22-16 24-9 21M30 16C24 22 16 24 9 21" fill="none" stroke="#2e2116" strokeOpacity=".55" strokeWidth="2.4" strokeLinecap="round" filter="url(#hwl-blur)" />
-            </g>
-            {/* Grietas */}
-            <path d="M10-59L6-47 12-41 6-31 10-24M6-47L-1-44M12-41L19-38 22-31" fill="none" stroke="#1a120b" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
-            <path d="M-40-26L-34-22-37-15-33-10" fill="none" stroke="#1a120b" strokeWidth=".8" strokeLinecap="round" />
-
-            {/* Cuencas profundas con un brillo espectral diminuto que sigue el cursor */}
-            <path d={EYE_L} fill="#050305" stroke="#120a06" strokeWidth="1" />
-            <path d={EYE_R} fill="#050305" stroke="#120a06" strokeWidth="1" />
-            {([['l', -19], ['r', 19]] as const).map(([side, cx]) => (
-                <g key={side} clipPath={`url(#hwl-eye-${side})`}>
-                    <g className="hwl-eyeglow" style={{ opacity: closed ? 0 : 1 }}>
-                        <circle className="hwl-pupil" cx={cx + px} cy={-3 + py} r="8" fill={glow} filter="url(#hwl-blur)" />
-                        <circle className="hwl-pupil" cx={cx + px} cy={-3 + py} r="2.2" fill={angry ? '#ff5050' : '#ffc24a'} />
-                        <circle className="hwl-pupil" cx={cx + px} cy={-3 + py} r=".8" fill="#fffbe8" />
+                {/* Ojos grandes con brillo: miran hacia el cursor */}
+                <g className="hwl-ghost-eyes" style={{ transform: `translate(${px}px, ${py}px)` }}>
+                    <ellipse cx="-13" cy="-14" rx={sad ? 6 : 7} ry={sad ? 7 : 9} fill="#1b1430" />
+                    <ellipse cx="13" cy="-14" rx={sad ? 6 : 7} ry={sad ? 7 : 9} fill="#1b1430" />
+                    <circle cx="-10.5" cy="-17.5" r="2.6" fill="#fff" /><circle cx="15.5" cy="-17.5" r="2.6" fill="#fff" />
+                    <circle cx="-15" cy="-10" r="1.2" fill="#fff" opacity=".8" /><circle cx="11" cy="-10" r="1.2" fill="#fff" opacity=".8" />
+                </g>
+                {sad && (
+                    <g className="hwl-tears">
+                        <path d="M-17-4c-2 4-3 6-3 8a3 3 0 0 0 6 0c0-2-1-4-3-8z" fill="#7cc8ff" />
+                        <path d="M17-4c-2 4-3 6-3 8a3 3 0 0 0 6 0c0-2-1-4-3-8z" fill="#7cc8ff" />
                     </g>
-                    {/* Sombra que cae y apaga la mirada */}
-                    <rect className="hwl-lid" x={cx - 18} y={-42} width="36" height="26" fill="#030203" style={{ transform: `translateY(${closed ? 26 : 0}px)` }} />
-                </g>
-            ))}
+                )}
+                {/* Mejillas */}
+                <ellipse cx="-24" cy="-1" rx="6" ry="3.5" fill="#ff8fb3" opacity={sad ? .7 : .45} />
+                <ellipse cx="24" cy="-1" rx="6" ry="3.5" fill="#ff8fb3" opacity={sad ? .7 : .45} />
+                {/* Boca */}
+                {happy
+                    ? <path d={MOUTHS.shout} fill="#1b1430" />
+                    : <path d={sad ? MOUTHS.sad : MOUTHS.smile} fill="none" stroke="#1b1430" strokeWidth="2.4" strokeLinecap="round" />}
 
-            {/* Cavidad nasal */}
-            <path d="M0 9L-7.5 23Q-5 26.5-1.5 23.5L0 21 1.5 23.5Q5 26.5 7.5 23Z" fill="#050305" stroke="#1a120b" strokeWidth=".8" strokeLinejoin="round" />
-            {/* Dientes superiores: largos, gastados, con uno que falta */}
-            <path d="M-21 30H21V39.500H-21Z" fill="#0a0605" />
-            <g fill="#e2d5b1" stroke="#4a3f2e" strokeWidth=".5">
-                <path d="M-20 30h4.400l-.4 7.4-3.6-.8z" /><path d="M-15 30h4.600v9.800h-4.200z" /><path d="M-9.8 30h4.600l-.4 11h-3.800z" />
-                <path d="M-4.6 30h4.400v10.200l-2 .8-2.2-1z" /><path d="M5.6 30h4.600l-.2 11.400h-4z" />
-                <path d="M10.8 30h4.400l-.4 9.200h-4z" /><path d="M15.8 30h4.200l-.6 7.2-3.4.6z" />
+                {/* Bracitos: al escribir la contraseña suben a taparse los ojos */}
+                <ellipse className="hwl-arm hwl-arm-l" cx="-40" cy="14" rx="8" ry="11" fill="url(#hwl-sheet)" stroke="#9f97d9" strokeOpacity=".55" strokeWidth="1"
+                    style={{ transform: covering ? 'translate(27px, -28px) rotate(-30deg)' : 'rotate(20deg)' }} />
+                <ellipse className="hwl-arm hwl-arm-r" cx="40" cy="14" rx="8" ry="11" fill="url(#hwl-sheet)" stroke="#9f97d9" strokeOpacity=".55" strokeWidth="1"
+                    style={{ transform: covering ? 'translate(-27px, -28px) rotate(30deg)' : 'rotate(-20deg)' }} />
             </g>
-            <path d="M5.6 30l1.4 3" stroke="#4a3f2e" strokeWidth=".6" />
         </svg>
     );
 }
@@ -128,7 +99,7 @@ function SubmitSpell({ onPending }: { onPending: (p: boolean) => void }) {
     useEffect(() => { onPending(pending); }, [pending, onPending]);
     return (
         <button formAction={login} disabled={pending} className="hwl-btn">
-            {pending ? <><Loader2 className="w-5 h-5 animate-spin" /> Conjurando…</> : <>Ingresar <span aria-hidden="true">💀</span></>}
+            {pending ? <><Loader2 className="w-5 h-5 animate-spin" /> Conjurando…</> : <>Ingresar <span aria-hidden="true">👻</span></>}
         </button>
     );
 }
@@ -205,10 +176,10 @@ function Scene() {
             <div className="hwl-mist" aria-hidden="true" />
 
             <main className="hwl-stage">
-                {/* La calavera guardiana */}
+                {/* El fantasmita guardián */}
                 <div className="hwl-guard" ref={jackRef}>
                     <p className="hwl-bubble" key={mood} role="status">{LINES[mood]}</p>
-                    <Skull mood={mood} look={focus === 'email' ? formLook : look} />
+                    <Ghost mood={mood} look={focus === 'email' ? formLook : look} />
                 </div>
 
                 {/* Lápida con el formulario */}
