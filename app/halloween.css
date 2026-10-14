@@ -1,0 +1,533 @@
+/* ==========================================================================
+   TEMA HALLOWEEN (octubre). Se activa con <html data-theme="halloween">.
+   Interruptor único: lib/theme.ts. Sin el atributo, nada de esto se aplica.
+   Archivo generado en parte: los bloques "remap" repiten una regla por familia
+   de color de Tailwind para invertir la UI clara a modo oscuro sin tocar JSX.
+   ========================================================================== */
+
+[data-theme="halloween"] {
+  color-scheme: dark;
+  --hw-bg-0: #07080f;
+  --hw-bg-1: #0d0f1a;
+  --hw-violet-deep: #150d26;
+  --hw-surface: #151b2d;
+  --hw-orange: #ff6d00;
+  --hw-orange-2: #ff5400;
+  --hw-purple: #7b2cbf;
+  --hw-purple-2: #9d4edd;
+  --hw-ghost: #2ec4b6;
+  --hw-text: #f1eef8;
+  --hw-text-soft: #c9c3dc;
+  --background: var(--hw-bg-0);
+  --foreground: var(--hw-text);
+
+  /* Escala neutra invertida (50 = más oscuro). 800/900 quedan como superficies violeta oscuro para botones. */
+  --color-slate-50: #111726; --color-slate-100: #1a2133; --color-slate-200: #2b2f4d; --color-slate-300: #444a73;
+  --color-slate-400: #a3abc4; --color-slate-500: #b3bad0; --color-slate-600: #c8cde0; --color-slate-700: #dde1ee;
+  --color-slate-800: #2b1d4d; --color-slate-900: #231646; --color-slate-950: #0f0b1e;
+  --color-gray-50: #111726; --color-gray-100: #1a2133; --color-gray-200: #2b2f4d; --color-gray-300: #444a73;
+  --color-gray-400: #a3abc4; --color-gray-500: #b3bad0; --color-gray-600: #c8cde0; --color-gray-700: #dde1ee;
+  --color-gray-800: #2b1d4d; --color-gray-900: #231646;
+  --color-red-50: color-mix(in oklab, #ef4444 12%, #121826); --color-red-100: color-mix(in oklab, #ef4444 20%, #121826); --color-red-200: color-mix(in oklab, #ef4444 34%, #121826);
+  --color-rose-50: color-mix(in oklab, #f43f5e 12%, #121826); --color-rose-100: color-mix(in oklab, #f43f5e 20%, #121826); --color-rose-200: color-mix(in oklab, #f43f5e 34%, #121826);
+  --color-orange-50: color-mix(in oklab, #f97316 12%, #121826); --color-orange-100: color-mix(in oklab, #f97316 20%, #121826); --color-orange-200: color-mix(in oklab, #f97316 34%, #121826);
+  --color-amber-50: color-mix(in oklab, #f59e0b 12%, #121826); --color-amber-100: color-mix(in oklab, #f59e0b 20%, #121826); --color-amber-200: color-mix(in oklab, #f59e0b 34%, #121826);
+  --color-yellow-50: color-mix(in oklab, #eab308 12%, #121826); --color-yellow-100: color-mix(in oklab, #eab308 20%, #121826); --color-yellow-200: color-mix(in oklab, #eab308 34%, #121826);
+  --color-lime-50: color-mix(in oklab, #84cc16 12%, #121826); --color-lime-100: color-mix(in oklab, #84cc16 20%, #121826); --color-lime-200: color-mix(in oklab, #84cc16 34%, #121826);
+  --color-green-50: color-mix(in oklab, #22c55e 12%, #121826); --color-green-100: color-mix(in oklab, #22c55e 20%, #121826); --color-green-200: color-mix(in oklab, #22c55e 34%, #121826);
+  --color-emerald-50: color-mix(in oklab, #10b981 12%, #121826); --color-emerald-100: color-mix(in oklab, #10b981 20%, #121826); --color-emerald-200: color-mix(in oklab, #10b981 34%, #121826);
+  --color-teal-50: color-mix(in oklab, #14b8a6 12%, #121826); --color-teal-100: color-mix(in oklab, #14b8a6 20%, #121826); --color-teal-200: color-mix(in oklab, #14b8a6 34%, #121826);
+  --color-cyan-50: color-mix(in oklab, #06b6d4 12%, #121826); --color-cyan-100: color-mix(in oklab, #06b6d4 20%, #121826); --color-cyan-200: color-mix(in oklab, #06b6d4 34%, #121826);
+  --color-sky-50: color-mix(in oklab, #0ea5e9 12%, #121826); --color-sky-100: color-mix(in oklab, #0ea5e9 20%, #121826); --color-sky-200: color-mix(in oklab, #0ea5e9 34%, #121826);
+  --color-blue-50: color-mix(in oklab, #3b82f6 12%, #121826); --color-blue-100: color-mix(in oklab, #3b82f6 20%, #121826); --color-blue-200: color-mix(in oklab, #3b82f6 34%, #121826);
+  --color-indigo-50: color-mix(in oklab, #6366f1 12%, #121826); --color-indigo-100: color-mix(in oklab, #6366f1 20%, #121826); --color-indigo-200: color-mix(in oklab, #6366f1 34%, #121826);
+  --color-violet-50: color-mix(in oklab, #8b5cf6 12%, #121826); --color-violet-100: color-mix(in oklab, #8b5cf6 20%, #121826); --color-violet-200: color-mix(in oklab, #8b5cf6 34%, #121826);
+  --color-purple-50: color-mix(in oklab, #a855f7 12%, #121826); --color-purple-100: color-mix(in oklab, #a855f7 20%, #121826); --color-purple-200: color-mix(in oklab, #a855f7 34%, #121826);
+  --color-fuchsia-50: color-mix(in oklab, #d946ef 12%, #121826); --color-fuchsia-100: color-mix(in oklab, #d946ef 20%, #121826); --color-fuchsia-200: color-mix(in oklab, #d946ef 34%, #121826);
+  --color-pink-50: color-mix(in oklab, #ec4899 12%, #121826); --color-pink-100: color-mix(in oklab, #ec4899 20%, #121826); --color-pink-200: color-mix(in oklab, #ec4899 34%, #121826);
+}
+
+/* El fondo va solo en <html>: si <body> pinta el suyo, tapa la capa .hw-backdrop (z-index: -1) */
+[data-theme="halloween"] body { background: transparent; color: var(--hw-text); }
+html[data-theme="halloween"] {
+  background-color: var(--hw-bg-0);
+  background-image:
+    radial-gradient(1100px 620px at 88% 0%, rgba(123,44,191,.34), transparent 62%),
+    radial-gradient(900px 520px at 5% 105%, rgba(255,84,0,.10), transparent 60%),
+    linear-gradient(180deg, var(--hw-bg-0) 0%, var(--hw-bg-1) 55%, var(--hw-violet-deep) 100%);
+  background-attachment: fixed;
+  color: var(--hw-text);
+}
+[data-theme="halloween"] ::selection { background: rgba(255,109,0,.45); color: #fff; }
+
+@layer utilities {
+  /* ---- remap: superficies blancas -> superficie oscura ---- */
+  :where([data-theme="halloween"]) .bg-white { background-color: var(--hw-surface); }
+  :where([data-theme="halloween"]) .hover\:bg-white:hover { background-color: var(--hw-surface); }
+  :where([data-theme="halloween"]) .bg-white\/40 { background-color: color-mix(in oklab, #151b2d 40%, transparent); }
+  :where([data-theme="halloween"]) .bg-white\/50 { background-color: color-mix(in oklab, #151b2d 50%, transparent); }
+  :where([data-theme="halloween"]) .bg-white\/60 { background-color: color-mix(in oklab, #151b2d 60%, transparent); }
+  :where([data-theme="halloween"]) .bg-white\/70 { background-color: color-mix(in oklab, #151b2d 70%, transparent); }
+  :where([data-theme="halloween"]) .bg-white\/80 { background-color: color-mix(in oklab, #151b2d 80%, transparent); }
+  :where([data-theme="halloween"]) .bg-white\/90 { background-color: color-mix(in oklab, #151b2d 90%, transparent); }
+  :where([data-theme="halloween"]) .bg-white\/95 { background-color: color-mix(in oklab, #151b2d 95%, transparent); }
+  :where([data-theme="halloween"]) .from-white { --tw-gradient-from: #151b2d; }
+  :where([data-theme="halloween"]) .from-white\/80 { --tw-gradient-from: color-mix(in oklab, #151b2d 80%, transparent); }
+  :where([data-theme="halloween"]) .from-white\/90 { --tw-gradient-from: color-mix(in oklab, #151b2d 90%, transparent); }
+  :where([data-theme="halloween"]) .from-white\/95 { --tw-gradient-from: color-mix(in oklab, #151b2d 95%, transparent); }
+  :where([data-theme="halloween"]) .via-white { --tw-gradient-via: #151b2d; }
+  :where([data-theme="halloween"]) .via-white\/80 { --tw-gradient-via: color-mix(in oklab, #151b2d 80%, transparent); }
+  :where([data-theme="halloween"]) .via-white\/90 { --tw-gradient-via: color-mix(in oklab, #151b2d 90%, transparent); }
+  :where([data-theme="halloween"]) .via-white\/95 { --tw-gradient-via: color-mix(in oklab, #151b2d 95%, transparent); }
+  :where([data-theme="halloween"]) .to-white { --tw-gradient-to: #151b2d; }
+  :where([data-theme="halloween"]) .to-white\/80 { --tw-gradient-to: color-mix(in oklab, #151b2d 80%, transparent); }
+  :where([data-theme="halloween"]) .to-white\/90 { --tw-gradient-to: color-mix(in oklab, #151b2d 90%, transparent); }
+  :where([data-theme="halloween"]) .to-white\/95 { --tw-gradient-to: color-mix(in oklab, #151b2d 95%, transparent); }
+  :where([data-theme="halloween"]) .bg-brand-bg-base { background-color: transparent; }
+  :where([data-theme="halloween"]) .text-white\/90 { color: rgb(255 255 255 / .9); }
+
+  /* ---- remap: textos oscuros -> claros (AAA sobre fondo oscuro) ---- */
+  :where([data-theme="halloween"]) .text-slate-800 { color: #f4f1fb; }
+  :where([data-theme="halloween"]) .hover\:text-slate-800:hover { color: #fff; }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-slate-800 { color: #fff; }
+  :where([data-theme="halloween"]) .text-slate-900 { color: #f4f1fb; }
+  :where([data-theme="halloween"]) .hover\:text-slate-900:hover { color: #fff; }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-slate-900 { color: #fff; }
+  :where([data-theme="halloween"]) .text-slate-950 { color: #f4f1fb; }
+  :where([data-theme="halloween"]) .hover\:text-slate-950:hover { color: #fff; }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-slate-950 { color: #fff; }
+  :where([data-theme="halloween"]) .text-gray-800 { color: #f4f1fb; }
+  :where([data-theme="halloween"]) .hover\:text-gray-800:hover { color: #fff; }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-gray-800 { color: #fff; }
+  :where([data-theme="halloween"]) .text-gray-900 { color: #f4f1fb; }
+  :where([data-theme="halloween"]) .hover\:text-gray-900:hover { color: #fff; }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-gray-900 { color: #fff; }
+  :where([data-theme="halloween"]) .text-gray-950 { color: #f4f1fb; }
+  :where([data-theme="halloween"]) .hover\:text-gray-950:hover { color: #fff; }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-gray-950 { color: #fff; }
+  :where([data-theme="halloween"]) .text-red-500 { color: var(--color-red-400); }
+  :where([data-theme="halloween"]) .hover\:text-red-500:hover { color: var(--color-red-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-red-500 { color: var(--color-red-200); }
+  :where([data-theme="halloween"]) .text-red-600 { color: var(--color-red-300); }
+  :where([data-theme="halloween"]) .hover\:text-red-600:hover { color: var(--color-red-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-red-600 { color: var(--color-red-200); }
+  :where([data-theme="halloween"]) .text-red-700 { color: var(--color-red-300); }
+  :where([data-theme="halloween"]) .hover\:text-red-700:hover { color: var(--color-red-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-red-700 { color: var(--color-red-200); }
+  :where([data-theme="halloween"]) .text-red-800 { color: var(--color-red-300); }
+  :where([data-theme="halloween"]) .hover\:text-red-800:hover { color: var(--color-red-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-red-800 { color: var(--color-red-200); }
+  :where([data-theme="halloween"]) .text-red-900 { color: var(--color-red-300); }
+  :where([data-theme="halloween"]) .hover\:text-red-900:hover { color: var(--color-red-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-red-900 { color: var(--color-red-200); }
+  :where([data-theme="halloween"]) .text-rose-500 { color: var(--color-rose-400); }
+  :where([data-theme="halloween"]) .hover\:text-rose-500:hover { color: var(--color-rose-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-rose-500 { color: var(--color-rose-200); }
+  :where([data-theme="halloween"]) .text-rose-600 { color: var(--color-rose-300); }
+  :where([data-theme="halloween"]) .hover\:text-rose-600:hover { color: var(--color-rose-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-rose-600 { color: var(--color-rose-200); }
+  :where([data-theme="halloween"]) .text-rose-700 { color: var(--color-rose-300); }
+  :where([data-theme="halloween"]) .hover\:text-rose-700:hover { color: var(--color-rose-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-rose-700 { color: var(--color-rose-200); }
+  :where([data-theme="halloween"]) .text-rose-800 { color: var(--color-rose-300); }
+  :where([data-theme="halloween"]) .hover\:text-rose-800:hover { color: var(--color-rose-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-rose-800 { color: var(--color-rose-200); }
+  :where([data-theme="halloween"]) .text-rose-900 { color: var(--color-rose-300); }
+  :where([data-theme="halloween"]) .hover\:text-rose-900:hover { color: var(--color-rose-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-rose-900 { color: var(--color-rose-200); }
+  :where([data-theme="halloween"]) .text-orange-500 { color: var(--color-orange-400); }
+  :where([data-theme="halloween"]) .hover\:text-orange-500:hover { color: var(--color-orange-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-orange-500 { color: var(--color-orange-200); }
+  :where([data-theme="halloween"]) .text-orange-600 { color: var(--color-orange-300); }
+  :where([data-theme="halloween"]) .hover\:text-orange-600:hover { color: var(--color-orange-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-orange-600 { color: var(--color-orange-200); }
+  :where([data-theme="halloween"]) .text-orange-700 { color: var(--color-orange-300); }
+  :where([data-theme="halloween"]) .hover\:text-orange-700:hover { color: var(--color-orange-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-orange-700 { color: var(--color-orange-200); }
+  :where([data-theme="halloween"]) .text-orange-800 { color: var(--color-orange-300); }
+  :where([data-theme="halloween"]) .hover\:text-orange-800:hover { color: var(--color-orange-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-orange-800 { color: var(--color-orange-200); }
+  :where([data-theme="halloween"]) .text-orange-900 { color: var(--color-orange-300); }
+  :where([data-theme="halloween"]) .hover\:text-orange-900:hover { color: var(--color-orange-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-orange-900 { color: var(--color-orange-200); }
+  :where([data-theme="halloween"]) .text-amber-500 { color: var(--color-amber-400); }
+  :where([data-theme="halloween"]) .hover\:text-amber-500:hover { color: var(--color-amber-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-amber-500 { color: var(--color-amber-200); }
+  :where([data-theme="halloween"]) .text-amber-600 { color: var(--color-amber-300); }
+  :where([data-theme="halloween"]) .hover\:text-amber-600:hover { color: var(--color-amber-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-amber-600 { color: var(--color-amber-200); }
+  :where([data-theme="halloween"]) .text-amber-700 { color: var(--color-amber-300); }
+  :where([data-theme="halloween"]) .hover\:text-amber-700:hover { color: var(--color-amber-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-amber-700 { color: var(--color-amber-200); }
+  :where([data-theme="halloween"]) .text-amber-800 { color: var(--color-amber-300); }
+  :where([data-theme="halloween"]) .hover\:text-amber-800:hover { color: var(--color-amber-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-amber-800 { color: var(--color-amber-200); }
+  :where([data-theme="halloween"]) .text-amber-900 { color: var(--color-amber-300); }
+  :where([data-theme="halloween"]) .hover\:text-amber-900:hover { color: var(--color-amber-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-amber-900 { color: var(--color-amber-200); }
+  :where([data-theme="halloween"]) .text-yellow-500 { color: var(--color-yellow-400); }
+  :where([data-theme="halloween"]) .hover\:text-yellow-500:hover { color: var(--color-yellow-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-yellow-500 { color: var(--color-yellow-200); }
+  :where([data-theme="halloween"]) .text-yellow-600 { color: var(--color-yellow-300); }
+  :where([data-theme="halloween"]) .hover\:text-yellow-600:hover { color: var(--color-yellow-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-yellow-600 { color: var(--color-yellow-200); }
+  :where([data-theme="halloween"]) .text-yellow-700 { color: var(--color-yellow-300); }
+  :where([data-theme="halloween"]) .hover\:text-yellow-700:hover { color: var(--color-yellow-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-yellow-700 { color: var(--color-yellow-200); }
+  :where([data-theme="halloween"]) .text-yellow-800 { color: var(--color-yellow-300); }
+  :where([data-theme="halloween"]) .hover\:text-yellow-800:hover { color: var(--color-yellow-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-yellow-800 { color: var(--color-yellow-200); }
+  :where([data-theme="halloween"]) .text-yellow-900 { color: var(--color-yellow-300); }
+  :where([data-theme="halloween"]) .hover\:text-yellow-900:hover { color: var(--color-yellow-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-yellow-900 { color: var(--color-yellow-200); }
+  :where([data-theme="halloween"]) .text-lime-500 { color: var(--color-lime-400); }
+  :where([data-theme="halloween"]) .hover\:text-lime-500:hover { color: var(--color-lime-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-lime-500 { color: var(--color-lime-200); }
+  :where([data-theme="halloween"]) .text-lime-600 { color: var(--color-lime-300); }
+  :where([data-theme="halloween"]) .hover\:text-lime-600:hover { color: var(--color-lime-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-lime-600 { color: var(--color-lime-200); }
+  :where([data-theme="halloween"]) .text-lime-700 { color: var(--color-lime-300); }
+  :where([data-theme="halloween"]) .hover\:text-lime-700:hover { color: var(--color-lime-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-lime-700 { color: var(--color-lime-200); }
+  :where([data-theme="halloween"]) .text-lime-800 { color: var(--color-lime-300); }
+  :where([data-theme="halloween"]) .hover\:text-lime-800:hover { color: var(--color-lime-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-lime-800 { color: var(--color-lime-200); }
+  :where([data-theme="halloween"]) .text-lime-900 { color: var(--color-lime-300); }
+  :where([data-theme="halloween"]) .hover\:text-lime-900:hover { color: var(--color-lime-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-lime-900 { color: var(--color-lime-200); }
+  :where([data-theme="halloween"]) .text-green-500 { color: var(--color-green-400); }
+  :where([data-theme="halloween"]) .hover\:text-green-500:hover { color: var(--color-green-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-green-500 { color: var(--color-green-200); }
+  :where([data-theme="halloween"]) .text-green-600 { color: var(--color-green-300); }
+  :where([data-theme="halloween"]) .hover\:text-green-600:hover { color: var(--color-green-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-green-600 { color: var(--color-green-200); }
+  :where([data-theme="halloween"]) .text-green-700 { color: var(--color-green-300); }
+  :where([data-theme="halloween"]) .hover\:text-green-700:hover { color: var(--color-green-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-green-700 { color: var(--color-green-200); }
+  :where([data-theme="halloween"]) .text-green-800 { color: var(--color-green-300); }
+  :where([data-theme="halloween"]) .hover\:text-green-800:hover { color: var(--color-green-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-green-800 { color: var(--color-green-200); }
+  :where([data-theme="halloween"]) .text-green-900 { color: var(--color-green-300); }
+  :where([data-theme="halloween"]) .hover\:text-green-900:hover { color: var(--color-green-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-green-900 { color: var(--color-green-200); }
+  :where([data-theme="halloween"]) .text-emerald-500 { color: var(--color-emerald-400); }
+  :where([data-theme="halloween"]) .hover\:text-emerald-500:hover { color: var(--color-emerald-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-emerald-500 { color: var(--color-emerald-200); }
+  :where([data-theme="halloween"]) .text-emerald-600 { color: var(--color-emerald-300); }
+  :where([data-theme="halloween"]) .hover\:text-emerald-600:hover { color: var(--color-emerald-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-emerald-600 { color: var(--color-emerald-200); }
+  :where([data-theme="halloween"]) .text-emerald-700 { color: var(--color-emerald-300); }
+  :where([data-theme="halloween"]) .hover\:text-emerald-700:hover { color: var(--color-emerald-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-emerald-700 { color: var(--color-emerald-200); }
+  :where([data-theme="halloween"]) .text-emerald-800 { color: var(--color-emerald-300); }
+  :where([data-theme="halloween"]) .hover\:text-emerald-800:hover { color: var(--color-emerald-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-emerald-800 { color: var(--color-emerald-200); }
+  :where([data-theme="halloween"]) .text-emerald-900 { color: var(--color-emerald-300); }
+  :where([data-theme="halloween"]) .hover\:text-emerald-900:hover { color: var(--color-emerald-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-emerald-900 { color: var(--color-emerald-200); }
+  :where([data-theme="halloween"]) .text-teal-500 { color: var(--color-teal-400); }
+  :where([data-theme="halloween"]) .hover\:text-teal-500:hover { color: var(--color-teal-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-teal-500 { color: var(--color-teal-200); }
+  :where([data-theme="halloween"]) .text-teal-600 { color: var(--color-teal-300); }
+  :where([data-theme="halloween"]) .hover\:text-teal-600:hover { color: var(--color-teal-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-teal-600 { color: var(--color-teal-200); }
+  :where([data-theme="halloween"]) .text-teal-700 { color: var(--color-teal-300); }
+  :where([data-theme="halloween"]) .hover\:text-teal-700:hover { color: var(--color-teal-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-teal-700 { color: var(--color-teal-200); }
+  :where([data-theme="halloween"]) .text-teal-800 { color: var(--color-teal-300); }
+  :where([data-theme="halloween"]) .hover\:text-teal-800:hover { color: var(--color-teal-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-teal-800 { color: var(--color-teal-200); }
+  :where([data-theme="halloween"]) .text-teal-900 { color: var(--color-teal-300); }
+  :where([data-theme="halloween"]) .hover\:text-teal-900:hover { color: var(--color-teal-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-teal-900 { color: var(--color-teal-200); }
+  :where([data-theme="halloween"]) .text-cyan-500 { color: var(--color-cyan-400); }
+  :where([data-theme="halloween"]) .hover\:text-cyan-500:hover { color: var(--color-cyan-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-cyan-500 { color: var(--color-cyan-200); }
+  :where([data-theme="halloween"]) .text-cyan-600 { color: var(--color-cyan-300); }
+  :where([data-theme="halloween"]) .hover\:text-cyan-600:hover { color: var(--color-cyan-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-cyan-600 { color: var(--color-cyan-200); }
+  :where([data-theme="halloween"]) .text-cyan-700 { color: var(--color-cyan-300); }
+  :where([data-theme="halloween"]) .hover\:text-cyan-700:hover { color: var(--color-cyan-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-cyan-700 { color: var(--color-cyan-200); }
+  :where([data-theme="halloween"]) .text-cyan-800 { color: var(--color-cyan-300); }
+  :where([data-theme="halloween"]) .hover\:text-cyan-800:hover { color: var(--color-cyan-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-cyan-800 { color: var(--color-cyan-200); }
+  :where([data-theme="halloween"]) .text-cyan-900 { color: var(--color-cyan-300); }
+  :where([data-theme="halloween"]) .hover\:text-cyan-900:hover { color: var(--color-cyan-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-cyan-900 { color: var(--color-cyan-200); }
+  :where([data-theme="halloween"]) .text-sky-500 { color: var(--color-sky-400); }
+  :where([data-theme="halloween"]) .hover\:text-sky-500:hover { color: var(--color-sky-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-sky-500 { color: var(--color-sky-200); }
+  :where([data-theme="halloween"]) .text-sky-600 { color: var(--color-sky-300); }
+  :where([data-theme="halloween"]) .hover\:text-sky-600:hover { color: var(--color-sky-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-sky-600 { color: var(--color-sky-200); }
+  :where([data-theme="halloween"]) .text-sky-700 { color: var(--color-sky-300); }
+  :where([data-theme="halloween"]) .hover\:text-sky-700:hover { color: var(--color-sky-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-sky-700 { color: var(--color-sky-200); }
+  :where([data-theme="halloween"]) .text-sky-800 { color: var(--color-sky-300); }
+  :where([data-theme="halloween"]) .hover\:text-sky-800:hover { color: var(--color-sky-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-sky-800 { color: var(--color-sky-200); }
+  :where([data-theme="halloween"]) .text-sky-900 { color: var(--color-sky-300); }
+  :where([data-theme="halloween"]) .hover\:text-sky-900:hover { color: var(--color-sky-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-sky-900 { color: var(--color-sky-200); }
+  :where([data-theme="halloween"]) .text-blue-500 { color: var(--color-blue-400); }
+  :where([data-theme="halloween"]) .hover\:text-blue-500:hover { color: var(--color-blue-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-blue-500 { color: var(--color-blue-200); }
+  :where([data-theme="halloween"]) .text-blue-600 { color: var(--color-blue-300); }
+  :where([data-theme="halloween"]) .hover\:text-blue-600:hover { color: var(--color-blue-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-blue-600 { color: var(--color-blue-200); }
+  :where([data-theme="halloween"]) .text-blue-700 { color: var(--color-blue-300); }
+  :where([data-theme="halloween"]) .hover\:text-blue-700:hover { color: var(--color-blue-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-blue-700 { color: var(--color-blue-200); }
+  :where([data-theme="halloween"]) .text-blue-800 { color: var(--color-blue-300); }
+  :where([data-theme="halloween"]) .hover\:text-blue-800:hover { color: var(--color-blue-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-blue-800 { color: var(--color-blue-200); }
+  :where([data-theme="halloween"]) .text-blue-900 { color: var(--color-blue-300); }
+  :where([data-theme="halloween"]) .hover\:text-blue-900:hover { color: var(--color-blue-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-blue-900 { color: var(--color-blue-200); }
+  :where([data-theme="halloween"]) .text-indigo-500 { color: var(--color-indigo-400); }
+  :where([data-theme="halloween"]) .hover\:text-indigo-500:hover { color: var(--color-indigo-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-indigo-500 { color: var(--color-indigo-200); }
+  :where([data-theme="halloween"]) .text-indigo-600 { color: var(--color-indigo-300); }
+  :where([data-theme="halloween"]) .hover\:text-indigo-600:hover { color: var(--color-indigo-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-indigo-600 { color: var(--color-indigo-200); }
+  :where([data-theme="halloween"]) .text-indigo-700 { color: var(--color-indigo-300); }
+  :where([data-theme="halloween"]) .hover\:text-indigo-700:hover { color: var(--color-indigo-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-indigo-700 { color: var(--color-indigo-200); }
+  :where([data-theme="halloween"]) .text-indigo-800 { color: var(--color-indigo-300); }
+  :where([data-theme="halloween"]) .hover\:text-indigo-800:hover { color: var(--color-indigo-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-indigo-800 { color: var(--color-indigo-200); }
+  :where([data-theme="halloween"]) .text-indigo-900 { color: var(--color-indigo-300); }
+  :where([data-theme="halloween"]) .hover\:text-indigo-900:hover { color: var(--color-indigo-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-indigo-900 { color: var(--color-indigo-200); }
+  :where([data-theme="halloween"]) .text-violet-500 { color: var(--color-violet-400); }
+  :where([data-theme="halloween"]) .hover\:text-violet-500:hover { color: var(--color-violet-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-violet-500 { color: var(--color-violet-200); }
+  :where([data-theme="halloween"]) .text-violet-600 { color: var(--color-violet-300); }
+  :where([data-theme="halloween"]) .hover\:text-violet-600:hover { color: var(--color-violet-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-violet-600 { color: var(--color-violet-200); }
+  :where([data-theme="halloween"]) .text-violet-700 { color: var(--color-violet-300); }
+  :where([data-theme="halloween"]) .hover\:text-violet-700:hover { color: var(--color-violet-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-violet-700 { color: var(--color-violet-200); }
+  :where([data-theme="halloween"]) .text-violet-800 { color: var(--color-violet-300); }
+  :where([data-theme="halloween"]) .hover\:text-violet-800:hover { color: var(--color-violet-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-violet-800 { color: var(--color-violet-200); }
+  :where([data-theme="halloween"]) .text-violet-900 { color: var(--color-violet-300); }
+  :where([data-theme="halloween"]) .hover\:text-violet-900:hover { color: var(--color-violet-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-violet-900 { color: var(--color-violet-200); }
+  :where([data-theme="halloween"]) .text-purple-500 { color: var(--color-purple-400); }
+  :where([data-theme="halloween"]) .hover\:text-purple-500:hover { color: var(--color-purple-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-purple-500 { color: var(--color-purple-200); }
+  :where([data-theme="halloween"]) .text-purple-600 { color: var(--color-purple-300); }
+  :where([data-theme="halloween"]) .hover\:text-purple-600:hover { color: var(--color-purple-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-purple-600 { color: var(--color-purple-200); }
+  :where([data-theme="halloween"]) .text-purple-700 { color: var(--color-purple-300); }
+  :where([data-theme="halloween"]) .hover\:text-purple-700:hover { color: var(--color-purple-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-purple-700 { color: var(--color-purple-200); }
+  :where([data-theme="halloween"]) .text-purple-800 { color: var(--color-purple-300); }
+  :where([data-theme="halloween"]) .hover\:text-purple-800:hover { color: var(--color-purple-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-purple-800 { color: var(--color-purple-200); }
+  :where([data-theme="halloween"]) .text-purple-900 { color: var(--color-purple-300); }
+  :where([data-theme="halloween"]) .hover\:text-purple-900:hover { color: var(--color-purple-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-purple-900 { color: var(--color-purple-200); }
+  :where([data-theme="halloween"]) .text-fuchsia-500 { color: var(--color-fuchsia-400); }
+  :where([data-theme="halloween"]) .hover\:text-fuchsia-500:hover { color: var(--color-fuchsia-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-fuchsia-500 { color: var(--color-fuchsia-200); }
+  :where([data-theme="halloween"]) .text-fuchsia-600 { color: var(--color-fuchsia-300); }
+  :where([data-theme="halloween"]) .hover\:text-fuchsia-600:hover { color: var(--color-fuchsia-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-fuchsia-600 { color: var(--color-fuchsia-200); }
+  :where([data-theme="halloween"]) .text-fuchsia-700 { color: var(--color-fuchsia-300); }
+  :where([data-theme="halloween"]) .hover\:text-fuchsia-700:hover { color: var(--color-fuchsia-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-fuchsia-700 { color: var(--color-fuchsia-200); }
+  :where([data-theme="halloween"]) .text-fuchsia-800 { color: var(--color-fuchsia-300); }
+  :where([data-theme="halloween"]) .hover\:text-fuchsia-800:hover { color: var(--color-fuchsia-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-fuchsia-800 { color: var(--color-fuchsia-200); }
+  :where([data-theme="halloween"]) .text-fuchsia-900 { color: var(--color-fuchsia-300); }
+  :where([data-theme="halloween"]) .hover\:text-fuchsia-900:hover { color: var(--color-fuchsia-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-fuchsia-900 { color: var(--color-fuchsia-200); }
+  :where([data-theme="halloween"]) .text-pink-500 { color: var(--color-pink-400); }
+  :where([data-theme="halloween"]) .hover\:text-pink-500:hover { color: var(--color-pink-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-pink-500 { color: var(--color-pink-200); }
+  :where([data-theme="halloween"]) .text-pink-600 { color: var(--color-pink-300); }
+  :where([data-theme="halloween"]) .hover\:text-pink-600:hover { color: var(--color-pink-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-pink-600 { color: var(--color-pink-200); }
+  :where([data-theme="halloween"]) .text-pink-700 { color: var(--color-pink-300); }
+  :where([data-theme="halloween"]) .hover\:text-pink-700:hover { color: var(--color-pink-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-pink-700 { color: var(--color-pink-200); }
+  :where([data-theme="halloween"]) .text-pink-800 { color: var(--color-pink-300); }
+  :where([data-theme="halloween"]) .hover\:text-pink-800:hover { color: var(--color-pink-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-pink-800 { color: var(--color-pink-200); }
+  :where([data-theme="halloween"]) .text-pink-900 { color: var(--color-pink-300); }
+  :where([data-theme="halloween"]) .hover\:text-pink-900:hover { color: var(--color-pink-200); }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-pink-900 { color: var(--color-pink-200); }
+
+  /* ---- azul de marca (#0e3187) ilegible sobre oscuro ---- */
+  :where([data-theme="halloween"]) .text-\[\#0e3187\] { color: #cdb8ff; }
+  :where([data-theme="halloween"]) .hover\:text-\[\#0e3187\]:hover { color: #ffb27a; }
+  :where([data-theme="halloween"]) .group:hover .group-hover\:text-\[\#0e3187\] { color: #ffb27a; }
+  :where([data-theme="halloween"]) .bg-\[\#0e3187\] { background-color: #4c1d95; }
+  :where([data-theme="halloween"]) .hover\:bg-\[\#1846b9\]:hover { background-color: #5b21b6; }
+  :where([data-theme="halloween"]) .border-\[\#0e3187\] { border-color: var(--hw-purple-2); }
+}
+
+/* Scrollbars, selects, formularios */
+[data-theme="halloween"] .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #4a3a78; }
+[data-theme="halloween"] .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: var(--hw-purple-2); }
+[data-theme="halloween"] select:disabled { background-color: #1a2133; }
+[data-theme="halloween"] select:focus { box-shadow: 0 0 0 2px var(--hw-bg-0), 0 0 0 4px var(--hw-orange); border-color: var(--hw-orange); }
+[data-theme="halloween"] *:focus-visible { --tw-ring-color: var(--hw-orange); }
+[data-theme="halloween"] input, [data-theme="halloween"] textarea { color-scheme: dark; }
+/* Los lienzos de firma deben seguir siendo blancos (la tinta es oscura) */
+[data-theme="halloween"] canvas:not([style*="50%"]) { background-color: #f8fafc !important; border-radius: .5rem; }
+/* Editor Quill */
+[data-theme="halloween"] .ql-toolbar.ql-snow, [data-theme="halloween"] .ql-container.ql-snow { border-color: #2b2f4d; }
+[data-theme="halloween"] .ql-editor { color: var(--hw-text); }
+[data-theme="halloween"] .ql-editor.ql-blank::before { color: #a3abc4; }
+[data-theme="halloween"] .ql-snow .ql-stroke { stroke: #c8cde0; }
+[data-theme="halloween"] .ql-snow .ql-fill { fill: #c8cde0; }
+[data-theme="halloween"] .ql-snow .ql-picker { color: #c8cde0; }
+
+/* ---- Telaraña compartida (una sola definición del SVG) ---- */
+[data-theme="halloween"] {
+  --hw-web-img: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 112 112' fill='none' stroke='%23e6dcff' stroke-width='.5' stroke-linecap='round'><path d='M0 0L112.0 0.0M0 0L103.8 42.0M0 0L79.2 79.2M0 0L43.8 103.1M0 0L0.0 112.0M28.0 0.0Q21.4 4.2 26.0 10.5M26.0 10.5Q18.2 12.1 19.8 19.8M19.8 19.8Q12.2 18.1 10.9 25.8M10.9 25.8Q4.4 21.4 0.0 28.0M52.0 0.0Q39.8 7.7 48.2 19.5M48.2 19.5Q33.8 22.4 36.8 36.8M36.8 36.8Q22.7 33.6 20.3 47.9M20.3 47.9Q8.1 39.7 0.0 52.0M76.0 0.0Q58.2 11.3 70.5 28.5M70.5 28.5Q49.4 32.7 53.7 53.7M53.7 53.7Q33.1 49.1 29.7 70.0M29.7 70.0Q11.8 58.1 0.0 76.0M100.0 0.0Q76.6 14.9 92.7 37.5M92.7 37.5Q65.0 43.1 70.7 70.7M70.7 70.7Q43.6 64.7 39.1 92.1M39.1 92.1Q15.6 76.4 0.0 100.0'/></svg>");
+}
+
+/* ---- Navbar superior ---- */
+[data-theme="halloween"] .hw-navbar input::placeholder { color: #c9c3dc; opacity: 1; }
+[data-theme="halloween"] .hw-navbar {
+  background-image: linear-gradient(90deg, rgba(16,11,26,.93), rgba(8,9,16,.93));
+  border-color: rgba(255,255,255,.10);
+  box-shadow: 0 0 0 1px rgba(157,78,221,.14), 0 12px 34px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.05);
+}
+[data-theme="halloween"] .hw-navbar input[type="text"]:not(:focus) {
+  background-color: rgba(8,8,14,.65);
+  border-color: rgba(255,122,26,.8);
+  box-shadow: 0 0 0 1px rgba(255,109,0,.22), 0 0 16px rgba(255,109,0,.28), inset 0 0 10px rgba(255,109,0,.08);
+}
+
+/* ---- Navegador de secciones ---- */
+[data-theme="halloween"] .hw-nav { background-color: rgba(12,12,22,.84); border-color: rgba(255,255,255,.10); box-shadow: 0 8px 26px rgba(0,0,0,.5); }
+[data-theme="halloween"] .hw-nav-tab svg.lucide { color: #ff8a3d; }
+[data-theme="halloween"] .hw-nav-tab:hover { background: rgba(157,78,221,.16); color: #ffb27a; }
+[data-theme="halloween"] .hw-nav-active {
+  background-color: transparent;
+  background-image: linear-gradient(180deg, rgba(74,34,20,.92), rgba(30,18,34,.96));
+  box-shadow: 0 0 0 1.5px #ff7a1a, 0 0 18px rgba(255,109,0,.45), inset 0 0 14px rgba(255,109,0,.16);
+}
+.hw-pumpkin-ico { width: 20px; height: 20px; flex-shrink: 0; filter: drop-shadow(0 0 5px rgba(255,109,0,.7)); animation: hw-flicker 3.2s ease-in-out infinite; }
+
+/* ---- Encabezado de página ---- */
+[data-theme="halloween"] .hw-title-icon { background-color: rgba(58,38,108,.62); box-shadow: inset 0 0 0 1px rgba(157,78,221,.5), 0 0 18px rgba(123,44,191,.3); }
+[data-theme="halloween"] .hw-title-icon svg { color: #ff8a3d; }
+
+/* ---- Tarjetas de métricas ---- */
+[data-theme="halloween"] .hw-card { position: relative; overflow: hidden; background-color: rgba(14,16,28,.42); transition: box-shadow .2s, transform .2s; }
+[data-theme="halloween"] .hw-card::before,
+[data-theme="halloween"] .hw-card::after {
+  content: ""; position: absolute; width: 58px; height: 58px; pointer-events: none; opacity: .26;
+  background: var(--hw-web-img) no-repeat top left / contain;
+}
+[data-theme="halloween"] .hw-card::before { top: 0; left: 0; }
+[data-theme="halloween"] .hw-card::after { bottom: 0; right: 0; transform: rotate(180deg); }
+[data-theme="halloween"] .hw-card--total   { border-color: rgba(168,160,205,.5);  background-image: linear-gradient(135deg, rgba(96,86,140,.36), rgba(30,30,56,.5));  box-shadow: 0 0 20px rgba(123,44,191,.18), inset 0 1px 0 rgba(255,255,255,.06); }
+[data-theme="halloween"] .hw-card--pending { border-color: #ff7a1a;               background-image: linear-gradient(135deg, rgba(128,52,10,.6), rgba(44,20,12,.62));  box-shadow: 0 0 0 1px rgba(255,122,26,.55), 0 0 24px rgba(255,109,0,.32), inset 0 0 22px rgba(255,109,0,.12); }
+[data-theme="halloween"] .hw-card--resolved{ border-color: rgba(214,245,228,.72); background-image: linear-gradient(135deg, rgba(52,92,80,.46), rgba(20,34,40,.56));  box-shadow: 0 0 20px rgba(46,196,182,.2), inset 0 1px 0 rgba(255,255,255,.08); }
+[data-theme="halloween"] .hw-card--total   .hw-num { color: #c9a8ff; text-shadow: 0 0 14px rgba(157,78,221,.65); }
+[data-theme="halloween"] .hw-card--pending .hw-num { color: #ff8a3d; text-shadow: 0 0 14px rgba(255,109,0,.65); }
+[data-theme="halloween"] .hw-card--resolved .hw-num { color: #7ddba3; text-shadow: 0 0 14px rgba(46,196,140,.5); }
+[data-theme="halloween"] .hw-card-label { color: #d9d4e8; }
+
+/* ---- Contenedor principal y tabla ---- */
+[data-theme="halloween"] .hw-panel {
+  background-color: rgba(10,12,22,.46);
+  border-color: rgba(255,255,255,.10);
+  box-shadow: 0 0 0 1px rgba(157,78,221,.10), 0 22px 60px rgba(0,0,0,.65);
+}
+[data-theme="halloween"] .hw-panel-head { background-color: rgba(21,27,45,.16); }
+[data-theme="halloween"] .hw-panel-search { background-color: rgba(8,9,16,.55); border-color: rgba(255,255,255,.16); }
+[data-theme="halloween"] .hw-filter-bar { background-color: rgba(8,9,16,.55); border-color: rgba(255,255,255,.10); }
+[data-theme="halloween"] .hw-filter-pill { background-color: rgba(34,24,30,.92); border-color: #ff7a1a; box-shadow: 0 0 12px rgba(255,109,0,.32), inset 0 0 10px rgba(255,109,0,.10); }
+[data-theme="halloween"] .hw-table thead { background-color: rgba(40,44,60,.5); }
+/* Panel translúcido: el globo se alcanza a ver detrás, como en el tema claro */
+[data-theme="halloween"] .hw-table tbody { background-color: transparent; }
+[data-theme="halloween"] .hw-table tbody tr { background-color: rgba(14,16,28,.26); }
+[data-theme="halloween"] .hw-table tbody tr:nth-child(even) { background-color: rgba(34,36,58,.32); }
+[data-theme="halloween"] .hw-table tbody tr:hover { background-color: rgba(123,44,191,.24); box-shadow: inset 3px 0 0 var(--hw-orange); }
+[data-theme="halloween"] .hw-id { background-color: #2a1a4a; color: #e6dcff; box-shadow: inset 0 0 0 1px rgba(157,78,221,.5); }
+
+/* ---- Exportar Reporte (verde espectral, contorno) ---- */
+[data-theme="halloween"] .hw-export { background-color: rgba(6,40,30,.88); color: #a7f3d0; box-shadow: inset 0 0 0 1px rgba(52,211,153,.7), 0 0 16px rgba(16,185,129,.28); }
+[data-theme="halloween"] .hw-export:hover { background-color: rgba(8,58,42,.95); color: #d1fae5; box-shadow: inset 0 0 0 1px #34d399, 0 0 22px rgba(52,211,153,.45); }
+
+/* ---- Brillos suaves en acciones activas ---- */
+[data-theme="halloween"] .hw-glow:hover { box-shadow: 0 0 16px rgba(255,109,0,.4); }
+
+/* ---- Telarañas en esquinas de contenedores ---- */
+[data-theme="halloween"] .hw-web::before,
+[data-theme="halloween"] .hw-web::after {
+  content: ""; position: absolute; top: 0; width: 96px; height: 96px; pointer-events: none; opacity: .3;
+  background: var(--hw-web-img) no-repeat top left / contain; z-index: 1;
+}
+[data-theme="halloween"] .hw-web::before { left: 0; }
+[data-theme="halloween"] .hw-web::after { right: 0; transform: scaleX(-1); }
+[data-theme="halloween"] .hw-web-sm::before, [data-theme="halloween"] .hw-web-sm::after { width: 52px; height: 52px; opacity: .22; }
+
+/* ---- Globo: resplandor naranja -> violeta detrás del lienzo ---- */
+.hw-globe-glow {
+  position: absolute; inset: 8.5%; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle at 34% 38%, rgba(255,120,30,.55) 0%, rgba(214,48,40,.42) 38%, rgba(120,40,190,.42) 72%, rgba(60,20,120,.5) 100%);
+  box-shadow: 0 0 70px 14px rgba(255,90,20,.28), 0 0 130px 40px rgba(123,44,191,.22);
+}
+
+/* ---- Fondo fijo: neblina, murciélagos y telarañas de pantalla ---- */
+.hw-backdrop { position: fixed; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; }
+.hw-haze { position: absolute; left: 22%; top: 6%; width: 62%; height: 46%; background: radial-gradient(closest-side, rgba(150,124,200,.42), rgba(100,80,150,.18) 60%, transparent); filter: blur(24px); }
+.hw-mist { position: absolute; inset: 0; background: url("/halloween/mist.svg") center / cover no-repeat; opacity: .55; mix-blend-mode: screen; animation: hw-drift 90s ease-in-out infinite alternate; }
+.hw-fog { position: absolute; border-radius: 50%; filter: blur(34px); background: radial-gradient(closest-side, rgba(176,168,210,.42), rgba(124,114,170,.16) 62%, transparent); animation: hw-drift 46s ease-in-out infinite alternate; }
+.hw-fog-1 { left: -12%; bottom: -14%; width: 62vw; height: 44vh; }
+.hw-fog-2 { right: -10%; bottom: -18%; width: 56vw; height: 40vh; animation-duration: 58s; animation-direction: alternate-reverse; }
+.hw-fog-3 { left: -14%; top: 30%; width: 34vw; height: 36vh; opacity: .75; animation-duration: 64s; }
+.hw-fog-4 { left: 28%; bottom: -22%; width: 50vw; height: 34vh; opacity: .8; animation-duration: 52s; animation-direction: alternate-reverse; }
+
+.hw-bat { position: absolute; color: #050308; opacity: .92; filter: drop-shadow(0 2px 6px rgba(0,0,0,.5)); animation: hw-hover 5s ease-in-out infinite; }
+.hw-bat svg { display: block; width: 100%; transform-origin: 50% 40%; animation: hw-flap .5s ease-in-out infinite alternate; }
+.hw-bat-1 { width: 58px; top: 176px; left: 33%; rotate: -8deg; animation-delay: -.6s; }
+.hw-bat-2 { width: 112px; top: 150px; left: 37%; rotate: 6deg; }
+.hw-bat-3 { width: 84px; top: 160px; left: 44.5%; rotate: -10deg; animation-delay: -2.1s; }
+.hw-bat-4 { width: 128px; top: 118px; left: 54%; rotate: 12deg; animation-delay: -1.2s; }
+.hw-bat-5 { width: 56px; top: 96px; left: 59.5%; rotate: -14deg; animation-delay: -3s; }
+.hw-bat-6 { width: 50px; top: 188px; left: 58%; rotate: 8deg; animation-delay: -3.8s; }
+.hw-bat-2 svg, .hw-bat-5 svg { animation-duration: .42s; }
+.hw-bat-4 svg { animation-duration: .58s; }
+
+.hw-screen-web { position: absolute; width: 280px; height: 280px; opacity: .3; background: var(--hw-web-img) no-repeat top left / contain; }
+.hw-screen-web-tl { top: 0; left: 0; }
+.hw-screen-web-tr { top: 0; right: 0; transform: scaleX(-1); }
+.hw-screen-web-bl { bottom: 0; left: 0; transform: scaleY(-1); width: 200px; height: 200px; opacity: .16; }
+.hw-screen-web-br { bottom: 0; right: 0; transform: scale(-1, -1); width: 200px; height: 200px; opacity: .16; }
+
+/* ---- Calabazas sobre el panel, sombrero de bruja y araña ---- */
+.hw-patch { display: none; position: absolute; left: 50%; top: 0; width: 290px; transform: translate(-50%, -88%); pointer-events: none; z-index: 11; filter: drop-shadow(0 1px 1px rgba(0,0,0,.7)) drop-shadow(0 6px 8px rgba(0,0,0,.55)) drop-shadow(0 16px 22px rgba(0,0,0,.5)); }
+@media (min-width: 1180px) { .hw-patch { display: block; } }
+.hw-patch-glow { animation: hw-candle 3.4s ease-in-out infinite; }
+.hw-hat { position: absolute; width: 32px; height: 32px; left: -12px; top: -19px; rotate: -20deg; pointer-events: none; z-index: 5; filter: drop-shadow(0 2px 3px rgba(0,0,0,.6)); }
+.hw-spider-tiny { position: absolute; width: 24px; height: 24px; top: 50%; right: 16px; margin-top: -12px; pointer-events: none; filter: drop-shadow(0 0 6px rgba(255,109,0,.75)); animation: hw-sway 5s ease-in-out infinite; transform-origin: 50% 0; z-index: 2; }
+
+@keyframes hw-drift { from { transform: translateX(-3%) scale(1); } to { transform: translateX(5%) scale(1.08); } }
+@keyframes hw-hover { 0%,100% { translate: 0 0; } 50% { translate: 6px -9px; } }
+@keyframes hw-flap { from { transform: scaleX(1); } to { transform: scaleX(.78) scaleY(1.06); } }
+@keyframes hw-flicker { 0%,100% { filter: drop-shadow(0 0 4px rgba(255,109,0,.6)); } 50% { filter: drop-shadow(0 0 9px rgba(255,160,40,.95)); } }
+@keyframes hw-candle { 0%,100% { opacity: 1; } 45% { opacity: .78; } 60% { opacity: .95; } 72% { opacity: .7; } }
+@keyframes hw-sway { 0%,100% { transform: rotate(-6deg); } 50% { transform: rotate(6deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .hw-bat, .hw-bat svg, .hw-fog, .hw-mist, .hw-pumpkin-ico, .hw-patch-glow, .hw-spider-tiny { animation: none !important; }
+}
+@media (max-width: 640px) {
+  .hw-screen-web { width: 130px; height: 130px; }
+  .hw-bat-1, .hw-bat-5, .hw-bat-6 { display: none; }
+  .hw-bat { scale: .7; opacity: .6; }
+  .hw-spider-tiny { width: 16px; height: 16px; right: 5px; top: 5px; margin-top: 0; }
+  [data-theme="halloween"] .hw-web::before, [data-theme="halloween"] .hw-web::after { width: 64px; height: 64px; }
+  [data-theme="halloween"] .hw-card::before, [data-theme="halloween"] .hw-card::after { width: 36px; height: 36px; }
+}

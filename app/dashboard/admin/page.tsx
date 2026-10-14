@@ -70,7 +70,7 @@ export default async function AdminDashboard() {
 
                 {/* Header */}
                 <div className="flex items-center gap-3">
-                    <div className="p-3 bg-indigo-100 rounded-2xl">
+                    <div className="hw-title-icon p-3 bg-indigo-100 rounded-2xl">
                         <LayoutGrid className="w-7 h-7 text-indigo-600" />
                     </div>
                     <div>

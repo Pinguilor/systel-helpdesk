@@ -12,6 +12,7 @@ import debounce from 'lodash.debounce';
 import { TicketForm } from '../usuario/components/TicketForm';
 import { CatalogConfigModal } from './CatalogConfigModal';
 import { motion, AnimatePresence } from 'framer-motion';
+import { WitchHat } from '@/components/theme/HalloweenDecor';
 
 interface TopNavProps {
     userFullName: string | null;
@@ -298,7 +299,7 @@ export default function TopNav({ userFullName, userRole }: TopNavProps) {
     return (
         <header className="sticky top-0 z-50 w-full bg-transparent px-4 pt-3 pb-2 transition-all duration-300">
             {/* Contenedor relativo para poder clavar el logo en el centro absoluto */}
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative bg-gradient-to-r from-[#0e3187]/80 to-[#222727]/80 backdrop-blur-md border border-white/10 rounded-2xl shadow-lg shadow-black/10">
+            <div className="hw-navbar max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative bg-gradient-to-r from-[#0e3187]/80 to-[#222727]/80 backdrop-blur-md border border-white/10 rounded-2xl shadow-lg shadow-black/10">
                 <div className="flex justify-between items-center h-16">
 
                     {/* IZQUIERDA: Logo (Oculto en móvil) */}
@@ -463,6 +464,7 @@ export default function TopNav({ userFullName, userRole }: TopNavProps) {
 
                         {/* Notifications Bell */}
                         <div className="relative" ref={notifRef}>
+                            <WitchHat />
                             <button
                                 onClick={() => setIsNotifOpen(!isNotifOpen)}
                                 className={`relative w-9 h-9 rounded-full flex items-center justify-center transition-all text-white focus:outline-none ${isNotifOpen ? 'bg-white/25 ring-1 ring-white/20' : 'bg-white/10 hover:bg-white/20'}`}
