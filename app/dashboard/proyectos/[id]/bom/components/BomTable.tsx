@@ -4,10 +4,11 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
     Package, ShoppingCart, AlertTriangle,
-    Wrench, MapPin, X, Minus, Plus, Loader2,
+    Wrench, MapPin, X, Minus, Plus, Loader2, Layers,
 } from 'lucide-react';
 import { ModalSolicitudRetiroProyecto, type RecetaItem } from '../../equipamiento/components/ModalSolicitudRetiroProyecto';
 import { ReportarIncidenciaModal } from '../../components/ReportarIncidenciaModal';
+import { DevolucionMasivaModal } from '../../components/DevolucionMasivaModal';
 import { instalarMaterial, instalarMaterialEstacionado } from '../actions';
 
 interface Props {
@@ -203,6 +204,7 @@ export function BomTable({ items, proyectoId, currentUserRol = 'tecnico' }: Prop
 
     const [isCartOpen,     setIsCartOpen]     = useState(false);
     const [incidenciaItem, setIncidenciaItem] = useState<RecetaItem | null>(null);
+    const [isMasivaOpen,   setIsMasivaOpen]   = useState(false);
     const [installState,   setInstallState]   = useState<{
         item: RecetaItem;
         mode: InstallMode;
@@ -244,13 +246,24 @@ export function BomTable({ items, proyectoId, currentUserRol = 'tecnico' }: Prop
                         Ciclo de vida del hardware
                     </p>
                 </div>
-                <button
-                    onClick={() => setIsCartOpen(true)}
-                    className="flex items-center justify-center gap-2 px-6 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 hover:shadow-lg hover:shadow-indigo-500/30 transition-all duration-300 active:scale-[0.98]"
-                >
-                    <ShoppingCart className="w-4 h-4" />
-                    Solicitar Retiro a Bodega
-                </button>
+                <div className="flex flex-col sm:flex-row gap-2">
+                    <button
+                        onClick={() => setIsMasivaOpen(true)}
+                        disabled={totals.entregada === 0}
+                        title={totals.entregada === 0 ? 'Aún no hay material entregado' : 'Devolver o reportar múltiples ítems en un solo paquete'}
+                        className="flex items-center justify-center gap-2 px-5 py-2.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-xl text-sm font-bold hover:bg-amber-100 transition-all duration-300 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        <Layers className="w-4 h-4" />
+                        Devolución / Incidencia Masiva
+                    </button>
+                    <button
+                        onClick={() => setIsCartOpen(true)}
+                        className="flex items-center justify-center gap-2 px-6 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 hover:shadow-lg hover:shadow-indigo-500/30 transition-all duration-300 active:scale-[0.98]"
+                    >
+                        <ShoppingCart className="w-4 h-4" />
+                        Solicitar Retiro a Bodega
+                    </button>
+                </div>
             </div>
 
             {/* Tabla principal */}
@@ -452,6 +465,15 @@ export function BomTable({ items, proyectoId, currentUserRol = 'tecnico' }: Prop
                     proyectoId={proyectoId}
                     onClose={() => setInstallState(null)}
                     onSuccess={handleInstallSuccess}
+                />
+            )}
+
+            {/* Modal de Devolución / Incidencia Masiva (paquete por lote) */}
+            {isMasivaOpen && (
+                <DevolucionMasivaModal
+                    proyectoId={proyectoId}
+                    onClose={() => setIsMasivaOpen(false)}
+                    onSuccess={() => { setIsMasivaOpen(false); router.refresh(); }}
                 />
             )}
 

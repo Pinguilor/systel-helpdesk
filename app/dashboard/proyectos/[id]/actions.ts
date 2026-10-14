@@ -1158,3 +1158,168 @@ export async function generarDevolucionMasivaCierre(
     revalidatePath(`/dashboard/proyectos/${proyectoId}`);
     return { error: null, ajustados, solicitudesCreadas };
 }
+
+// ── Devolución / Incidencia Masiva por Lote ───────────────────────────────────
+
+export interface LineaDevolucionMasiva {
+    equipId:       string;
+    modelo:        string;
+    familia:       string;
+    esSerializado: boolean;
+    /** Unidades en terreno sin estado declarado (tope de la línea). */
+    libres:        number;
+    /** Solo serializados: seriales "En Proyecto" asignados a esta línea y sin lote vivo. */
+    seriales:      { inventarioId: string; numeroSerie: string }[];
+}
+
+export interface ItemLoteInput {
+    equipId:       string;
+    /** Genéricos: unidades a reportar. */
+    cantidad?:     number;
+    /** Serializados: inventario_id exactos. */
+    inventarioIds?: string[];
+}
+
+/**
+ * Líneas de la receta con unidades en terreno disponibles para devolver/reportar.
+ * Los genéricos traen el saldo; los serializados, sus números de serie exactos.
+ */
+export async function getItemsDevolucionMasivaAction(
+    proyectoId: string
+): Promise<{ data: LineaDevolucionMasiva[]; error: string | null }> {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { data: [], error: 'No autorizado.' };
+
+    const db = createAdminClient();
+
+    const [equipRes, serialesRes] = await Promise.all([
+        db.from('proyecto_equipamiento')
+            .select(`
+                id, tipo_item, cantidad_entregada, cantidad_instalada,
+                cantidad_estacionada, cantidad_en_transito, cantidad_reingresada,
+                catalogo:catalogo_equipos!inventario_id (
+                    modelo, es_serializado, familia_obj:familias_hardware ( nombre )
+                )
+            `)
+            .eq('proyecto_id', proyectoId)
+            .gt('cantidad_entregada', 0),
+        db.rpc('get_seriales_proyecto', { p_proyecto_id: proyectoId }),
+    ]);
+
+    if (equipRes.error)    return { data: [], error: equipRes.error.message };
+    if (serialesRes.error) return { data: [], error: serialesRes.error.message };
+
+    const serialesPorEquip = new Map<string, { inventarioId: string; numeroSerie: string }[]>();
+    for (const s of (serialesRes.data ?? []) as any[]) {
+        const arr = serialesPorEquip.get(s.proyecto_equipamiento_id) ?? [];
+        arr.push({ inventarioId: s.inventario_id, numeroSerie: s.numero_serie ?? 'S/N' });
+        serialesPorEquip.set(s.proyecto_equipamiento_id, arr);
+    }
+
+    const lineas: LineaDevolucionMasiva[] = [];
+    for (const e of (equipRes.data ?? []) as any[]) {
+        const libres =
+            (e.cantidad_entregada   ?? 0) -
+            (e.cantidad_instalada   ?? 0) -
+            (e.cantidad_estacionada ?? 0) -
+            (e.cantidad_en_transito ?? 0) -
+            (e.cantidad_reingresada ?? 0);
+        if (libres <= 0) continue;
+
+        const esSerializado = !!e.catalogo?.es_serializado;
+        const seriales = esSerializado
+            ? (serialesPorEquip.get(e.id) ?? []).sort((a, b) => a.numeroSerie.localeCompare(b.numeroSerie))
+            : [];
+        if (esSerializado && seriales.length === 0) continue;
+
+        lineas.push({
+            equipId:       e.id,
+            modelo:        e.catalogo?.modelo ?? e.tipo_item ?? 'Material sin nombre',
+            familia:       e.catalogo?.familia_obj?.nombre ?? 'Sin familia',
+            esSerializado,
+            libres,
+            seriales,
+        });
+    }
+
+    lineas.sort((a, b) => a.modelo.localeCompare(b.modelo));
+    return { data: lineas, error: null };
+}
+
+/**
+ * Crea una incidencia/devolución por lote en UNA llamada atómica (RPC PL/pgSQL).
+ * Si cualquier ítem falla la validación, el paquete completo se revierte.
+ */
+export async function crearDevolucionMasivaAction(params: {
+    proyectoId:       string;
+    accion:           AccionCustodia;
+    motivo:           string;
+    observacion:      string;
+    evidenciaFotoUrl: string;
+    firmaCustodiaUrl: string;
+    items:            ItemLoteInput[];
+}): Promise<{ error: string | null; loteId?: string; totalUnidades?: number }> {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: 'No autorizado.' };
+
+    const { proyectoId, accion, motivo, observacion, items } = params;
+    if (!items?.length)                  return { error: 'Selecciona al menos un ítem.' };
+    if (!motivo.trim())                  return { error: 'El motivo es obligatorio.' };
+    if (!params.evidenciaFotoUrl)        return { error: 'La fotografía de evidencia es obligatoria.' };
+    if (!params.firmaCustodiaUrl)        return { error: 'La firma de custodia es obligatoria.' };
+
+    const db = createAdminClient();
+
+    const [{ data: proyecto }, { data: profile }, { data: participacion }] = await Promise.all([
+        db.from('proyectos').select('estado, responsable_id').eq('id', proyectoId).single(),
+        db.from('profiles').select('rol').eq('id', user.id).single(),
+        db.from('proyecto_participantes')
+            .select('id').eq('proyecto_id', proyectoId).eq('perfil_id', user.id).eq('activo', true)
+            .maybeSingle(),
+    ]);
+
+    if (!proyecto) return { error: 'Proyecto no encontrado.' };
+    if (proyecto.estado === 'completado') return { error: 'El proyecto ya está cerrado.' };
+
+    const rol      = (profile?.rol ?? '').toLowerCase();
+    const esGestor = rol === 'admin' || rol === 'coordinador' || user.id === proyecto.responsable_id;
+    if (!esGestor && !participacion) {
+        return { error: 'No estás asignado como participante activo de este proyecto.' };
+    }
+
+    const payload = items.map(i => ({
+        equip_id:       i.equipId,
+        cantidad:       i.cantidad ?? 0,
+        inventario_ids: i.inventarioIds ?? [],
+    }));
+
+    const { data, error } = await db.rpc('crear_devolucion_lote_rpc', {
+        p_proyecto_id: proyectoId,
+        p_user_id:     user.id,
+        p_accion:      accion,
+        p_motivo:      motivo.trim(),
+        p_observacion: observacion.trim(),
+        p_foto_url:    params.evidenciaFotoUrl,
+        p_firma_url:   params.firmaCustodiaUrl,
+        p_items:       payload,
+    });
+
+    if (error) return { error: `Error al registrar el paquete: ${error.message}` };
+    const res = data as { error?: string; lote_id?: string; total_unidades?: number; total_lineas?: number } | null;
+    if (res?.error) return { error: res.error };
+
+    const etiqueta = accion === 'Estacionado_Obra'
+        ? 'Estacionado en Obra'
+        : 'En Tránsito de Devolución — recepción en bodega pendiente';
+    await registrarEntradaAuditoria(
+        proyectoId, user.id,
+        `[CUSTODIA] Paquete masivo: ${res?.total_unidades ?? 0} u. en ${res?.total_lineas ?? 0} línea(s) — ${etiqueta}. Motivo: ${motivo.trim()}`,
+        'hito'
+    );
+
+    revalidatePath(`/dashboard/proyectos/${proyectoId}`);
+    revalidatePath('/dashboard/admin/bodegas/solicitudes');
+    return { error: null, loteId: res?.lote_id, totalUnidades: res?.total_unidades };
+}

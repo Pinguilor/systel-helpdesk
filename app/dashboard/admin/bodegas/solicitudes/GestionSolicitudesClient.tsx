@@ -16,7 +16,7 @@ import {
     getSeriadosDisponiblesAction, loadMoreHistorialAction,
     type ItemContexto, type StockCheckResult,
     type AutoAsignacionInput, type ItemBodegaAsignacion,
-    type SerialProyectoAsignacion, type DevolucionLogistica,
+    type SerialProyectoAsignacion, type DevolucionLogistica, type LoteDevolucion,
 } from './actions';
 import { BandejaLogisticaInversa } from './BandejaLogisticaInversa';
 import { CustomSelect } from '@/app/dashboard/components/CustomSelect';
@@ -85,6 +85,7 @@ interface Props {
     solicitudes: Solicitud[];
     devoluciones: Devolucion[];
     devolucionesLogistica: DevolucionLogistica[];
+    lotesLogistica: LoteDevolucion[];
     bodegasCentrales: Bodega[];
     totalSolicitudesAprobadas: number;
     totalSolicitudesRechazadas: number;
@@ -1359,6 +1360,7 @@ export function GestionSolicitudesClient({
     solicitudes: initialSolicitudes,
     devoluciones: initialDevoluciones,
     devolucionesLogistica: initialDevolucionesLogistica,
+    lotesLogistica: initialLotesLogistica,
     bodegasCentrales,
     totalSolicitudesAprobadas,
     totalSolicitudesRechazadas,
@@ -1371,6 +1373,7 @@ export function GestionSolicitudesClient({
     const [allSolicitudes, setAllSolicitudes] = useState<Solicitud[]>(initialSolicitudes);
     const [allDevoluciones, setAllDevoluciones] = useState<Devolucion[]>(initialDevoluciones);
     const [allDevolucionesLogistica, setAllDevolucionesLogistica] = useState<DevolucionLogistica[]>(initialDevolucionesLogistica);
+    const [allLotesLogistica, setAllLotesLogistica] = useState<LoteDevolucion[]>(initialLotesLogistica);
     const [loadingMore, setLoadingMore] = useState(false);
 
     // Re-sincroniza el estado local cuando el servidor envía datos frescos
@@ -1380,6 +1383,7 @@ export function GestionSolicitudesClient({
     useEffect(() => { setAllSolicitudes(initialSolicitudes); }, [initialSolicitudes]);
     useEffect(() => { setAllDevoluciones(initialDevoluciones); }, [initialDevoluciones]);
     useEffect(() => { setAllDevolucionesLogistica(initialDevolucionesLogistica); }, [initialDevolucionesLogistica]);
+    useEffect(() => { setAllLotesLogistica(initialLotesLogistica); }, [initialLotesLogistica]);
 
     const handleRefresh = () => router.refresh();
 
@@ -1445,7 +1449,7 @@ export function GestionSolicitudesClient({
 
     const pendientesEntregas     = allSolicitudes.filter(s => s.estado === 'pendiente').length;
     const pendientesDevoluciones = allDevoluciones.filter(s => s.estado === 'pendiente').length;
-    const pendientesLogistica    = allDevolucionesLogistica.length;
+    const pendientesLogistica    = allDevolucionesLogistica.length + allLotesLogistica.length;
 
     return (
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
@@ -1538,6 +1542,8 @@ export function GestionSolicitudesClient({
             {bandeja === 'logistica_inversa' && (
                 <BandejaLogisticaInversa
                     devoluciones={allDevolucionesLogistica}
+                    lotes={allLotesLogistica}
+                    bodegas={bodegasCentrales}
                     onRefresh={handleRefresh}
                 />
             )}

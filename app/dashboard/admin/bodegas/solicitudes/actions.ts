@@ -80,6 +80,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { createClient as createAdminClient } from '@supabase/supabase-js';
 import { revalidatePath } from 'next/cache';
+import { registrarEntradaAuditoria } from '@/app/dashboard/proyectos/[id]/actions';
 
 // Cliente con Service Role para operaciones que RLS bloquearía (ej: insertar mensajes en tickets ajenos)
 function getAdminSupabase() {
@@ -1175,6 +1176,7 @@ export async function getPendientesLogisticaInversaAction(): Promise<{
                 )
             `)
             .eq('estado', 'En_Transito_Devolucion')
+            .is('lote_id', null) // las custodias de un lote se gestionan como paquete
             .order('created_at', { ascending: false });
 
         if (error) return { data: [], error: error.message };
@@ -1270,5 +1272,211 @@ export async function recepcionarDevolucionBodegueroAction(
         return { error: null };
     } catch (e: any) {
         return { error: e.message || 'Error interno al recepcionar la devolución.' };
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LOGÍSTICA INVERSA — Lotes (devolución masiva por paquete)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type LineaLoteDevolucion = {
+    equipId:       string;
+    modelo:        string;
+    familia:       string;
+    esSerializado: boolean;
+    cantidad:      number;
+    seriales:      string[];
+};
+
+export type LoteDevolucion = {
+    loteId:         string;
+    proyectoId:     string;
+    proyectoNombre: string;
+    tecnicoNombre:  string;
+    motivo:         string;
+    observacion:    string | null;
+    evidenciaUrl:   string | null;
+    firmaUrl:       string | null;
+    totalUnidades:  number;
+    totalLineas:    number;
+    createdAt:      string;
+    lineas:         LineaLoteDevolucion[];
+};
+
+export async function getLotesPendientesLogisticaInversaAction(): Promise<{
+    data: LoteDevolucion[];
+    error: string | null;
+}> {
+    try {
+        const supabase = await createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return { data: [], error: 'No autorizado.' };
+
+        const { data: profile } = await supabase
+            .from('profiles').select('rol').eq('id', user.id).maybeSingle();
+
+        const rol = profile?.rol?.toUpperCase() || '';
+        if (!['ADMIN_BODEGA', 'ADMIN', 'COORDINADOR'].includes(rol)) {
+            return { data: [], error: 'Permisos insuficientes.' };
+        }
+
+        const db = getAdminSupabase();
+        const { data, error } = await db
+            .from('proyecto_devolucion_lotes')
+            .select(`
+                id, proyecto_id, motivo, observacion, evidencia_fotografica_url,
+                firma_custodia_url, total_unidades, total_lineas, created_at,
+                proyecto:proyectos!proyecto_id ( nombre ),
+                tecnico:profiles!reportado_por_id ( full_name ),
+                items:proyecto_devolucion_lote_items (
+                    proyecto_equipamiento_id, cantidad,
+                    serial:inventario_id ( numero_serie ),
+                    equip:proyecto_equipamiento_id (
+                        tipo_item,
+                        cat:catalogo_equipos!inventario_id (
+                            modelo, es_serializado, familia_obj:familias_hardware ( nombre )
+                        )
+                    )
+                )
+            `)
+            .eq('estado', 'pendiente')
+            .eq('accion', 'En_Transito_Devolucion')
+            .order('created_at', { ascending: false });
+
+        if (error) return { data: [], error: error.message };
+
+        const lotes: LoteDevolucion[] = (data ?? []).map((row: any) => {
+            const porEquip = new Map<string, LineaLoteDevolucion>();
+            for (const it of row.items ?? []) {
+                const cat = it.equip?.cat;
+                const linea: LineaLoteDevolucion = porEquip.get(it.proyecto_equipamiento_id) ?? {
+                    equipId:       it.proyecto_equipamiento_id,
+                    modelo:        cat?.modelo ?? it.equip?.tipo_item ?? 'Material',
+                    familia:       cat?.familia_obj?.nombre ?? 'Sin familia',
+                    esSerializado: !!cat?.es_serializado,
+                    cantidad:      0,
+                    seriales:      [],
+                };
+                linea.cantidad += it.cantidad ?? 0;
+                if (it.serial?.numero_serie) linea.seriales.push(it.serial.numero_serie);
+                porEquip.set(it.proyecto_equipamiento_id, linea);
+            }
+            const lineas = Array.from(porEquip.values()).sort((a, b) => a.modelo.localeCompare(b.modelo));
+            lineas.forEach(l => l.seriales.sort());
+
+            return {
+                loteId:         row.id,
+                proyectoId:     row.proyecto_id,
+                proyectoNombre: row.proyecto?.nombre ?? '—',
+                tecnicoNombre:  row.tecnico?.full_name ?? '—',
+                motivo:         row.motivo,
+                observacion:    row.observacion ?? null,
+                evidenciaUrl:   row.evidencia_fotografica_url ?? null,
+                firmaUrl:       row.firma_custodia_url ?? null,
+                totalUnidades:  row.total_unidades ?? 0,
+                totalLineas:    row.total_lineas ?? lineas.length,
+                createdAt:      row.created_at,
+                lineas,
+            };
+        });
+
+        return { data: lotes, error: null };
+    } catch (e: any) {
+        return { data: [], error: e.message || 'Error al cargar los lotes de devolución.' };
+    }
+}
+
+/**
+ * Recepciona el paquete completo en una sola operación atómica (RPC):
+ * seriales → Disponibles en la bodega elegida, genéricos acreditados al stock,
+ * contadores en_transito → reingresada y custodias cerradas.
+ */
+export async function recepcionarLoteDevolucionAction(
+    loteId: string,
+    bodegaDestinoId: string,
+    comentario: string | null = null
+): Promise<{ error: string | null }> {
+    try {
+        const supabase = await createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return { error: 'No autorizado.' };
+
+        const { data: profile } = await supabase
+            .from('profiles').select('rol').eq('id', user.id).maybeSingle();
+
+        const rol = profile?.rol?.toUpperCase() || '';
+        if (!['ADMIN_BODEGA', 'ADMIN'].includes(rol)) {
+            return { error: 'Solo el bodeguero o administrador puede recepcionar devoluciones de proyectos.' };
+        }
+        if (!bodegaDestinoId) return { error: 'Selecciona la bodega de destino.' };
+
+        const db = getAdminSupabase();
+        const { data, error } = await db.rpc('recibir_lote_devolucion_rpc', {
+            p_lote_id:        loteId,
+            p_bodeguero_id:   user.id,
+            p_bodega_destino: bodegaDestinoId,
+            p_comentario:     comentario,
+        });
+
+        if (error) return { error: error.message };
+        const res = data as { error?: string; total_unidades?: number; proyecto_id?: string } | null;
+        if (res?.error) return { error: res.error };
+
+        if (res?.proyecto_id) {
+            await registrarEntradaAuditoria(
+                res.proyecto_id, user.id,
+                `[CUSTODIA] ✓ Paquete recepcionado en bodega — ${res.total_unidades ?? 0} u. reingresadas.${comentario?.trim() ? ` Comentario: ${comentario.trim()}` : ''}`,
+                'hito'
+            );
+            revalidatePath(`/dashboard/proyectos/${res.proyecto_id}`);
+        }
+        REVALIDATE_PATHS.forEach(p => revalidatePath(p));
+        return { error: null };
+    } catch (e: any) {
+        return { error: e.message || 'Error interno al recepcionar el lote.' };
+    }
+}
+
+export async function rechazarLoteDevolucionAction(
+    loteId: string,
+    motivo: string
+): Promise<{ error: string | null }> {
+    try {
+        const supabase = await createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return { error: 'No autorizado.' };
+
+        const { data: profile } = await supabase
+            .from('profiles').select('rol').eq('id', user.id).maybeSingle();
+
+        const rol = profile?.rol?.toUpperCase() || '';
+        if (!['ADMIN_BODEGA', 'ADMIN'].includes(rol)) {
+            return { error: 'Solo el bodeguero o administrador puede rechazar devoluciones de proyectos.' };
+        }
+        if (!motivo?.trim()) return { error: 'El motivo de rechazo es obligatorio.' };
+
+        const db = getAdminSupabase();
+        const { data, error } = await db.rpc('rechazar_lote_devolucion_rpc', {
+            p_lote_id:      loteId,
+            p_bodeguero_id: user.id,
+            p_motivo:       motivo.trim(),
+        });
+
+        if (error) return { error: error.message };
+        const res = data as { error?: string; proyecto_id?: string } | null;
+        if (res?.error) return { error: res.error };
+
+        if (res?.proyecto_id) {
+            await registrarEntradaAuditoria(
+                res.proyecto_id, user.id,
+                `[CUSTODIA] ✗ Paquete de devolución rechazado por bodega. Motivo: ${motivo.trim()}. Las unidades vuelven a "sin declarar".`,
+                'hito'
+            );
+            revalidatePath(`/dashboard/proyectos/${res.proyecto_id}`);
+        }
+        REVALIDATE_PATHS.forEach(p => revalidatePath(p));
+        return { error: null };
+    } catch (e: any) {
+        return { error: e.message || 'Error interno al rechazar el lote.' };
     }
 }
