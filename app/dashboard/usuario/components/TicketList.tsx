@@ -1,11 +1,14 @@
 'use client';
 
 import { createClient } from '@/lib/supabase/client';
+import { loadUserTicketsAction, searchUserTicketsAction, getUserTicketCountsAction } from '../ticketActions';
+import { isExactSigla } from '@/lib/ticketSearch';
 import { Ticket } from '@/types/database.types';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { MessageSquare, Search, ChevronLeft, ChevronRight, CornerDownRight, Users, User } from 'lucide-react';
+import { SearchInputSpinner, TicketListEmptyState } from '@/components/tickets/TicketSearchStates';
+import { Search, ChevronLeft, ChevronRight, CornerDownRight, Users, User } from 'lucide-react';
 import { getStatusBadge } from '@/app/dashboard/components/StatusBadge';
 import { LoopLoader } from '@/components/LoopLoader';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -13,6 +16,7 @@ import { GlobeInteractive } from '@/components/ui/cobe-globe-interactive';
 import { PumpkinPatch } from '@/components/theme/HalloweenDecor';
 
 const ITEMS_PER_PAGE = 25;
+const PAGE_SIZE = 30;
 
 type FilterType = 'TODOS' | 'PENDIENTES' | 'RESUELTOS';
 type ScopeType = 'propios' | 'equipo';
@@ -40,7 +44,7 @@ const itemVariants = {
     }
 } as const;
 
-export default function TicketList({ limit }: { limit?: number }) {
+export default function TicketList() {
     const [tickets, setTickets] = useState<Ticket[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -48,7 +52,17 @@ export default function TicketList({ limit }: { limit?: number }) {
     const [scope, setScope] = useState<ScopeType>('propios');
     const [currentPage, setCurrentPage] = useState(1);
     const [isMounted, setIsMounted] = useState(false);
+    const [counts, setCounts] = useState({ total: 0, pending: 0, resolved: 0 });
+    const [reachedEnd, setReachedEnd] = useState(false);
+    const [isPending, startTransition] = useTransition();
+    const loadedPagesRef = useRef(1);
     const router = useRouter();
+
+    // Búsqueda server-side: con término activo se consulta toda la tabla (no solo lo cargado).
+    const [serverSearchResults, setServerSearchResults] = useState<Ticket[] | null>(null);
+    const [searchCapped, setSearchCapped] = useState(false);
+    const [isSearching, setIsSearching] = useState(false);
+    const isSearchActive = searchTerm.trim().length > 0;
 
     const globeMarkers = useMemo(() => {
         const counts: Record<string, number> = {};
@@ -157,106 +171,97 @@ export default function TicketList({ limit }: { limit?: number }) {
         setCurrentPage(1);
     }, [searchTerm, filter, scope]);
 
-    const fetchTickets = async (currentScope: ScopeType) => {
-        const supabase = createClient();
-
+    // Carga inicial (30) del alcance/filtro actual + conteos exactos (head: true).
+    const fetchInitial = async (currentScope: ScopeType, currentFilter: FilterType) => {
         try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) {
-                setLoading(false);
-                return;
-            }
-
-            if (currentScope === 'propios') {
-                const { data, error } = await supabase
-                    .from('tickets')
-                    .select(`
-                        *,
-                        restaurantes(nombre_restaurante, sigla),
-                        catalogo_servicios!catalogo_servicio_id(categoria, subcategoria, elemento),
-                        padre:ticket_padre_id(numero_ticket)
-                    `)
-                    .eq('creado_por', user.id)
-                    .order('fecha_creacion', { ascending: false });
-
-                if (error) {
-                    console.error('Error al cargar tickets:', error);
-                } else {
-                    setTickets(data || []);
-                }
-            } else {
-                // scope === 'equipo': buscar todos los usuarios del mismo cliente
-                const { data: profile } = await supabase
-                    .from('profiles')
-                    .select('cliente_id')
-                    .eq('id', user.id)
-                    .maybeSingle();
-
-                const clienteId = (profile as any)?.cliente_id ?? null;
-
-                if (!clienteId) {
-                    // Sin empresa asignada, mostrar solo los propios
-                    const { data, error } = await supabase
-                        .from('tickets')
-                        .select(`
-                            *,
-                            restaurantes(nombre_restaurante, sigla),
-                            catalogo_servicios!catalogo_servicio_id(categoria, subcategoria, elemento),
-                            padre:ticket_padre_id(numero_ticket),
-                            profiles:creado_por(full_name)
-                        `)
-                        .eq('creado_por', user.id)
-                        .order('fecha_creacion', { ascending: false });
-
-                    if (!error) setTickets(data || []);
-                    return;
-                }
-
-                // Tickets de todos los usuarios de la misma empresa.
-                // Se filtra sobre el recurso embebido (creador.cliente_id) con !inner,
-                // lo que genera un WHERE en SQL en lugar de un IN(...) gigante en la URL
-                // (mismo anti-patrón que colapsaba trazabilidad-materiales con HTTP 400).
-                const { data, error } = await supabase
-                    .from('tickets')
-                    .select(`
-                        *,
-                        restaurantes(nombre_restaurante, sigla),
-                        catalogo_servicios!catalogo_servicio_id(categoria, subcategoria, elemento),
-                        padre:ticket_padre_id(numero_ticket),
-                        profiles:creado_por!inner(full_name, cliente_id)
-                    `)
-                    .eq('profiles.cliente_id', clienteId)
-                    .order('fecha_creacion', { ascending: false });
-
-                if (error) {
-                    console.error('Error al cargar tickets del equipo:', error);
-                } else {
-                    setTickets(data || []);
-                }
-            }
+            const [res, c] = await Promise.all([
+                loadUserTicketsAction(currentScope, currentFilter, 0),
+                getUserTicketCountsAction(currentScope),
+            ]);
+            if (res.error) console.error('Error al cargar tickets:', res.error);
+            setTickets((res.data as Ticket[]) ?? []);
+            setCounts(c);
+            setReachedEnd((res.data?.length ?? 0) < PAGE_SIZE);
+            loadedPagesRef.current = 1;
         } finally {
             setLoading(false);
         }
     };
 
+    // Realtime: refresca solo los bloques ya cargados (no el historial completo).
+    const refreshLoaded = async (currentScope: ScopeType, currentFilter: FilterType) => {
+        const pages = loadedPagesRef.current;
+        const [res, c] = await Promise.all([
+            loadUserTicketsAction(currentScope, currentFilter, 0, pages),
+            getUserTicketCountsAction(currentScope),
+        ]);
+        if (res.data) {
+            setTickets(res.data as Ticket[]);
+            setReachedEnd(res.data.length < pages * PAGE_SIZE);
+        }
+        setCounts(c);
+    };
+
+    const loadMore = () => {
+        startTransition(async () => {
+            const res = await loadUserTicketsAction(scope, filter, loadedPagesRef.current);
+            if (res.data && res.data.length > 0) {
+                setTickets(prev => {
+                    const seen = new Set(prev.map(t => t.id));
+                    return [...prev, ...(res.data as Ticket[]).filter(t => !seen.has(t.id))];
+                });
+                loadedPagesRef.current += 1;
+                if (res.data.length < PAGE_SIZE) setReachedEnd(true);
+            } else {
+                setReachedEnd(true);
+            }
+        });
+    };
+
     useEffect(() => {
         setLoading(true);
-        fetchTickets(scope);
+        fetchInitial(scope, filter);
 
         const supabase = createClient();
+        let timer: ReturnType<typeof setTimeout> | null = null;
         const channel = supabase
             .channel(`custom-all-channel-user-list-${scope}`)
             .on(
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'tickets' },
-                () => { fetchTickets(scope); }
+                () => {
+                    if (timer) clearTimeout(timer);
+                    timer = setTimeout(() => { refreshLoaded(scope, filter); }, 600);
+                }
             )
             .subscribe();
 
         return () => {
+            if (timer) clearTimeout(timer);
             supabase.removeChannel(channel);
         };
-    }, [scope]);
+    }, [scope, filter]);
+
+    // Búsqueda server-side con debounce; al limpiar vuelve al flujo paginado.
+    useEffect(() => {
+        const q = searchTerm.trim();
+        if (!q) {
+            setServerSearchResults(null);
+            setSearchCapped(false);
+            setIsSearching(false);
+            return;
+        }
+        let active = true;
+        setIsSearching(true);
+        const handle = setTimeout(async () => {
+            const res = await searchUserTicketsAction(scope, filter, q);
+            if (!active) return;
+            setServerSearchResults((res.data as Ticket[]) ?? []);
+            setSearchCapped(res.capped);
+            setIsSearching(false);
+        }, 300);
+        return () => { active = false; clearTimeout(handle); };
+    }, [searchTerm, scope, filter]);
 
     const getPriorityBadge = (priority: Ticket['prioridad']) => {
         const p = priority?.toLowerCase() || 'baja';
@@ -290,36 +295,24 @@ export default function TicketList({ limit }: { limit?: number }) {
     };
 
     const processedTickets = useMemo(() => {
-        let filtered = tickets.filter(ticket => {
-            if (filter === 'TODOS') return true;
-            if (filter === 'PENDIENTES') return !['anulado', 'resuelto', 'cerrado'].includes(ticket.estado);
-            if (filter === 'RESUELTOS') return ['anulado', 'resuelto', 'cerrado'].includes(ticket.estado);
-            return true;
-        });
-
-        if (searchTerm.trim()) {
-            const lowerSearch = searchTerm.toLowerCase();
-            filtered = filtered.filter(ticket => {
-                const matchId = ticket.id.toLowerCase().includes(lowerSearch) || `nc-${ticket.numero_ticket}`.includes(lowerSearch) || String(ticket.numero_ticket).includes(lowerSearch);
-                const matchTitle = (ticket.titulo || '').toLowerCase().includes(lowerSearch);
-                const matchDesc = (ticket.descripcion || '').toLowerCase().includes(lowerSearch);
-                const matchRestaurante = (ticket.restaurantes?.nombre_restaurante || '').toLowerCase().includes(lowerSearch);
-                const matchSigla = (ticket.restaurantes?.sigla || '').toLowerCase().includes(lowerSearch);
-                const matchCreador = ((ticket.profiles as any)?.full_name || '').toLowerCase().includes(lowerSearch);
-                return matchId || matchTitle || matchDesc || matchRestaurante || matchSigla || matchCreador;
-            });
-        }
-
-        return filtered;
-    }, [tickets, searchTerm, filter]);
+        if (!isSearchActive) return tickets;
+        const results = serverSearchResults ?? [];
+        // Sigla exacta primero (el servidor ya restringe a ese local si coincide).
+        return [
+            ...results.filter(t => isExactSigla(t.restaurantes?.sigla, searchTerm)),
+            ...results.filter(t => !isExactSigla(t.restaurantes?.sigla, searchTerm)),
+        ];
+    }, [tickets, isSearchActive, serverSearchResults, searchTerm]);
 
     const totalPages = Math.ceil(processedTickets.length / ITEMS_PER_PAGE);
 
     const paginatedTickets = useMemo(() => {
-        const effectiveList = limit && !searchTerm ? processedTickets.slice(0, limit) : processedTickets;
         const start = (currentPage - 1) * ITEMS_PER_PAGE;
-        return effectiveList.slice(start, start + ITEMS_PER_PAGE);
-    }, [processedTickets, currentPage, limit, searchTerm]);
+        return processedTickets.slice(start, start + ITEMS_PER_PAGE);
+    }, [processedTickets, currentPage]);
+
+    const filterTotal = filter === 'PENDIENTES' ? counts.pending : filter === 'RESUELTOS' ? counts.resolved : counts.total;
+    const remaining = Math.max(0, filterTotal - tickets.length);
 
     if (!isMounted) return null;
 
@@ -330,13 +323,13 @@ export default function TicketList({ limit }: { limit?: number }) {
     return (
         <div className="relative w-full mt-4">
             {/* Background 3D Globe - non-interactive watermark */}
-            {!limit && globeMarkers.length > 0 && (
+            {globeMarkers.length > 0 && (
                 <div className="absolute right-[-180px] top-[-260px] w-[500px] h-[500px] sm:w-[650px] sm:h-[650px] md:w-[750px] md:h-[750px] pointer-events-none z-0 select-none">
                     <GlobeInteractive markers={globeMarkers} className="w-full h-full" speed={0.0015} backgroundMode={true} />
                 </div>
             )}
 
-            {!limit && <PumpkinPatch />}
+            <PumpkinPatch />
 
             {/* Main Ticket List Card */}
             <div className="hw-panel hw-web relative z-10 bg-white/70 backdrop-blur-md shadow-lg rounded-3xl overflow-hidden border border-slate-200/40 w-full">
@@ -348,7 +341,7 @@ export default function TicketList({ limit }: { limit?: number }) {
                         <h3 className="text-xl font-extrabold text-slate-900 flex items-center gap-2 whitespace-nowrap tracking-tight">
                             {scope === 'propios' ? 'Mis Tickets' : 'Tickets del Equipo'}
                             <span className="bg-[#0e3187]/10 text-[#0e3187] text-xs font-black px-2.5 py-0.5 rounded-full border border-[#0e3187]/15">
-                                {processedTickets.length}
+                                {isSearchActive ? processedTickets.length : filterTotal}
                             </span>
                         </h3>
 
@@ -396,11 +389,12 @@ export default function TicketList({ limit }: { limit?: number }) {
                         </div>
                         <input
                             type="text"
-                            placeholder={scope === 'equipo' ? 'Buscar por ID, título, descripción, restaurante o creador…' : 'Buscar por ID (NC-XX), título, descripción o restaurante…'}
+                            placeholder="Buscar por ID (NC-XX), título, descripción o restaurante…"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="hw-panel-search block w-full pl-10 pr-3 py-2.5 border border-slate-200 rounded-2xl leading-5 bg-slate-50/50 placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-4 focus:ring-[#0e3187]/10 focus:border-[#0e3187] text-[15px] sm:text-sm transition-all font-semibold shadow-inner"
+                            className="hw-panel-search block w-full pl-10 pr-10 py-2.5 border border-slate-200 rounded-2xl leading-5 bg-slate-50/50 placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-4 focus:ring-[#0e3187]/10 focus:border-[#0e3187] text-[15px] sm:text-sm transition-all font-semibold shadow-inner"
                         />
+                        <SearchInputSpinner active={isSearching} />
                     </div>
                 </div>
 
@@ -478,13 +472,10 @@ export default function TicketList({ limit }: { limit?: number }) {
                         animate="show"
                         className="bg-white/40 divide-y divide-slate-100/60"
                     >
-                        {paginatedTickets.length === 0 ? (
+                        {isSearching || paginatedTickets.length === 0 ? (
                             <tr>
                                 <td colSpan={scope === 'equipo' ? 6 : 5} className="px-6 py-12 text-center text-slate-400">
-                                    <div className="flex flex-col items-center justify-center py-6">
-                                        <MessageSquare className="w-12 h-12 text-slate-400 mb-3" strokeWidth={1.5} />
-                                        <p className="text-slate-500 font-bold text-sm">No hay tickets en esta vista.</p>
-                                    </div>
+                                    <TicketListEmptyState searching={isSearching} />
                                 </td>
                             </tr>
                         ) : (
@@ -597,12 +588,9 @@ export default function TicketList({ limit }: { limit?: number }) {
                 animate="show"
                 className="md:hidden flex flex-col p-4 bg-slate-50/50 border-t border-slate-200/50 gap-4"
             >
-                {paginatedTickets.length === 0 ? (
+                {isSearching || paginatedTickets.length === 0 ? (
                     <div className="px-6 py-12 text-center text-slate-400 bg-white rounded-3xl border border-slate-200 shadow-sm">
-                        <div className="flex flex-col items-center justify-center py-6">
-                            <MessageSquare className="w-12 h-12 text-slate-400 mb-3" strokeWidth={1.5} />
-                            <p className="text-slate-500 font-bold text-sm">No hay tickets en esta vista.</p>
-                        </div>
+                        <TicketListEmptyState searching={isSearching} />
                     </div>
                 ) : (
                     paginatedTickets.map((ticket) => (
@@ -682,7 +670,7 @@ export default function TicketList({ limit }: { limit?: number }) {
             </motion.div>
 
             {/* Pagination */}
-            {(!limit || searchTerm) && totalPages > 1 && (
+            {totalPages > 1 && (
                 <div className="px-6 py-4.5 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between">
                     <button
                         onClick={() => { setCurrentPage(p => Math.max(1, p - 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
@@ -706,11 +694,36 @@ export default function TicketList({ limit }: { limit?: number }) {
                 </div>
             )}
 
-            {limit && tickets.length > limit && !searchTerm && (
-                <div className="p-4 border-t border-slate-100 bg-slate-50/30 text-center">
-                    <button onClick={() => router.push('/dashboard/usuario/tickets')} className="text-sm font-extrabold text-[#0e3187] hover:text-[#1846b9] transition-colors focus:outline-none cursor-pointer">
-                        Ver todos los tickets &rarr;
+            {/* Cargar más desde el servidor — oculto durante búsqueda (ya se trajeron todas las coincidencias) */}
+            {!isSearchActive && !reachedEnd && currentPage === Math.max(totalPages, 1) && (
+                <div className="px-6 py-5 border-t border-slate-100 bg-slate-50/30 flex justify-center">
+                    <button
+                        onClick={loadMore}
+                        disabled={isPending}
+                        className="inline-flex items-center gap-2 px-6 py-2.5 rounded-2xl bg-[#0e3187] text-white text-xs font-black tracking-wide hover:bg-[#1846b9] disabled:opacity-60 disabled:cursor-not-allowed transition-all shadow-sm cursor-pointer"
+                    >
+                        {isPending ? (
+                            <>
+                                <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                Cargando...
+                            </>
+                        ) : (
+                            <>
+                                Cargar más tickets
+                                {remaining > 0 && (
+                                    <span className="bg-white/20 px-1.5 py-0.5 rounded-lg text-[10px]">
+                                        {Math.min(PAGE_SIZE, remaining)} restantes
+                                    </span>
+                                )}
+                            </>
+                        )}
                     </button>
+                </div>
+            )}
+
+            {isSearchActive && searchCapped && (
+                <div className="px-6 py-3 border-t border-slate-100 bg-slate-50/30 text-center text-xs font-semibold text-slate-500">
+                    Mostrando las primeras coincidencias. Afina la búsqueda para ver más.
                 </div>
             )}
 

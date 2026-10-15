@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server';
+import { SEARCH_LIMIT, resolveTicketSearch, applyTicketSearch } from '@/lib/ticketSearch';
 
 const PAGE_SIZE = 30;
 
@@ -29,10 +30,6 @@ export async function loadMoreTicketsAction(page: number): Promise<{ data: any[]
     return { data: data ?? null, error: error?.message ?? null };
 }
 
-// Límite alto para búsqueda: al filtrar, se ignora la paginación de 30 y se
-// traen todas las coincidencias de un solo viaje (hasta este tope).
-const SEARCH_LIMIT = 200;
-
 /**
  * Búsqueda server-side de tickets. A diferencia del filtrado en cliente (que solo
  * ve los ~30 tickets ya cargados), esto consulta TODA la tabla, así un término
@@ -48,28 +45,14 @@ export async function searchTicketsAction(
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { data: null, capped: false, error: 'No autorizado' };
 
-    // Sanitizar: quitar caracteres que rompen la sintaxis de filtros PostgREST
-    // (comas, paréntesis) y los comodines ilike (% _). Tras esto, term es seguro.
-    const q = term.trim().replace(/[(),%*_]/g, ' ').replace(/\s+/g, ' ').trim();
-    if (!q) return { data: [], capped: false, error: null };
+    // Lógica compartida con el perfil Usuario (sigla exacta → solo ese local).
+    const resolved = await resolveTicketSearch(supabase, term);
+    if (resolved.kind === 'empty') return { data: [], capped: false, error: null };
 
-    // 1) Restaurantes que matchean por sigla o nombre → para buscar por ubicación.
-    const { data: rests } = await supabase
-        .from('restaurantes')
-        .select('id')
-        .or(`sigla.ilike.%${q}%,nombre_restaurante.ilike.%${q}%`);
-    const restIds = (rests ?? []).map((r: any) => r.id);
-
-    // 2) Filtro OR sobre tickets: título, descripción, número exacto y restaurante.
-    const orParts = [`titulo.ilike.%${q}%`, `descripcion.ilike.%${q}%`];
-    const asNum = Number.parseInt(q, 10);
-    if (!Number.isNaN(asNum)) orParts.push(`numero_ticket.eq.${asNum}`);
-    if (restIds.length) orParts.push(`restaurante_id.in.(${restIds.join(',')})`);
-
-    const { data, error } = await supabase
-        .from('tickets')
-        .select(TICKET_SELECT)
-        .or(orParts.join(','))
+    const { data, error } = await applyTicketSearch(
+        supabase.from('tickets').select(TICKET_SELECT),
+        resolved,
+    )
         .order('fecha_creacion', { ascending: false })
         .limit(SEARCH_LIMIT);
 

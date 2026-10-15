@@ -4,8 +4,9 @@ import { useState, useMemo, useEffect, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Ticket } from '@/types/database.types';
 import { loadMoreTicketsAction, searchTicketsAction } from '@/app/dashboard/admin/ticketActions';
-import { FileText, Image as ImageIcon, FileSpreadsheet, File, MessageSquare, Search, ChevronLeft, ChevronRight, User, CornerDownRight, Building2 } from 'lucide-react';
+import { FileText, Image as ImageIcon, FileSpreadsheet, File, Search, ChevronLeft, ChevronRight, User, CornerDownRight, Building2 } from 'lucide-react';
 import Link from 'next/link';
+import { SearchInputSpinner, TicketListEmptyState } from '@/components/tickets/TicketSearchStates';
 import { ExportarMaestroButton } from '@/app/dashboard/admin/components/ExportarMaestroButton';
 import { getStatusBadge } from '@/app/dashboard/components/StatusBadge';
 import { motion } from 'framer-motion';
@@ -338,8 +339,9 @@ export function AdminTicketList({ initialTickets, currentAgentId, agentName, tot
                             placeholder="Buscar por ID (NC-XX), título, descripción o restaurante..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="hw-panel-search block w-full pl-10 pr-3 py-2.5 border border-slate-200 rounded-2xl leading-5 bg-slate-50/50 placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-4 focus:ring-[#0e3187]/10 focus:border-[#0e3187] text-[15px] sm:text-sm transition-all font-semibold shadow-inner"
+                            className="hw-panel-search block w-full pl-10 pr-10 py-2.5 border border-slate-200 rounded-2xl leading-5 bg-slate-50/50 placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-4 focus:ring-[#0e3187]/10 focus:border-[#0e3187] text-[15px] sm:text-sm transition-all font-semibold shadow-inner"
                         />
+                        <SearchInputSpinner active={isSearching} />
                     </div>
                 </div>
 
@@ -453,22 +455,10 @@ export function AdminTicketList({ initialTickets, currentAgentId, agentName, tot
                         animate="show"
                         className="bg-white/40 divide-y divide-slate-100/60"
                     >
-                        {isSearching ? (
-                            <tr>
-                                <td colSpan={6} className="px-6 py-16 text-center text-slate-400">
-                                    <div className="flex flex-col items-center justify-center gap-3">
-                                        <span className="w-6 h-6 border-2 border-slate-200 border-t-[#0e3187] rounded-full animate-spin" />
-                                        <p className="text-slate-500 font-bold text-sm">Buscando coincidencias…</p>
-                                    </div>
-                                </td>
-                            </tr>
-                        ) : paginatedTickets.length === 0 ? (
+                        {isSearching || paginatedTickets.length === 0 ? (
                             <tr>
                                 <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
-                                    <div className="flex flex-col items-center justify-center">
-                                        <MessageSquare className="w-12 h-12 text-slate-450 mb-3" />
-                                        <p className="text-slate-500 font-bold text-sm">No hay tickets en esta vista.</p>
-                                    </div>
+                                    <TicketListEmptyState searching={isSearching} />
                                 </td>
                             </tr>
                         ) : (
@@ -597,19 +587,9 @@ export function AdminTicketList({ initialTickets, currentAgentId, agentName, tot
                 animate="show"
                 className="md:hidden flex flex-col p-4 gap-4 min-h-[50vh] bg-slate-50"
             >
-                {isSearching ? (
-                    <div className="px-6 py-16 text-center bg-white rounded-2xl border border-slate-200 shadow-sm mt-4">
-                        <div className="flex flex-col items-center justify-center gap-3">
-                            <span className="w-6 h-6 border-2 border-slate-200 border-t-[#0e3187] rounded-full animate-spin" />
-                            <p className="text-slate-500 font-bold text-sm">Buscando coincidencias…</p>
-                        </div>
-                    </div>
-                ) : paginatedTickets.length === 0 ? (
+                {isSearching || paginatedTickets.length === 0 ? (
                     <div className="px-6 py-12 text-center text-slate-400 bg-white rounded-2xl border border-slate-200 shadow-sm mt-4">
-                        <div className="flex flex-col items-center justify-center">
-                            <MessageSquare className="w-12 h-12 text-slate-400 mb-3" />
-                            <p className="text-slate-500 font-bold text-sm">No hay tickets en esta vista.</p>
-                        </div>
+                        <TicketListEmptyState searching={isSearching} />
                     </div>
                 ) : (
                     paginatedTickets.map((ticket) => (
@@ -750,4 +730,4 @@ export function AdminTicketList({ initialTickets, currentAgentId, agentName, tot
             </div>
         </div>
     );
-}
+}
