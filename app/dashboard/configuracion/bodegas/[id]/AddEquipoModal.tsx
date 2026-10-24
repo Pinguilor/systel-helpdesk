@@ -77,7 +77,10 @@ export function AddEquipoModal({ bodegaId, catalogo, familias }: Props) {
 
     const filtered = query.length === 0
         ? uniqueModelos
-        : uniqueModelos.filter(i => i.modelo.toLowerCase().includes(query.toLowerCase()));
+        : uniqueModelos.filter(i => {
+            const q = query.trim().toLowerCase();
+            return i.modelo.toLowerCase().includes(q) || i.familia.toLowerCase().includes(q);
+        });
 
     const exactMatch = uniqueModelos.some(i => i.modelo.toLowerCase() === query.toLowerCase());
 
@@ -233,7 +236,11 @@ export function AddEquipoModal({ bodegaId, catalogo, familias }: Props) {
                                 </div>
 
                                 {dropdownOpen && query.length > 0 && (
-                                    <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                                    <div className="mt-1 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden">
+                                        <div className="px-4 py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-50 border-b border-slate-100">
+                                            {filtered.length} {filtered.length === 1 ? 'resultado' : 'resultados'}
+                                        </div>
+                                        <div className="max-h-[45vh] overflow-y-auto">
                                         {filtered.map((item, idx) => (
                                             <button key={idx} type="button" onMouseDown={() => selectExisting(item)}
                                                 className="w-full text-left px-4 py-2.5 hover:bg-emerald-50 flex flex-col gap-0.5 border-b border-slate-50 last:border-0">
@@ -243,9 +250,10 @@ export function AddEquipoModal({ bodegaId, catalogo, familias }: Props) {
                                                 </span>
                                             </button>
                                         ))}
+                                        </div>
                                         {!exactMatch && query.trim().length > 0 && (
                                             <button type="button" onMouseDown={selectNew}
-                                                className="w-full text-left px-4 py-2.5 hover:bg-indigo-50 flex items-center gap-2 text-indigo-700">
+                                                className="w-full text-left px-4 py-2.5 hover:bg-indigo-50 flex items-center gap-2 text-indigo-700 border-t border-slate-100">
                                                 <Plus className="w-3.5 h-3.5 shrink-0" />
                                                 <span className="text-sm font-bold">
                                                     Crear nuevo: <span className="italic">"{query.trim()}"</span>

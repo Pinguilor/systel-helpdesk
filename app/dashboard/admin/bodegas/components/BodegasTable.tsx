@@ -3,26 +3,52 @@
 import React, { useState, useMemo, useTransition, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Inventario, Bodega } from '@/types/database.types';
-import { Search, Server, Box, ChevronDown, ChevronUp, ChevronRight, PackageOpen, RefreshCw, AlertCircle, AlertTriangle, FileSpreadsheet, EyeOff, Eye, Loader2 } from 'lucide-react';
+import { Search, Server, Box, ChevronDown, ChevronUp, ChevronRight, PackageOpen, RefreshCw, AlertCircle, AlertTriangle, FileSpreadsheet, EyeOff, Eye } from 'lucide-react';
 import { CustomSelect } from '@/app/dashboard/components/CustomSelect';
-import { loadMoreInventarioAction } from '../actions';
+
+const PAGE_SIZE = 30;
+
+interface CatalogoItem { modelo: string; familia: string; es_serializado: boolean; bodega_id: string }
+
+type InventarioRow = Inventario & { bodegas: Bodega };
+
+interface InventarioGroup {
+    id: string;
+    modelo: string;
+    familia: string;
+    bodega_id: string;
+    es_serializado: boolean;
+    totalItems: number;
+    bodegaNombre: string;
+    items: InventarioRow[];
+}
+
+const isBlankModelo = (m?: string | null) => !m || /^[\s\-_.]*$/.test(m);
+
+// Si el modelo viene vacío o con guiones, usa el nombre del catálogo cuando el cruce por familia + bodega es inequívoco.
+function resolveModelo(item: InventarioRow, catalogo: CatalogoItem[]): string {
+    if (!isBlankModelo(item.modelo)) return item.modelo.trim();
+    const candidatos = catalogo.filter(c =>
+        c.familia === item.familia && (!c.bodega_id || c.bodega_id === item.bodega_id) && !isBlankModelo(c.modelo)
+    );
+    const unicos = Array.from(new Set(candidatos.map(c => c.modelo)));
+    if (unicos.length === 1) return unicos[0];
+    return `Sin modelo (${item.familia || 'Sin Familia'})`;
+}
 
 interface BodegasTableProps {
     inventario: (Inventario & { bodegas: Bodega })[];
     bodegasDisponibles: Bodega[];
-    totalCount: number;
+    catalogo: CatalogoItem[];
     countCritico: number;
     countBajo: number;
-    bodegaIds: string[];
 }
 
-export function BodegasTable({ inventario, bodegasDisponibles, totalCount, countCritico, countBajo, bodegaIds }: BodegasTableProps) {
+export function BodegasTable({ inventario, bodegasDisponibles, catalogo, countCritico, countBajo }: BodegasTableProps) {
     const router = useRouter();
     const [isPending, startTransition] = useTransition();
-    const [allInventario, setAllInventario] = useState(inventario);
-    const [nextPage, setNextPage]     = useState(1);
-    const [loadingMore, setLoadingMore] = useState(false);
-    const hasMore = allInventario.length < totalCount;
+    const allInventario = inventario;
+    const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
     const [selectedBodegaId, setSelectedBodegaId] = useState<string>('all');
     const [searchTerm, setSearchTerm] = useState('');
     const [stockFilter, setStockFilter] = useState<'all' | 'critical' | 'low'>('all');
@@ -41,8 +67,8 @@ export function BodegasTable({ inventario, bodegasDisponibles, totalCount, count
         }
     }, [isPending]);
 
-    const toggleRow = (id: string) => {
-        setExpandedRows(prev => ({ ...prev, [id]: !prev[id] }));
+    const toggleRow = (id: string, current: boolean) => {
+        setExpandedRows(prev => ({ ...prev, [id]: !current }));
     };
 
     const handleRefresh = () => {
@@ -51,47 +77,20 @@ export function BodegasTable({ inventario, bodegasDisponibles, totalCount, count
         });
     };
 
-    async function handleLoadMore() {
-        setLoadingMore(true);
-        const result = await loadMoreInventarioAction(nextPage, bodegaIds);
-        if (!result.error && result.data.length > 0) {
-            setAllInventario(prev => [...prev, ...result.data as any]);
-            setNextPage(p => p + 1);
-        }
-        setLoadingMore(false);
-    }
-
-    // Derived states
-    const filteredInventario = useMemo(() => {
-        return allInventario.filter(item => {
-            const matchesBodega = selectedBodegaId === 'all' || item.bodega_id === selectedBodegaId;
-            const matchesSearch = item.modelo?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                                  item.familia?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                                  (item.numero_serie && item.numero_serie.toLowerCase().includes(searchTerm.toLowerCase()));
-            
-            return matchesBodega && matchesSearch;
-        });
-    }, [allInventario, selectedBodegaId, searchTerm]);
-
-    // Grouping by modelo + familia + bodega_id (one row per physical location)
+    // 1) AGRUPAR: una fila padre por modelo + familia + bodega (los seriales quedan como hijos)
     const groupedInventario = useMemo(() => {
-        const groups: Record<string, {
-            id: string;
-            modelo: string;
-            familia: string;
-            es_serializado: boolean;
-            totalItems: number;
-            bodegaNombre: string;
-            items: (Inventario & { bodegas: Bodega })[];
-        }> = {};
+        const groups: Record<string, InventarioGroup> = {};
 
-        filteredInventario.forEach(item => {
-            const key = `${item.modelo}|${item.familia}|${item.bodega_id}`;
+        allInventario.forEach(item => {
+            const modelo = resolveModelo(item, catalogo);
+            const familia = item.familia || 'Sin Familia';
+            const key = `${modelo}|${familia}|${item.bodega_id}`;
             if (!groups[key]) {
                 groups[key] = {
                     id: key,
-                    modelo: item.modelo || 'Desconocido',
-                    familia: item.familia || 'Sin Familia',
+                    modelo,
+                    familia,
+                    bodega_id: item.bodega_id,
                     es_serializado: !!item.es_serializado,
                     totalItems: 0,
                     bodegaNombre: (item as any).bodegas?.nombre || 'Bodega Desconocida',
@@ -105,19 +104,54 @@ export function BodegasTable({ inventario, bodegasDisponibles, totalCount, count
         });
 
         return Object.values(groups);
-    }, [filteredInventario]);
+    }, [allInventario, catalogo]);
 
     const agotadosCount = useMemo(
         () => groupedInventario.filter(g => g.totalItems === 0).length,
         [groupedInventario]
     );
 
+    // 2) FILTRAR (bodega, sin stock, stock, búsqueda) y ordenar por relevancia
+    const term = searchTerm.trim().toLowerCase();
+    const isSearching = term.length > 0;
+
     const filteredGroups = useMemo(() => {
-        let base = showAgotados ? groupedInventario : groupedInventario.filter(g => g.totalItems > 0);
-        if (stockFilter === 'critical') return base.filter(g => g.totalItems <= 3);
-        if (stockFilter === 'low') return base.filter(g => g.totalItems > 3 && g.totalItems <= 10);
-        return base;
-    }, [groupedInventario, stockFilter, showAgotados]);
+        let base = groupedInventario.filter(g => selectedBodegaId === 'all' || g.bodega_id === selectedBodegaId);
+        base = showAgotados ? base : base.filter(g => g.totalItems > 0);
+        if (stockFilter === 'critical') base = base.filter(g => g.totalItems <= 3);
+        else if (stockFilter === 'low') base = base.filter(g => g.totalItems > 3 && g.totalItems <= 10);
+        if (!isSearching) return base;
+
+        // rank 0: modelo o serie exacta · 1: contiene en modelo/serie · 2: solo familia
+        const ranked: { group: InventarioGroup; rank: number }[] = [];
+        for (const group of base) {
+            const modelo = group.modelo.toLowerCase();
+            const seriales = group.items.map(i => i.numero_serie?.toLowerCase() ?? '');
+            let rank = -1;
+            if (modelo === term || seriales.includes(term)) rank = 0;
+            else if (modelo.includes(term) || seriales.some(s => s.includes(term))) rank = 1;
+            else if (group.familia.toLowerCase().includes(term)) rank = 2;
+            if (rank >= 0) ranked.push({ group, rank });
+        }
+        ranked.sort((a, b) => a.rank - b.rank || a.group.modelo.localeCompare(b.group.modelo));
+        return ranked.map(r => r.group);
+    }, [groupedInventario, selectedBodegaId, showAgotados, stockFilter, term, isSearching]);
+
+    // 3) PAGINAR: con búsqueda activa se muestran todas las coincidencias
+    const visibleGroups = isSearching ? filteredGroups : filteredGroups.slice(0, visibleCount);
+    const remaining = isSearching ? 0 : Math.max(filteredGroups.length - visibleCount, 0);
+    const hasMore = remaining > 0;
+
+    // Si solo coincide un serial hijo, el padre se auto-expande y el serial se resalta
+    const isGroupExpanded = (group: InventarioGroup) =>
+        expandedRows[group.id] ?? (
+            isSearching && group.es_serializado && !group.modelo.toLowerCase().includes(term) &&
+            group.items.some(i => i.numero_serie?.toLowerCase().includes(term))
+        );
+
+    useEffect(() => {
+        setVisibleCount(PAGE_SIZE);
+    }, [selectedBodegaId, showAgotados, stockFilter]);
 
     const handleExport = async () => {
         try {
@@ -430,8 +464,8 @@ export function BodegasTable({ inventario, bodegasDisponibles, totalCount, count
                                     </td>
                                 </tr>
                             ) : (
-                                filteredGroups.map(group => {
-                                    const isExpanded = expandedRows[group.id];
+                                visibleGroups.map(group => {
+                                    const isExpanded = isGroupExpanded(group);
                                     const hasSeriales = group.es_serializado;
                                     const isAgotado = group.totalItems === 0;
 
@@ -439,7 +473,7 @@ export function BodegasTable({ inventario, bodegasDisponibles, totalCount, count
                                         <React.Fragment key={group.id}>
                                             <tr
                                                 className={`transition-all duration-200 border-b border-slate-50 last:border-b-0 ${hasSeriales ? 'cursor-pointer' : ''} ${isExpanded ? 'bg-indigo-50/[0.1] shadow-[inset_3px_0_0_0_#6366f1]' : 'hover:bg-indigo-50/[0.06] hover:shadow-[inset_3px_0_0_0_#e0e7ff]'} ${isAgotado ? 'opacity-60' : ''}`}
-                                                onClick={() => hasSeriales && toggleRow(group.id)}
+                                                onClick={() => hasSeriales && toggleRow(group.id, isExpanded)}
                                             >
                                                 <td className="px-6 py-4 font-bold text-slate-900 flex items-center gap-3">
                                                     {hasSeriales && (
@@ -505,7 +539,7 @@ export function BodegasTable({ inventario, bodegasDisponibles, totalCount, count
                                                             </div>
                                                             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                                                                 {group.items.map(item => (
-                                                                    <div key={item.id} className="flex flex-col gap-1.5 p-3.5 rounded-xl border border-slate-100 bg-white shadow-[0_2px_4px_rgba(0,0,0,0.01)] hover:border-indigo-200/60 hover:shadow-md hover:shadow-indigo-500/[0.03] transition-all duration-200 group active:scale-[0.99]">
+                                                                    <div key={item.id} className={`flex flex-col gap-1.5 p-3.5 rounded-xl border ${isSearching && item.numero_serie?.toLowerCase().includes(term) ? 'border-indigo-400 ring-2 ring-indigo-500/20' : 'border-slate-100'} bg-white shadow-[0_2px_4px_rgba(0,0,0,0.01)] hover:border-indigo-200/60 hover:shadow-md hover:shadow-indigo-500/[0.03] transition-all duration-200 group active:scale-[0.99]`}>
                                                                         <div className="flex justify-between items-center">
                                                                             <span className="font-mono text-xs font-bold text-slate-700 group-hover:text-indigo-600 transition-colors">
                                                                                 {item.numero_serie}
@@ -547,15 +581,12 @@ export function BodegasTable({ inventario, bodegasDisponibles, totalCount, count
                 {hasMore && (
                     <div className="hidden md:flex justify-center py-6 border-t border-slate-100/60">
                         <button
-                            onClick={handleLoadMore}
-                            disabled={loadingMore || isPending}
+                            onClick={() => setVisibleCount(c => c + PAGE_SIZE)}
+                            disabled={isPending}
                             className="inline-flex items-center gap-2 px-6 py-3 border border-slate-200/80 hover:border-indigo-500/30 rounded-xl text-xs font-black text-slate-600 hover:text-indigo-600 hover:bg-indigo-50/30 disabled:opacity-50 transition-all duration-200 cursor-pointer shadow-sm hover:shadow active:scale-95"
                         >
-                            {loadingMore
-                                ? <Loader2 className="w-4 h-4 animate-spin text-indigo-600" />
-                                : <RefreshCw className="w-3.5 h-3.5" />
-                            }
-                            <span>{loadingMore ? 'Cargando más equipos…' : `Cargar más (${totalCount - allInventario.length} restantes)`}</span>
+                            <RefreshCw className="w-3.5 h-3.5" />
+                            <span>Cargar más ({remaining} restantes)</span>
                         </button>
                     </div>
                 )}
@@ -569,8 +600,8 @@ export function BodegasTable({ inventario, bodegasDisponibles, totalCount, count
                             <p className="text-xs text-slate-400 leading-relaxed text-center">No se encontraron equipos bajo los filtros seleccionados.</p>
                         </div>
                     ) : (
-                        filteredGroups.map(group => {
-                            const isExpanded = expandedRows[group.id];
+                        visibleGroups.map(group => {
+                            const isExpanded = isGroupExpanded(group);
                             const hasSeriales = group.es_serializado;
                             const isAgotado = group.totalItems === 0;
                             const isCritical = group.totalItems > 0 && group.totalItems <= 3;
@@ -595,7 +626,7 @@ export function BodegasTable({ inventario, bodegasDisponibles, totalCount, count
                             return (
                                 <div key={group.id} className={`rounded-2xl border ${bgStyle} ${borderStyle} transition-all duration-300 overflow-hidden`}>
                                     <button 
-                                        onClick={() => toggleRow(group.id)}
+                                        onClick={() => toggleRow(group.id, isExpanded)}
                                         className="w-full p-4 flex items-center justify-between text-left focus:outline-none active:bg-slate-50/50 relative"
                                     >
                                         <div className="flex flex-col gap-1.5 pr-4">
@@ -710,15 +741,12 @@ export function BodegasTable({ inventario, bodegasDisponibles, totalCount, count
                 {hasMore && (
                     <div className="md:hidden p-4 border-t border-slate-100/60 flex justify-center">
                         <button
-                            onClick={handleLoadMore}
-                            disabled={loadingMore || isPending}
+                            onClick={() => setVisibleCount(c => c + PAGE_SIZE)}
+                            disabled={isPending}
                             className="inline-flex items-center gap-2 px-5 py-3 border border-slate-200/85 hover:border-indigo-500/30 rounded-xl text-xs font-black text-slate-600 hover:text-indigo-600 hover:bg-indigo-50/30 disabled:opacity-50 transition-all duration-200 cursor-pointer shadow-sm hover:shadow active:scale-95"
                         >
-                            {loadingMore
-                                ? <Loader2 className="w-4 h-4 animate-spin text-indigo-600" />
-                                : <RefreshCw className="w-3.5 h-3.5" />
-                            }
-                            <span>{loadingMore ? 'Cargando…' : `Cargar más (${totalCount - allInventario.length} restantes)`}</span>
+                            <RefreshCw className="w-3.5 h-3.5" />
+                            <span>Cargar más ({remaining} restantes)</span>
                         </button>
                     </div>
                 )}

@@ -63,16 +63,30 @@ function parseSerials(raw: string): string[] {
 function AjustarGenericoModal({ grupo, onClose }: { grupo: StockGroup; onClose: () => void }) {
     const router = useRouter();
     const [isPending, startTransition] = useTransition();
-    const [value, setValue] = useState(grupo.totalUnidades);
+    const [operacion, setOperacion] = useState<'sumar' | 'restar'>('sumar');
+    const [cantidadStr, setCantidadStr] = useState('');
+    const [confirmando, setConfirmando] = useState(false);
     const [alert, setAlert] = useState<{ type: 'error' | 'success'; msg: string } | null>(null);
-    const row = grupo.rows[0];
+
+    const stockActual = grupo.totalUnidades;
+    const cantidad = parseInt(cantidadStr, 10) || 0;
+    const excede = operacion === 'restar' && cantidad > stockActual;
+    const nuevoTotal = operacion === 'sumar' ? stockActual + cantidad : Math.max(stockActual - cantidad, 0);
+    const esSumar = operacion === 'sumar';
 
     function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
-        if (value < 0) { setAlert({ type: 'error', msg: 'La cantidad no puede ser negativa.' }); return; }
+        if (cantidad < 1) return;
+        if (excede) { setAlert({ type: 'error', msg: `No puedes descontar más que el stock actual (${stockActual} uds).` }); return; }
+        setAlert(null);
+        setConfirmando(true);
+    }
+
+    function handleConfirm() {
         startTransition(async () => {
-            const result = await ajustarStockAction(row.id, value);
+            const result = await ajustarStockAction(grupo.rows[0].id, operacion, cantidad);
             if (result.error) {
+                setConfirmando(false);
                 setAlert({ type: 'error', msg: result.error });
             } else {
                 setAlert({ type: 'success', msg: 'Stock actualizado.' });
@@ -99,27 +113,62 @@ function AjustarGenericoModal({ grupo, onClose }: { grupo: StockGroup; onClose: 
                     </button>
                 </div>
                 {alert && <Alert type={alert.type} msg={alert.msg} />}
-                <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-                    <div>
-                        <label className="block text-xs font-black text-slate-600 uppercase tracking-widest mb-1.5">Nueva Cantidad</label>
-                        <input type="number" min={0} value={value} autoFocus
-                            onChange={e => setValue(parseInt(e.target.value, 10) || 0)}
-                            className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
+
+                {confirmando ? (
+                    <div className="flex flex-col gap-4">
+                        <Alert
+                            type="warning"
+                            msg={`Estás por ${esSumar ? 'sumar' : 'descontar'} ${cantidad} ${grupo.modelo}, la nueva cantidad será ${nuevoTotal} uds (actual: ${stockActual} uds). ¿Deseas continuar?`}
                         />
-                        <p className="mt-1 text-[11px] text-slate-400">Stock actual: {grupo.totalUnidades} uds</p>
+                        <div className="flex justify-end gap-2">
+                            <button type="button" onClick={() => setConfirmando(false)} disabled={isPending}
+                                className="px-4 py-2 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50">
+                                Volver
+                            </button>
+                            <button type="button" onClick={handleConfirm} disabled={isPending}
+                                className={`px-4 py-2 rounded-xl text-white text-sm font-bold flex items-center gap-2 disabled:opacity-50 ${esSumar ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-amber-600 hover:bg-amber-700'}`}>
+                                {isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                                Sí, confirmar ajuste
+                            </button>
+                        </div>
                     </div>
-                    <div className="flex justify-end gap-2">
-                        <button type="button" onClick={onClose} disabled={isPending}
-                            className="px-4 py-2 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50">
-                            Cancelar
-                        </button>
-                        <button type="submit" disabled={isPending}
-                            className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold flex items-center gap-2 disabled:opacity-50">
-                            {isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                            Guardar
-                        </button>
-                    </div>
-                </form>
+                ) : (
+                    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+                        <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-xl">
+                            <button type="button" onClick={() => setOperacion('sumar')}
+                                className={`flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-black transition-all ${esSumar ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-500 hover:text-emerald-700'}`}>
+                                <PlusCircle className="w-3.5 h-3.5" /> Sumar stock
+                            </button>
+                            <button type="button" onClick={() => setOperacion('restar')}
+                                className={`flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-black transition-all ${!esSumar ? 'bg-amber-600 text-white shadow-sm' : 'text-slate-500 hover:text-amber-700'}`}>
+                                <MinusCircle className="w-3.5 h-3.5" /> Restar stock
+                            </button>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-black text-slate-600 uppercase tracking-widest mb-1.5">
+                                {esSumar ? 'Cantidad a sumar' : 'Cantidad a restar'}
+                            </label>
+                            <input type="number" min={0} value={cantidadStr} autoFocus placeholder="0"
+                                onChange={e => { setCantidadStr(e.target.value); setAlert(null); }}
+                                className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
+                            />
+                            <p className="mt-1.5 text-[11px] font-semibold text-slate-500">
+                                Stock actual: {stockActual} uds → Nuevo total: <span className={esSumar ? 'text-emerald-600' : 'text-amber-600'}>{nuevoTotal} uds</span>
+                            </p>
+                            {excede && <p className="mt-1 text-[11px] font-semibold text-red-600">No puedes restar más que el stock actual.</p>}
+                        </div>
+                        <div className="flex justify-end gap-2">
+                            <button type="button" onClick={onClose}
+                                className="px-4 py-2 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50">
+                                Cancelar
+                            </button>
+                            <button type="submit" disabled={cantidad < 1 || excede}
+                                className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold disabled:opacity-50">
+                                Guardar
+                            </button>
+                        </div>
+                    </form>
+                )}
             </div>
         </div>
     );

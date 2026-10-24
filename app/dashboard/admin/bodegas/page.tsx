@@ -8,6 +8,27 @@ import Link from 'next/link';
 
 export const dynamic = 'force-dynamic';
 
+// PostgREST limita cada respuesta (1000 filas por defecto): se pagina hasta agotar.
+async function fetchAllInventario(db: ReturnType<typeof createAdminClient>, bodegaIds: string[]) {
+    if (bodegaIds.length === 0) return [] as any[];
+    const PAGE = 1000;
+    const rows: any[] = [];
+    for (let from = 0; ; from += PAGE) {
+        const { data, error } = await db
+            .from('inventario')
+            .select('*, bodegas(id, nombre, tipo)')
+            .in('bodega_id', bodegaIds)
+            .neq('estado', 'Inactivo')
+            .order('modelo', { ascending: true })
+            .order('id', { ascending: true })
+            .range(from, from + PAGE - 1);
+        if (error || !data) break;
+        rows.push(...data);
+        if (data.length < PAGE) break;
+    }
+    return rows;
+}
+
 export default async function BodegasPage() {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -31,15 +52,14 @@ export default async function BodegasPage() {
         .eq('tipo', 'INTERNA')
         .order('nombre', { ascending: true });
     const bodegas        = bodegasRaw ?? [];
-    const bodegaIds      = bodegas.map(b => b.id);
-    // Solo bodegas activas pueden recibir nuevo stock (selector de Ingreso de Stock)
+    // Solo bodegas activas: alimentan el filtro, la búsqueda, el stock mostrado y el selector de Ingreso de Stock
     const bodegasActivas = bodegas.filter(b => b.activo !== false);
+    const bodegaIds      = bodegasActivas.map(b => b.id);
 
     // ── Step 2: all remaining queries in parallel ────────────────────────────
     const [
         familiasResult,
-        inventarioResult,
-        totalCountResult,
+        inventarioGlobal,
         criticoResult,
         bajoResult,
         catDataResult,
@@ -49,23 +69,8 @@ export default async function BodegasPage() {
             .select('id, nombre, bodega_id')
             .order('nombre', { ascending: true }),
 
-        // inventario — first 30 rows (no count meta)
-        bodegaIds.length > 0
-            ? db.from('inventario')
-                .select('*, bodegas(id, nombre, tipo)')
-                .in('bodega_id', bodegaIds)
-                .neq('estado', 'Inactivo')
-                .order('modelo', { ascending: true })
-                .range(0, 29)
-            : Promise.resolve({ data: [], error: null }),
-
-        // total count of active inventario items
-        bodegaIds.length > 0
-            ? db.from('inventario')
-                .select('*', { count: 'exact', head: true })
-                .in('bodega_id', bodegaIds)
-                .neq('estado', 'Inactivo')
-            : Promise.resolve({ count: 0, error: null }),
+        // inventario — todas las filas activas (agrupado, filtro y "Cargar más" ocurren en el cliente)
+        fetchAllInventario(db, bodegaIds),
 
         // count of generic items with stock ≤ 3 (crítico)
         bodegaIds.length > 0
@@ -95,12 +100,8 @@ export default async function BodegasPage() {
     ]);
 
     const familias    = familiasResult.data ?? [];
-    const totalCount  = (totalCountResult as any).count ?? 0;
     const countCritico = (criticoResult as any).count ?? 0;
     const countBajo    = (bajoResult as any).count ?? 0;
-
-    // Ya filtramos por bodega_id IN (bodegaIds) — todos son INTERNA, no se necesita re-filtrar
-    const inventarioGlobal = (inventarioResult.data ?? []) as any[];
 
     // ── Build catalogo for dropdown modal (with fallback) ────────────────────
     let catalogo: { modelo: string; familia: string; es_serializado: boolean; bodega_id: string }[] = [];
@@ -191,11 +192,10 @@ export default async function BodegasPage() {
 
             <BodegasTable
                 inventario={inventarioGlobal as any}
-                bodegasDisponibles={bodegas}
-                totalCount={totalCount}
+                bodegasDisponibles={bodegasActivas}
                 countCritico={countCritico}
                 countBajo={countBajo}
-                bodegaIds={bodegaIds}
+                catalogo={catalogo}
             />
         </div>
     );

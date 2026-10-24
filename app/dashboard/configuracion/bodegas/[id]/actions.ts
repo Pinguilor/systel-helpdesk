@@ -118,27 +118,79 @@ export async function addStockToBodegaAction(formData: FormData) {
 }
 
 // ── Ajustar stock genérico ────────────────────────────────────
+// Suma o resta `cantidad` al TOTAL real del equipo en la bodega (todas sus filas activas),
+// consolida el stock en una sola fila y registra el movimiento por la diferencia.
 
-export async function ajustarStockAction(inventarioId: string, nuevaCantidad: number) {
+export async function ajustarStockAction(
+    inventarioId: string,
+    operacion: 'sumar' | 'restar',
+    cantidad: number,
+) {
     const user = await requireAdmin();
     if (!user) return { error: 'No autorizado.' };
-    if (isNaN(nuevaCantidad) || nuevaCantidad < 0) return { error: 'Cantidad inválida.' };
+    if (!Number.isInteger(cantidad) || cantidad < 1) return { error: 'La cantidad debe ser un entero mayor a 0.' };
+    if (operacion !== 'sumar' && operacion !== 'restar') return { error: 'Operación inválida.' };
 
     const db = createAdminClient();
 
-    const { data: item } = await db
-        .from('inventario').select('bodega_id').eq('id', inventarioId).maybeSingle();
+    const { data: ref } = await db
+        .from('inventario')
+        .select('id, bodega_id, modelo, familia, es_serializado')
+        .eq('id', inventarioId)
+        .maybeSingle();
+    if (!ref) return { error: 'Equipo no encontrado.' };
+    if (ref.es_serializado) return { error: 'Solo se puede ajustar stock de equipos genéricos.' };
 
-    const { error } = await db
-        .from('inventario').update({ cantidad: nuevaCantidad }).eq('id', inventarioId);
+    // TODAS las filas activas del mismo equipo en la bodega
+    let q = db
+        .from('inventario')
+        .select('id, cantidad, estado')
+        .eq('bodega_id', ref.bodega_id)
+        .eq('es_serializado', false)
+        .is('ticket_id', null)
+        .neq('estado', 'Inactivo');
+    q = ref.modelo == null ? q.is('modelo', null) : q.eq('modelo', ref.modelo);
+    q = ref.familia == null ? q.is('familia', null) : q.eq('familia', ref.familia);
+    const { data: filas, error: filasErr } = await q.order('cantidad', { ascending: false });
+    if (filasErr || !filas?.length) return { error: 'No se pudo leer el stock actual.' };
 
-    if (error) {
-        console.error('[ajustarStockAction]', error.message);
+    const stockActual = filas.reduce((acc, f) => acc + (f.cantidad ?? 0), 0);
+    const nuevoTotal  = operacion === 'sumar' ? stockActual + cantidad : stockActual - cantidad;
+    if (nuevoTotal < 0) return { error: `No puedes descontar ${cantidad} uds: el stock actual es ${stockActual}.` };
+
+    // Fila principal: la de mayor cantidad. Recibe el total consolidado.
+    const [principal, ...sobrantes] = filas;
+    const { error: updErr } = await db
+        .from('inventario').update({ cantidad: nuevoTotal }).eq('id', principal.id);
+    if (updErr) {
+        console.error('[ajustarStockAction] update:', updErr.message);
         return { error: 'No se pudo ajustar el stock.' };
     }
 
-    if ((item as any)?.bodega_id) revalidatePath(`/dashboard/configuracion/bodegas/${(item as any).bodega_id}`);
-    return { success: true };
+    // Filas fragmentadas: eliminar; si tienen FK (movimientos, solicitudes…) quedan inactivas en 0
+    if (sobrantes.length) {
+        const ids = sobrantes.map(f => f.id);
+        const { error: delErr } = await db.from('inventario').delete().in('id', ids);
+        if (delErr) {
+            const { error: softErr } = await db
+                .from('inventario').update({ cantidad: 0, estado: 'Inactivo' }).in('id', ids);
+            if (softErr) console.error('[ajustarStockAction] consolidar:', softErr.message);
+        }
+    }
+
+    const { error: movErr } = await db.from('movimientos_inventario').insert({
+        inventario_id:     principal.id,
+        bodega_origen_id:  operacion === 'restar' ? ref.bodega_id : null,
+        bodega_destino_id: operacion === 'sumar'  ? ref.bodega_id : null,
+        cantidad,
+        tipo_movimiento:   'AJUSTE',
+        realizado_por:     user.id,
+        comentario:        `Ajuste manual (${operacion}): ${stockActual} → ${nuevoTotal} uds`,
+    });
+    if (movErr) console.error('[ajustarStockAction] movimiento:', movErr.message);
+
+    revalidatePath(`/dashboard/configuracion/bodegas/${ref.bodega_id}`);
+    return { success: true, nuevoTotal };
 }
 
 // ── Dar de baja seriales (eliminar filas seleccionadas) ───────
