@@ -7,9 +7,8 @@
  */
 export type SeasonalTheme = 'halloween' | null;
 
-const envTheme = process.env.NEXT_PUBLIC_SEASONAL_THEME;
-
-export const ACTIVE_THEME: SeasonalTheme =
-    envTheme === 'none' ? null : 'halloween';
+// Halloween terminó (nov. 2026): tema apagado. Para reactivarlo el próximo año,
+// cambia `null` por `envTheme === 'none' ? null : 'halloween'`.
+export const ACTIVE_THEME: SeasonalTheme = null;
 
 export const isHalloween = ACTIVE_THEME === 'halloween';
