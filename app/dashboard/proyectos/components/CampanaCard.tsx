@@ -29,7 +29,7 @@ export function CampanaCard({ nombre, descripcion, coordinador, total, completad
                         <FolderOpen className="w-5 h-5 text-indigo-300" strokeWidth={1.75} />
                     </div>
                     <div className="min-w-0 flex-1">
-                        <p className="text-[9px] font-black text-indigo-300 uppercase tracking-widest">Campaña masiva</p>
+                        <p className="text-[9px] font-black text-indigo-300 uppercase tracking-widest">Proyecto masivo</p>
                         <h3 className="text-base font-black truncate">{nombre}</h3>
                         {descripcion && <p className="text-xs text-slate-400 mt-0.5 line-clamp-2">{descripcion}</p>}
                     </div>

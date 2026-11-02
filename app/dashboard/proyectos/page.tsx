@@ -6,7 +6,8 @@ import { GestorPlantillasModal } from './components/GestorPlantillasModal';
 import { GestorPlantillasBOMModal } from './components/GestorPlantillasBOMModal';
 import { GestorDispositivosModal } from './components/GestorDispositivosModal';
 import { getZonasConDispositivos } from './dispositivos/actions';
-import { FolderKanban } from 'lucide-react';
+import Link from 'next/link';
+import { FolderKanban, Layers } from 'lucide-react';
 import { createClient } from '@/lib/supabase/server';
 
 export default async function ProyectosPage() {
@@ -53,6 +54,15 @@ export default async function ProyectosPage() {
                             <GestorPlantillasBOMModal plantillas={recetasBOM as any} catalogo={catalogo} />
                             <GestorPlantillasModal plantillas={plantillas as any} />
                             {dispositivosData && <GestorDispositivosModal data={dispositivosData} />}
+                            {(currentUserRol === 'ADMIN' || currentUserRol === 'COORDINADOR') && (
+                                <Link
+                                    href="/dashboard/proyectos/masivos/nuevo"
+                                    className="flex items-center gap-2 px-4 py-2 bg-white text-slate-800 text-sm font-bold rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors shadow-sm cursor-pointer"
+                                >
+                                    <Layers className="w-4 h-4" strokeWidth={1.75} />
+                                    Nuevo Proyecto Masivo
+                                </Link>
+                            )}
                             <ProyectoFormModal
                                 empresas={empresas}
                                 sucursales={sucursales}
