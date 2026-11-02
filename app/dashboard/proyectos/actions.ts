@@ -16,7 +16,46 @@ async function requireProyectosRole() {
     return user;
 }
 
+const PROYECTO_SELECT = `
+    *,
+    cliente:restaurantes(nombre_restaurante, sigla),
+    coordinador:profiles!coordinador_id(full_name)
+`;
+
+// Devuelve proyectos de primer nivel (normales y campañas); los hijos de cada
+// campaña vienen anidados en `hijos`.
 export async function getProyectos() {
+    const planos = await getProyectosPlanos();
+
+    const hijosPorPadre = new Map<string, typeof planos>();
+    for (const p of planos) {
+        if (!p.proyecto_padre_id) continue;
+        const lista = hijosPorPadre.get(p.proyecto_padre_id) ?? [];
+        lista.push(p);
+        hijosPorPadre.set(p.proyecto_padre_id, lista);
+    }
+
+    const raices = planos.filter(p => !p.proyecto_padre_id);
+
+    // Un técnico solo ve los hijos donde participa: si su campaña no vino en la
+    // consulta, se trae (solo la cabecera) para poder agruparlos.
+    const faltantes = [...hijosPorPadre.keys()].filter(id => !raices.some(r => r.id === id));
+    if (faltantes.length > 0) {
+        const { data, error } = await createAdminClient()
+            .from('proyectos')
+            .select(PROYECTO_SELECT)
+            .in('id', faltantes)
+            .eq('oculto', false);
+        if (error) throw error;
+        raices.push(...(data ?? []));
+    }
+
+    return raices
+        .map(p => ({ ...p, hijos: hijosPorPadre.get(p.id) ?? [] }))
+        .sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? ''));
+}
+
+async function getProyectosPlanos() {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('No autorizado');

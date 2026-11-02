@@ -4,6 +4,7 @@ import { useState, useTransition, useEffect, useMemo, useRef } from 'react';
 import { List, LayoutGrid, FolderKanban, Clock, UserCheck, AlertTriangle, X, Loader2, Search, ChevronDown, Check } from 'lucide-react';
 import { type ProyectoEstado, PROYECTO_ESTADO_CONFIG } from '@/types/proyectos.types';
 import { ProyectosTable } from './ProyectosTable';
+import { CampanaCard } from './CampanaCard';
 import { KanbanBoard } from './KanbanBoard';
 import { ProyectoFormModal, type ProyectoParaEditar } from './ProyectoFormModal';
 import { eliminarProyecto } from '../actions';
@@ -19,9 +20,11 @@ type ProyectoRow = {
     fecha_fin_estimada: string | null;
     cliente: { nombre_restaurante: string; sigla: string } | null;
     coordinador: { full_name: string | null } | null;
+    es_campana_masiva?: boolean;
+    hijos?: ProyectoRow[];
 };
 
-interface Empresa     { id: string; nombre_fantasia: string }
+interface Empresa    { id: string; nombre_fantasia: string }
 interface Sucursal    { id: string; nombre_restaurante: string; sigla: string; cliente_id: string | null }
 interface Coordinador { id: string; full_name: string | null }
 
@@ -177,7 +180,17 @@ function CoordinadorCombobox({
     );
 }
 
-export function ProyectosDashboardView({ proyectos, empresas, sucursales, coordinadores }: Props) {
+export function ProyectosDashboardView({ proyectos: raices, empresas, sucursales, coordinadores }: Props) {
+    // Campañas masivas (carpetas) aparte; el resto de la vista trabaja con proyectos "hoja"
+    // (normales + hijos de campañas), igual que antes.
+    const campanas = useMemo(() => raices.filter(p => p.es_campana_masiva), [raices]);
+    const normales = useMemo(() => raices.filter(p => !p.es_campana_masiva), [raices]);
+    const proyectos = useMemo(
+        () => [...normales, ...campanas.flatMap(c => c.hijos ?? [])],
+        [normales, campanas],
+    );
+    const [campanaAbierta, setCampanaAbierta] = useState<string | null>(null);
+
     const [vista, setVista] = useState<'list' | 'board'>('list');
     const [editingProyecto, setEditingProyecto] = useState<ProyectoParaEditar | null>(null);
     const [proyectoToDelete, setProyectoToDelete] = useState<ProyectoRow | null>(null);
@@ -220,7 +233,15 @@ export function ProyectosDashboardView({ proyectos, empresas, sucursales, coordi
         });
     }, [proyectos, busqueda, estadoFiltro, coordFiltro]);
 
+    const idsFiltrados = useMemo(() => new Set(proyectosFiltrados.map(p => p.id)), [proyectosFiltrados]);
+    const normalesFiltrados = useMemo(() => normales.filter(p => idsFiltrados.has(p.id)), [normales, idsFiltrados]);
+
     const hayFiltros = !!(busqueda.trim() || estadoFiltro || coordFiltro);
+
+    // Con filtros activos solo se muestran campañas con sucursales coincidentes
+    const campanasVisibles = campanas.filter(c =>
+        !hayFiltros || (c.hijos ?? []).some(h => idsFiltrados.has(h.id)),
+    );
     function limpiarFiltros() { setBusqueda(''); setEstadoFiltro(null); setCoordFiltro(null); }
 
     // Persist active view preference in localStorage
@@ -440,21 +461,78 @@ export function ProyectosDashboardView({ proyectos, empresas, sucursales, coordi
                         Limpiar filtros
                     </button>
                 </div>
-            ) : vista === 'list' ? (
-                <ProyectosTable
-                    proyectos={proyectosFiltrados}
-                    empresas={empresas}
-                    sucursales={sucursales}
-                    coordinadores={coordinadores}
-                    onEdit={handleEdit}
-                    onDelete={setProyectoToDelete}
-                />
             ) : (
-                <KanbanBoard
-                    proyectos={proyectosFiltrados}
-                    onEdit={handleEdit}
-                    onDelete={setProyectoToDelete}
-                />
+                <>
+                    {/* ── Campañas masivas (carpetas) ─────────────────────────── */}
+                    {campanasVisibles.length > 0 && (
+                        <div className="space-y-4">
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                {campanasVisibles.map(c => {
+                                    const hijos = c.hijos ?? [];
+                                    return (
+                                        <CampanaCard
+                                            key={c.id}
+                                            nombre={c.nombre}
+                                            descripcion={c.descripcion}
+                                            coordinador={c.coordinador?.full_name ?? null}
+                                            total={hijos.length}
+                                            completados={hijos.filter(h => h.estado === 'completado').length}
+                                            expandida={campanaAbierta === c.id}
+                                            onToggle={() => setCampanaAbierta(campanaAbierta === c.id ? null : c.id)}
+                                        />
+                                    );
+                                })}
+                            </div>
+
+                            {campanasVisibles.filter(c => campanaAbierta === c.id).map(c => {
+                                const hijos = (c.hijos ?? []).filter(h => idsFiltrados.has(h.id));
+                                return (
+                                    <div key={c.id} className="space-y-3 pl-3 sm:pl-5 border-l-2 border-indigo-200">
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest font-sans">
+                                            Sucursales de {c.nombre} ({hijos.length})
+                                        </p>
+                                        {vista === 'list' ? (
+                                            <ProyectosTable
+                                                proyectos={hijos}
+                                                empresas={empresas}
+                                                sucursales={sucursales}
+                                                coordinadores={coordinadores}
+                                                onEdit={handleEdit}
+                                                onDelete={setProyectoToDelete}
+                                            />
+                                        ) : (
+                                            <KanbanBoard
+                                                proyectos={hijos}
+                                                onEdit={handleEdit}
+                                                onDelete={setProyectoToDelete}
+                                            />
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+
+                    {/* ── Proyectos independientes ────────────────────────────── */}
+                    {(normales.length > 0 || campanas.length === 0) && (
+                        vista === 'list' ? (
+                            <ProyectosTable
+                                proyectos={normalesFiltrados}
+                                empresas={empresas}
+                                sucursales={sucursales}
+                                coordinadores={coordinadores}
+                                onEdit={handleEdit}
+                                onDelete={setProyectoToDelete}
+                            />
+                        ) : (
+                            <KanbanBoard
+                                proyectos={normalesFiltrados}
+                                onEdit={handleEdit}
+                                onDelete={setProyectoToDelete}
+                            />
+                        )
+                    )}
+                </>
             )}
 
             {/* Modal de Edición Unificado */}
