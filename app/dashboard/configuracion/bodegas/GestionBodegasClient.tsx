@@ -1,5 +1,6 @@
 'use client';
 
+import { StickyHeader } from '@/app/dashboard/configuracion/components/StickyHeader';
 import React, { useState, useTransition, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -474,9 +475,8 @@ export function GestionBodegasClient({ bodegas }: { bodegas: Bodega[] }) {
     );
 
     return (
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-
-            {/* Header */}
+        <>
+            <StickyHeader maxW="max-w-5xl">
             <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
                 <div>
                     <Link
@@ -505,6 +505,9 @@ export function GestionBodegasClient({ bodegas }: { bodegas: Bodega[] }) {
                     Nueva Bodega
                 </button>
             </div>
+            </StickyHeader>
+
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
 
             {/* Stats bar */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -598,5 +601,6 @@ export function GestionBodegasClient({ bodegas }: { bodegas: Bodega[] }) {
                 <ToggleConfirmModal bodega={toggleBodega} onClose={() => setToggleBodega(null)} />
             )}
         </div>
+        </>
     );
 }

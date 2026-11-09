@@ -1,18 +1,17 @@
 'use client';
 
+import { StickyHeader } from '@/app/dashboard/configuracion/components/StickyHeader';
 import React, { useState, useTransition, useCallback, useMemo } from 'react';
 import {
     Building2, Plus, Pencil, Loader2, AlertTriangle, CheckCircle2,
     X, RefreshCw, Search, ToggleLeft, ToggleRight,
     ShieldCheck, Hash, FileText, Globe, ChevronDown, ChevronUp,
-    ExternalLink,
 } from 'lucide-react';
 import {
     crearClienteAction,
     toggleActivoClienteAction,
 } from './actions';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 
 // ── Tipos ──────────────────────────────────────────────────────
 interface Cliente {
@@ -234,9 +233,8 @@ export function GestionClientesClient({ clientes: initialClientes }: { clientes:
     const inactivos = initialClientes.filter(c => !c.activo).length;
 
     return (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-
-            {/* Header */}
+        <>
+            <StickyHeader maxW="max-w-7xl">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                     <div className="p-3 bg-indigo-100 text-indigo-600 rounded-2xl">
@@ -262,6 +260,9 @@ export function GestionClientesClient({ clientes: initialClientes }: { clientes:
                     </button>
                 </div>
             </div>
+            </StickyHeader>
+
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
 
             {/* KPIs */}
             <div className="grid grid-cols-3 gap-3">
@@ -332,15 +333,12 @@ export function GestionClientesClient({ clientes: initialClientes }: { clientes:
                                 <th className="px-6 py-4 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest">
                                     Estado
                                 </th>
-                                <th className="px-6 py-4 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                    Acciones
-                                </th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50 bg-white">
                             {clientesFiltrados.length === 0 ? (
                                 <tr>
-                                    <td colSpan={6} className="text-center py-16 text-slate-400">
+                                    <td colSpan={5} className="text-center py-16 text-slate-400">
                                         <Building2 className="w-8 h-8 mx-auto mb-3 text-slate-200" />
                                         <p className="text-sm font-medium">
                                             {search || filtroEstado !== 'todos'
@@ -354,7 +352,12 @@ export function GestionClientesClient({ clientes: initialClientes }: { clientes:
                                 const isToggling = togglingId === cliente.id;
 
                                 return (
-                                    <tr key={cliente.id} className="hover:bg-slate-50/70 transition-colors group">
+                                    <tr
+                                        key={cliente.id}
+                                        onClick={() => router.push(`/dashboard/configuracion/clientes/${cliente.id}`)}
+                                        title="Abrir panel del cliente"
+                                        className="hover:bg-slate-50/70 transition-colors group cursor-pointer"
+                                    >
                                         {/* Empresa */}
                                         <td className="px-6 py-4">
                                             <div className="flex items-center gap-3">
@@ -406,7 +409,7 @@ export function GestionClientesClient({ clientes: initialClientes }: { clientes:
                                         {/* Estado (toggle) */}
                                         <td className="px-6 py-4 text-center">
                                             <button
-                                                onClick={() => handleToggleActivo(cliente.id, cliente.activo)}
+                                                onClick={e => { e.stopPropagation(); handleToggleActivo(cliente.id, cliente.activo); }}
                                                 disabled={isToggling}
                                                 title={cliente.activo ? 'Desactivar cliente' : 'Activar cliente'}
                                                 className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-black uppercase tracking-wider transition-all ${
@@ -423,17 +426,6 @@ export function GestionClientesClient({ clientes: initialClientes }: { clientes:
                                                 }
                                                 {cliente.activo ? 'Activo' : 'Inactivo'}
                                             </button>
-                                        </td>
-
-                                        {/* Acciones */}
-                                        <td className="px-6 py-4 text-right">
-                                            <Link
-                                                href={`/dashboard/configuracion/clientes/${cliente.id}`}
-                                                title="Abrir panel del cliente"
-                                                className="inline-flex items-center gap-1.5 p-2 text-slate-400 hover:text-violet-600 hover:bg-violet-50 rounded-lg transition-all"
-                                            >
-                                                <ExternalLink className="w-4 h-4" />
-                                            </Link>
                                         </td>
                                     </tr>
                                 );
@@ -460,5 +452,6 @@ export function GestionClientesClient({ clientes: initialClientes }: { clientes:
 
             {modalCrear && <ModalCrear onClose={() => setModalCrear(false)} onSuccess={handleRefresh} />}
         </div>
+        </>
     );
 }

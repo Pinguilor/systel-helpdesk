@@ -15,12 +15,14 @@
     "@supabase/supabase-js": "^2.98.0",
     "@types/file-saver": "^2.0.7",
     "browser-image-compression": "^2.0.2",
+    "clsx": "^2.1.1",
     "cobe": "^2.0.1",
     "date-fns": "^4.1.0",
     "dotenv": "^17.4.2",
     "exceljs": "^4.4.0",
     "file-saver": "^2.0.5",
     "framer-motion": "^12.40.0",
+    "jszip": "^3.10.2",
     "lodash.debounce": "^4.0.8",
     "lucide-react": "^0.577.0",
     "next": "16.1.6",
@@ -31,6 +33,7 @@
     "react-signature-canvas": "^1.1.0-alpha.2",
     "recharts": "^3.7.0",
     "resend": "^6.9.4",
+    "tailwind-merge": "^3.7.0",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {

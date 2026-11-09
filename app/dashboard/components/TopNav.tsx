@@ -631,7 +631,7 @@ export default function TopNav({ userFullName, userRole }: TopNavProps) {
                                             onClick={() => setIsProfileOpen(false)}
                                             className="hidden md:flex w-full text-left px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 items-center gap-2"
                                         >
-                                            <Settings className="w-4 h-4" strokeWidth={1.75} /> Configuración
+                                            <Settings className="w-4 h-4" strokeWidth={1.75} /> Panel de control
                                         </Link>
                                     )}
                                     {userRole === 'tecnico' && (

@@ -1,80 +1,16 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import {
-    Settings, Users, Backpack,
-    ChevronRight, ShieldCheck, Eye,
-    Layers, Wrench, Building2, Warehouse, MessageSquareHeart
-} from 'lucide-react';
+import { ChevronRight, ShieldCheck, Eye, Users, Building2, Warehouse, Backpack, type LucideIcon } from 'lucide-react';
+import { StickyHeader } from './components/StickyHeader';
+import { agruparModulos, modulosPorRol, accesosRapidosPorRol } from './modulos';
 
 export const metadata = {
-    title: 'Configuración — Systel Loop',
+    title: 'Panel de control — Systel Loop',
     description: 'Panel de administración y configuración del sistema Loop.',
 };
 
-// ── Definición de módulos ──────────────────────────────────────
-const MODULOS = [
-    {
-        href:        '/dashboard/configuracion/usuarios',
-        icon:        Users,
-        title:       'Gestión de Personal',
-        description: 'Crea, edita y elimina usuarios del sistema. Administra roles y permisos de acceso para cada miembro del equipo.',
-        badge:       'Admin Only',
-        badgeColor:  'bg-indigo-100 text-indigo-700 border-indigo-200',
-        gradient:    'from-indigo-500 to-indigo-700',
-        iconBg:      'bg-indigo-100 text-indigo-600',
-        rolesAllow:  ['admin'],
-        items:       ['Crear cuentas', 'Asignar roles', 'Eliminar usuarios'],
-    },
-    {
-        href:        '/dashboard/admin/mochilas',
-        icon:        Backpack,
-        title:       'Auditoría de Mochilas',
-        description: 'Supervisa el inventario que cada técnico lleva consigo en campo. Visualiza stock asignado y movimientos.',
-        badge:       'Solo lectura',
-        badgeColor:  'bg-amber-100 text-amber-700 border-amber-200',
-        gradient:    'from-amber-500 to-orange-600',
-        iconBg:      'bg-amber-100 text-amber-600',
-        rolesAllow:  ['admin', 'coordinador'],
-        items:       ['Inventario por técnico', 'Historial de movimientos', 'Stock en campo'],
-    },
-    {
-        href:        '/dashboard/configuracion/clientes',
-        icon:        Building2,
-        title:       'Gestión de Clientes',
-        description: 'Registra y administra las empresas clientes de Systel. Cada cliente tiene su catálogo, usuarios y tickets aislados.',
-        badge:       'Multi-Tenant',
-        badgeColor:  'bg-violet-100 text-violet-700 border-violet-200',
-        gradient:    'from-violet-500 to-indigo-600',
-        iconBg:      'bg-violet-100 text-violet-600',
-        rolesAllow:  ['admin'],
-        items:       ['Gestión de empresas', 'Activar / Desactivar', 'Catálogo por cliente'],
-    },
-    {
-        href:        '/dashboard/configuracion/bodegas',
-        icon:        Warehouse,
-        title:       'Gestión de Bodegas',
-        description: 'Administra las locaciones físicas o lógicas de almacenamiento. Crea nuevas bodegas, edita su estado y gestiona sus categorías.',
-        badge:       'INVENTARIO',
-        badgeColor:  'bg-emerald-100 text-emerald-700 border-emerald-200',
-        gradient:    'from-emerald-500 to-teal-600',
-        iconBg:      'bg-emerald-100 text-emerald-600',
-        rolesAllow:  ['admin'],
-        items:       ['Control de locaciones', 'Activar / Desactivar', 'Categorías de equipos'],
-    },
-    {
-        href:        '/dashboard/configuracion/encuesta',
-        icon:        MessageSquareHeart,
-        title:       'Encuesta 1.100 Tickets',
-        description: 'Revisa las respuestas de satisfacción de la encuesta de celebración enviada a usuarios finales el 03/08/2026.',
-        badge:       'Celebración',
-        badgeColor:  'bg-yellow-100 text-yellow-700 border-yellow-200',
-        gradient:    'from-yellow-400 via-pink-400 to-purple-500',
-        iconBg:      'bg-yellow-100 text-yellow-600',
-        rolesAllow:  ['admin'],
-        items:       ['Respuestas en tiempo real', 'Satisfacción promedio', 'Filtro por usuario/empresa'],
-    },
-];
+type Kpi = { label: string; value: number | null; hint: string; icon: LucideIcon; tone: string };
 
 export default async function ConfiguracionPage() {
     const supabase = await createClient();
@@ -83,118 +19,133 @@ export default async function ConfiguracionPage() {
 
     const { data: profile } = await supabase
         .from('profiles')
-        .select('rol, full_name')
+        .select('rol')
         .eq('id', user.id)
         .maybeSingle();
 
     const rol = profile?.rol?.toLowerCase() ?? '';
-
-    // Solo admin y coordinador acceden a configuración
     if (rol !== 'admin' && rol !== 'coordinador') redirect('/dashboard');
 
-    const modulosVisibles = MODULOS.filter(m => m.rolesAllow.includes(rol));
+    const esAdmin = rol === 'admin';
+    const modulos = modulosPorRol(rol);
+    const accesos = accesosRapidosPorRol(rol);
+
+    // Indicadores (solo los que el rol puede ver)
+    const [usuarios, clientes, bodegas, mochilas] = await Promise.all([
+        esAdmin ? supabase.from('profiles').select('id', { count: 'exact', head: true }).is('cliente_id', null) : null,
+        esAdmin ? supabase.from('clientes').select('id', { count: 'exact', head: true }).eq('activo', true) : null,
+        esAdmin ? supabase.from('bodegas').select('id', { count: 'exact', head: true }).eq('tipo', 'INTERNA').eq('activo', true) : null,
+        supabase.from('bodegas').select('id', { count: 'exact', head: true }).eq('tipo', 'MOCHILA'),
+    ]);
+
+    const kpis: Kpi[] = [
+        ...(esAdmin ? [
+            { label: 'Personal interno', value: usuarios?.count ?? null, hint: 'cuentas Systel', icon: Users, tone: 'bg-indigo-100 text-indigo-600' },
+            { label: 'Clientes activos', value: clientes?.count ?? null, hint: 'empresas', icon: Building2, tone: 'bg-violet-100 text-violet-600' },
+            { label: 'Bodegas activas', value: bodegas?.count ?? null, hint: 'locaciones internas', icon: Warehouse, tone: 'bg-emerald-100 text-emerald-600' },
+        ] : []),
+        { label: 'Mochilas', value: mochilas?.count ?? null, hint: 'técnicos con stock en campo', icon: Backpack, tone: 'bg-amber-100 text-amber-600' },
+    ];
 
     return (
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-
-            {/* Header section */}
-            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+        <>
+            <StickyHeader maxW="max-w-6xl">
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
                 <div>
-                    <div className="flex items-center gap-3 mb-2">
-                        <div className="p-3 bg-slate-100 text-slate-600 rounded-2xl">
-                            <Settings className="w-7 h-7" />
-                        </div>
-                        <div>
-                            <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Systel Loop</p>
-                            <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">Configuración</h1>
-                        </div>
-                    </div>
-                    <p className="text-sm font-medium text-slate-500 ml-[60px]">
-                        Panel de administración del sistema · Rol: <span className="font-black text-slate-700 capitalize">{rol}</span>
+                    <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Panel de control</p>
+                    <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">Resumen del sistema</h1>
+                    <p className="text-sm font-medium text-slate-500 mt-1">
+                        Rol: <span className="font-black text-slate-700 capitalize">{rol}</span>
                     </p>
                 </div>
-
-                {rol === 'admin' && (
-                    <div className="flex items-center gap-2 px-4 py-2 bg-indigo-50 border border-indigo-200 rounded-xl self-start sm:self-auto">
+                {esAdmin ? (
+                    <div className="flex items-center gap-2 px-4 py-2 bg-indigo-50 border border-indigo-200 rounded-xl self-start">
                         <ShieldCheck className="w-4 h-4 text-indigo-600 shrink-0" />
                         <span className="text-xs font-black text-indigo-700">Acceso completo de administrador</span>
                     </div>
-                )}
-                {rol === 'coordinador' && (
-                    <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl self-start sm:self-auto">
+                ) : (
+                    <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl self-start">
                         <Eye className="w-4 h-4 text-slate-500 shrink-0" />
                         <span className="text-xs font-black text-slate-600">Acceso de supervisión</span>
                     </div>
                 )}
             </div>
+            </StickyHeader>
 
-            {/* Divisor */}
-            <div className="h-px bg-gradient-to-r from-slate-200 via-indigo-100 to-transparent" />
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
 
-            {/* Grid de módulos */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                {modulosVisibles.map((modulo) => {
-                    const Icon = modulo.icon;
+            {/* Indicadores */}
+            <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+                {kpis.map(k => {
+                    const Icon = k.icon;
                     return (
-                        <Link
-                            key={modulo.href}
-                            href={modulo.href}
-                            className="group relative bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-lg hover:border-slate-300 transition-all duration-300 overflow-hidden flex flex-col"
-                        >
-                            {/* Gradient bar top */}
-                            <div className={`h-1.5 w-full bg-gradient-to-r ${modulo.gradient}`} />
-
-                            <div className="p-6 flex flex-col flex-1">
-                                {/* Icon + Badge */}
-                                <div className="flex items-start justify-between mb-4">
-                                    <div className={`p-3 rounded-2xl ${modulo.iconBg} group-hover:scale-110 transition-transform duration-300`}>
-                                        <Icon className="w-6 h-6" />
-                                    </div>
-                                    <span className={`text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-lg border ${modulo.badgeColor}`}>
-                                        {modulo.badge}
-                                    </span>
-                                </div>
-
-                                {/* Title + Description */}
-                                <h2 className="text-base font-black text-slate-900 mb-2 group-hover:text-indigo-700 transition-colors">
-                                    {modulo.title}
-                                </h2>
-                                <p className="text-sm font-medium text-slate-500 leading-relaxed mb-4 flex-1">
-                                    {modulo.description}
-                                </p>
-
-                                {/* Feature list */}
-                                <ul className="space-y-1.5 mb-5">
-                                    {modulo.items.map(item => (
-                                        <li key={item} className="flex items-center gap-2 text-xs font-medium text-slate-500">
-                                            <div className="w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0" />
-                                            {item}
-                                        </li>
-                                    ))}
-                                </ul>
-
-                                {/* CTA */}
-                                <div className="flex items-center gap-1.5 text-xs font-black text-indigo-600 group-hover:gap-2.5 transition-all">
-                                    <span>Acceder al módulo</span>
-                                    <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
-                                </div>
+                        <div key={k.label} className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+                            <div className="flex items-center justify-between mb-2">
+                                <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">{k.label}</p>
+                                <span className={`p-1.5 rounded-lg ${k.tone}`}><Icon className="w-4 h-4" /></span>
                             </div>
-                        </Link>
+                            <p className="text-3xl font-black text-slate-900 leading-none">{k.value ?? '—'}</p>
+                            <p className="text-xs font-medium text-slate-400 mt-1.5">{k.hint}</p>
+                        </div>
                     );
                 })}
             </div>
 
-            {/* Footer info */}
-            <div className="flex flex-wrap items-center gap-x-8 gap-y-3 pt-4 border-t border-slate-100">
-                <div className="flex items-center gap-2 text-xs font-medium text-slate-400">
-                    <Layers className="w-3.5 h-3.5" />
-                    <span>{modulosVisibles.length} módulo{modulosVisibles.length !== 1 ? 's' : ''} disponible{modulosVisibles.length !== 1 ? 's' : ''}</span>
+            {/* Acceso rápido al resto del sistema */}
+            {accesos.length > 0 && (
+                <div>
+                    <h2 className="text-xs font-black uppercase tracking-widest text-slate-500 mb-3">Acceso rápido</h2>
+                    <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
+                        {accesos.map(a => {
+                            const Icon = a.icon;
+                            return (
+                                <Link
+                                    key={a.href}
+                                    href={a.href}
+                                    className="group flex flex-col items-start gap-3 bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:shadow-md hover:border-indigo-200 transition-all"
+                                >
+                                    <span className="p-2.5 rounded-xl bg-slate-100 text-slate-600 group-hover:bg-indigo-100 group-hover:text-indigo-600 transition-colors">
+                                        <Icon className="w-5 h-5" />
+                                    </span>
+                                    <span className="text-sm font-black text-slate-800">{a.title}</span>
+                                </Link>
+                            );
+                        })}
+                    </div>
                 </div>
-                <div className="flex items-center gap-2 text-xs font-medium text-slate-400">
-                    <Wrench className="w-3.5 h-3.5" />
-                    <span>Systel Loop · Sistema de Gestión Integral</span>
+            )}
+
+            {/* Módulos por grupo */}
+            <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+                <div className="px-5 py-3 border-b border-slate-100 bg-slate-50/60">
+                    <h2 className="text-xs font-black uppercase tracking-widest text-slate-500">Módulos disponibles</h2>
                 </div>
+                {agruparModulos(modulos).map(([grupo, items]) => (
+                    <div key={grupo}>
+                        <p className="px-5 pt-3 pb-1 text-[10px] font-black uppercase tracking-widest text-slate-400">{grupo}</p>
+                        {items.map(m => {
+                            const Icon = m.icon;
+                            return (
+                                <Link
+                                    key={m.href}
+                                    href={m.href}
+                                    className="group flex items-center gap-3 px-5 py-3 border-t border-slate-100 first:border-t-0 hover:bg-slate-50 transition-colors"
+                                >
+                                    <span className="p-2 rounded-lg bg-slate-100 text-slate-600 group-hover:bg-indigo-100 group-hover:text-indigo-600 transition-colors">
+                                        <Icon className="w-4 h-4" />
+                                    </span>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-black text-slate-900">{m.title}</p>
+                                        <p className="text-xs font-medium text-slate-500 truncate">{m.description}</p>
+                                    </div>
+                                    <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-indigo-500 group-hover:translate-x-0.5 transition-all" />
+                                </Link>
+                            );
+                        })}
+                    </div>
+                ))}
             </div>
         </div>
+        </>
     );
 }

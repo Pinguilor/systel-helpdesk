@@ -1,5 +1,6 @@
 'use client';
 
+import { StickyHeader } from '@/app/dashboard/configuracion/components/StickyHeader';
 import { useState, useTransition } from 'react';
 import {
     Backpack, User, Package, Hash, Layers, ChevronDown, ChevronRight,
@@ -343,9 +344,8 @@ export function AuditoriaMochilasClient({ mochilas }: { mochilas: MochilaTecnico
     const totalUnidades = mochilas.reduce((s, m) => s + m.total_unidades, 0);
 
     return (
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-
-            {/* Header */}
+        <>
+            <StickyHeader maxW="max-w-6xl">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                     <div className="p-3 bg-amber-100 text-amber-600 rounded-2xl">
@@ -360,6 +360,9 @@ export function AuditoriaMochilasClient({ mochilas }: { mochilas: MochilaTecnico
                     <RefreshCw className="w-4 h-4" />
                 </button>
             </div>
+            </StickyHeader>
+
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
 
             {/* KPIs */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -475,5 +478,6 @@ export function AuditoriaMochilasClient({ mochilas }: { mochilas: MochilaTecnico
                 />
             )}
         </div>
+        </>
     );
 }
