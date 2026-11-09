@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition, useEffect, useMemo, useRef } from 'react';
-import { List, LayoutGrid, FolderKanban, Clock, UserCheck, AlertTriangle, X, Loader2, Search, ChevronDown, Check } from 'lucide-react';
+import { List, LayoutGrid, FolderKanban, Layers, Clock, UserCheck, AlertTriangle, X, Loader2, Search, ChevronDown, Check } from 'lucide-react';
 import { type ProyectoEstado, PROYECTO_ESTADO_CONFIG } from '@/types/proyectos.types';
 import { ProyectosTable } from './ProyectosTable';
 import { CampanaCard } from './CampanaCard';
@@ -24,6 +24,8 @@ type ProyectoRow = {
     hijos?: ProyectoRow[];
 };
 
+type Tab = 'individuales' | 'rollouts';
+
 interface Empresa    { id: string; nombre_fantasia: string }
 interface Sucursal    { id: string; nombre_restaurante: string; sigla: string; cliente_id: string | null }
 interface Coordinador { id: string; full_name: string | null }
@@ -33,6 +35,10 @@ interface Props {
     empresas:      Empresa[];
     sucursales:    Sucursal[];
     coordinadores: Coordinador[];
+    /** Admin/coordinador: ve el enlace al panel de cada Rollout. */
+    puedeGestionarMasivos?: boolean;
+    /** Pestaña con la que abre la página (?tab=rollouts). */
+    tabInicial?: Tab;
 }
 
 // ── Modal de confirmación de eliminación unificado ─────────────────────────
@@ -180,16 +186,20 @@ function CoordinadorCombobox({
     );
 }
 
-export function ProyectosDashboardView({ proyectos: raices, empresas, sucursales, coordinadores }: Props) {
-    // Campañas masivas (carpetas) aparte; el resto de la vista trabaja con proyectos "hoja"
-    // (normales + hijos de campañas), igual que antes.
-    const campanas = useMemo(() => raices.filter(p => p.es_campana_masiva), [raices]);
-    const normales = useMemo(() => raices.filter(p => !p.es_campana_masiva), [raices]);
-    const proyectos = useMemo(
-        () => [...normales, ...campanas.flatMap(c => c.hijos ?? [])],
-        [normales, campanas],
-    );
-    const [campanaAbierta, setCampanaAbierta] = useState<string | null>(null);
+export function ProyectosDashboardView({ proyectos: raices, empresas, sucursales, coordinadores, puedeGestionarMasivos, tabInicial = 'individuales' }: Props) {
+    // Los Rollouts (proyecto padre con sus locales) viven en su propia pestaña;
+    // la pestaña "Proyectos" trabaja solo con los proyectos individuales.
+    const rollouts = useMemo(() => raices.filter(p => p.es_campana_masiva), [raices]);
+    const proyectos = useMemo(() => raices.filter(p => !p.es_campana_masiva), [raices]);
+    const [rolloutAbierto, setRolloutAbierto] = useState<string | null>(null);
+    const [busquedaRollout, setBusquedaRollout] = useState('');
+    const [tab, setTab] = useState<Tab>(tabInicial);
+
+    function cambiarTab(t: Tab) {
+        setTab(t);
+        // Mantiene la pestaña en la URL (recargar o volver desde un panel conserva el lugar)
+        window.history.replaceState(null, '', t === 'rollouts' ? '?tab=rollouts' : window.location.pathname);
+    }
 
     const [vista, setVista] = useState<'list' | 'board'>('list');
     const [editingProyecto, setEditingProyecto] = useState<ProyectoParaEditar | null>(null);
@@ -233,15 +243,7 @@ export function ProyectosDashboardView({ proyectos: raices, empresas, sucursales
         });
     }, [proyectos, busqueda, estadoFiltro, coordFiltro]);
 
-    const idsFiltrados = useMemo(() => new Set(proyectosFiltrados.map(p => p.id)), [proyectosFiltrados]);
-    const normalesFiltrados = useMemo(() => normales.filter(p => idsFiltrados.has(p.id)), [normales, idsFiltrados]);
-
     const hayFiltros = !!(busqueda.trim() || estadoFiltro || coordFiltro);
-
-    // Con filtros activos solo se muestran campañas con sucursales coincidentes
-    const campanasVisibles = campanas.filter(c =>
-        !hayFiltros || (c.hijos ?? []).some(h => idsFiltrados.has(h.id)),
-    );
     function limpiarFiltros() { setBusqueda(''); setEstadoFiltro(null); setCoordFiltro(null); }
 
     // Persist active view preference in localStorage
@@ -289,8 +291,47 @@ export function ProyectosDashboardView({ proyectos: raices, empresas, sucursales
         completados: proyectos.filter(p => p.estado === 'completado').length,
     };
 
+    const rolloutsFiltrados = useMemo(() => {
+        const q = norm(busquedaRollout.trim());
+        if (!q) return rollouts;
+        return rollouts.filter(r =>
+            [r.nombre, r.descripcion, r.coordinador?.full_name].some(c => norm(c).includes(q)) ||
+            (r.hijos ?? []).some(h => norm(h.cliente?.sigla).includes(q) || norm(h.cliente?.nombre_restaurante).includes(q)),
+        );
+    }, [rollouts, busquedaRollout]);
+
+    const TABS: { id: Tab; label: string; count: number; icono: typeof FolderKanban }[] = [
+        { id: 'individuales', label: 'Proyectos', count: proyectos.length, icono: FolderKanban },
+        { id: 'rollouts',     label: 'Rollouts',  count: rollouts.length,  icono: Layers },
+    ];
+
     return (
         <div className="space-y-6">
+            {/* ── Pestañas: proyectos individuales / Rollouts ───────────────── */}
+            <div className="flex border-b border-slate-200 gap-1 font-sans">
+                {TABS.map(t => (
+                    <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => cambiarTab(t.id)}
+                        className={`flex items-center gap-2 px-4 py-2.5 -mb-px border-b-2 text-sm font-black transition-colors cursor-pointer ${
+                            tab === t.id
+                                ? 'border-slate-900 text-slate-900'
+                                : 'border-transparent text-slate-400 hover:text-slate-600'
+                        }`}
+                    >
+                        <t.icono className="w-4 h-4" strokeWidth={1.75} />
+                        {t.label}
+                        <span className={`px-1.5 py-px rounded-full text-[10px] font-black ${
+                            tab === t.id ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500'
+                        }`}>
+                            {t.count}
+                        </span>
+                    </button>
+                ))}
+            </div>
+
+            {tab === 'individuales' && (<>
             {/* ── Switcher de Vista y Métricas ──────────────────────────────── */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 {/* Métricas rápidas (Glassmorphic Redesign) */}
@@ -461,78 +502,99 @@ export function ProyectosDashboardView({ proyectos: raices, empresas, sucursales
                         Limpiar filtros
                     </button>
                 </div>
+            ) : vista === 'list' ? (
+                <ProyectosTable
+                    proyectos={proyectosFiltrados}
+                    empresas={empresas}
+                    sucursales={sucursales}
+                    coordinadores={coordinadores}
+                    onEdit={handleEdit}
+                    onDelete={setProyectoToDelete}
+                />
             ) : (
-                <>
-                    {/* ── Campañas masivas (carpetas) ─────────────────────────── */}
-                    {campanasVisibles.length > 0 && (
-                        <div className="space-y-4">
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                                {campanasVisibles.map(c => {
-                                    const hijos = c.hijos ?? [];
-                                    return (
-                                        <CampanaCard
-                                            key={c.id}
-                                            nombre={c.nombre}
-                                            descripcion={c.descripcion}
-                                            coordinador={c.coordinador?.full_name ?? null}
-                                            total={hijos.length}
-                                            completados={hijos.filter(h => h.estado === 'completado').length}
-                                            expandida={campanaAbierta === c.id}
-                                            onToggle={() => setCampanaAbierta(campanaAbierta === c.id ? null : c.id)}
-                                        />
-                                    );
-                                })}
+                <KanbanBoard
+                    proyectos={proyectosFiltrados}
+                    onEdit={handleEdit}
+                    onDelete={setProyectoToDelete}
+                />
+            )}
+            </>)}
+
+            {/* ── Rollouts ──────────────────────────────────────────────────── */}
+            {tab === 'rollouts' && (
+                <div className="space-y-5 font-sans">
+                    {rollouts.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-16 text-center border border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
+                            <Layers className="w-8 h-8 text-slate-300 mb-3" strokeWidth={1.5} />
+                            <p className="text-slate-500 font-bold text-sm">Aún no hay Rollouts</p>
+                            {puedeGestionarMasivos && (
+                                <p className="text-xs text-slate-400 mt-0.5">Crea uno con «Nuevo Rollout» para gestionar muchos locales a la vez.</p>
+                            )}
+                        </div>
+                    ) : (
+                        <>
+                            <div className="relative max-w-md">
+                                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                                <input
+                                    type="text"
+                                    value={busquedaRollout}
+                                    onChange={e => setBusquedaRollout(e.target.value)}
+                                    placeholder="Buscar Rollout, sigla o local..."
+                                    className="w-full pl-10 pr-9 py-2 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-slate-900/10 placeholder:text-slate-400 bg-white"
+                                />
+                                {busquedaRollout && (
+                                    <button type="button" onClick={() => setBusquedaRollout('')}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 cursor-pointer">
+                                        <X className="w-3.5 h-3.5" />
+                                    </button>
+                                )}
                             </div>
 
-                            {campanasVisibles.filter(c => campanaAbierta === c.id).map(c => {
-                                const hijos = (c.hijos ?? []).filter(h => idsFiltrados.has(h.id));
+                            {rolloutsFiltrados.length === 0 ? (
+                                <p className="text-center text-sm font-bold text-slate-400 py-10">Ningún Rollout coincide con la búsqueda</p>
+                            ) : (
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                    {rolloutsFiltrados.map(c => {
+                                        const hijos = c.hijos ?? [];
+                                        return (
+                                            <CampanaCard
+                                                key={c.id}
+                                                nombre={c.nombre}
+                                                descripcion={c.descripcion}
+                                                coordinador={c.coordinador?.full_name ?? null}
+                                                total={hijos.length}
+                                                completados={hijos.filter(h => h.estado === 'completado').length}
+                                                expandida={rolloutAbierto === c.id}
+                                                onToggle={() => setRolloutAbierto(rolloutAbierto === c.id ? null : c.id)}
+                                                hrefPanel={puedeGestionarMasivos ? `/dashboard/proyectos/masivos/${c.id}` : undefined}
+                                            />
+                                        );
+                                    })}
+                                </div>
+                            )}
+
+                            {/* Sin acceso al panel (técnicos): sus locales se despliegan aquí */}
+                            {rolloutsFiltrados.filter(c => rolloutAbierto === c.id).map(c => {
+                                const hijos = c.hijos ?? [];
                                 return (
                                     <div key={c.id} className="space-y-3 pl-3 sm:pl-5 border-l-2 border-indigo-200">
-                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest font-sans">
-                                            Sucursales de {c.nombre} ({hijos.length})
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                            Locales de {c.nombre} ({hijos.length})
                                         </p>
-                                        {vista === 'list' ? (
-                                            <ProyectosTable
-                                                proyectos={hijos}
-                                                empresas={empresas}
-                                                sucursales={sucursales}
-                                                coordinadores={coordinadores}
-                                                onEdit={handleEdit}
-                                                onDelete={setProyectoToDelete}
-                                            />
-                                        ) : (
-                                            <KanbanBoard
-                                                proyectos={hijos}
-                                                onEdit={handleEdit}
-                                                onDelete={setProyectoToDelete}
-                                            />
-                                        )}
+                                        <ProyectosTable
+                                            proyectos={hijos}
+                                            empresas={empresas}
+                                            sucursales={sucursales}
+                                            coordinadores={coordinadores}
+                                            onEdit={handleEdit}
+                                            onDelete={setProyectoToDelete}
+                                        />
                                     </div>
                                 );
                             })}
-                        </div>
+                        </>
                     )}
-
-                    {/* ── Proyectos independientes ────────────────────────────── */}
-                    {(normales.length > 0 || campanas.length === 0) && (
-                        vista === 'list' ? (
-                            <ProyectosTable
-                                proyectos={normalesFiltrados}
-                                empresas={empresas}
-                                sucursales={sucursales}
-                                coordinadores={coordinadores}
-                                onEdit={handleEdit}
-                                onDelete={setProyectoToDelete}
-                            />
-                        ) : (
-                            <KanbanBoard
-                                proyectos={normalesFiltrados}
-                                onEdit={handleEdit}
-                                onDelete={setProyectoToDelete}
-                            />
-                        )
-                    )}
-                </>
+                </div>
             )}
 
             {/* Modal de Edición Unificado */}

@@ -10,7 +10,10 @@ import Link from 'next/link';
 import { FolderKanban, Layers } from 'lucide-react';
 import { createClient } from '@/lib/supabase/server';
 
-export default async function ProyectosPage() {
+export default async function ProyectosPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
+    const { tab } = await searchParams;
+    const tabInicial = tab === 'rollouts' ? 'rollouts' : 'individuales';
+
     const [proyectos, { empresas, sucursales, coordinadores }, plantillas, recetasBOM, catalogo] = await Promise.all([
         getProyectos(),
         getFormData(),
@@ -60,7 +63,7 @@ export default async function ProyectosPage() {
                                     className="flex items-center gap-2 px-4 py-2 bg-white text-slate-800 text-sm font-bold rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors shadow-sm cursor-pointer"
                                 >
                                     <Layers className="w-4 h-4" strokeWidth={1.75} />
-                                    Nuevo Proyecto Masivo
+                                    Nuevo Rollout
                                 </Link>
                             )}
                             <ProyectoFormModal
@@ -78,6 +81,8 @@ export default async function ProyectosPage() {
                     empresas={empresas}
                     sucursales={sucursales}
                     coordinadores={coordinadores}
+                    puedeGestionarMasivos={currentUserRol === 'ADMIN' || currentUserRol === 'COORDINADOR'}
+                    tabInicial={tabInicial}
                 />
             </div>
         </div>

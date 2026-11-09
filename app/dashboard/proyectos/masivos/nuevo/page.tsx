@@ -20,11 +20,11 @@ export default async function NuevoProyectoMasivoPage() {
         <div className="relative min-h-screen bg-slate-50/30">
             <div className="max-w-4xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8 space-y-6">
                 <Link
-                    href="/dashboard/proyectos"
+                    href="/dashboard/proyectos?tab=rollouts"
                     className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-400 hover:text-slate-700 transition-colors font-sans"
                 >
                     <ArrowLeft className="w-3.5 h-3.5" />
-                    Volver a Proyectos
+                    Volver a Rollouts
                 </Link>
 
                 <div className="flex items-center gap-3">
@@ -32,8 +32,8 @@ export default async function NuevoProyectoMasivoPage() {
                         <Layers className="w-5 h-5 text-white" strokeWidth={1.75} />
                     </div>
                     <div className="font-sans">
-                        <h1 className="text-xl font-black text-slate-900">Nuevo Proyecto Masivo</h1>
-                        <p className="text-xs text-slate-400 mt-0.5">Crea un proyecto padre y un proyecto por cada local de una sola vez</p>
+                        <h1 className="text-xl font-black text-slate-900">Nuevo Rollout</h1>
+                        <p className="text-xs text-slate-400 mt-0.5">Crea un Rollout: un proyecto por cada local, agrupados bajo un mismo proyecto</p>
                     </div>
                 </div>
 
